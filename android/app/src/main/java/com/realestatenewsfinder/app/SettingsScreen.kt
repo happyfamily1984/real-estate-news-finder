@@ -317,6 +317,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     var showLog by remember { mutableStateOf(false) }
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = { showLog = !showLog }) { Text(if (showLog) "전환 기록 닫기" else "전환 기록 보기") }
+                    Text("앱 버전 ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (showLog) Text(ThreadsAuto.log.ifBlank { "아직 기록이 없어요." }, fontSize = 11.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
@@ -388,6 +389,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     Spacer(Modifier.height(12.dp))
                     OutlinedPillField(feedUrl, { feedUrl = it; prefs.feedUrl = it }, "", 50.dp, 13.sp)
                 }
+                Text("부동산뉴스파인더 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp))
                 Spacer(Modifier.height(20.dp))
             }
         }
