@@ -6,6 +6,7 @@
 //   disabled : true면 수집 안 함
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
 import { fetchKorea } from './korea.js';
+import { fetchNaverCafe } from './navercafe.js';
 
 export const SOURCES = [
   // ---- 언론 ----
@@ -25,6 +26,11 @@ export const SOURCES = [
   { id: 'sedaily', name: '서울경제', board: '부동산', kind: 'news', color: '#7a3e9d', url: 'https://www.sedaily.com/v/NewsMain/GB', feed: 'https://www.sedaily.com/rss/realestate', fetch: fetchFeed },
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
+  // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
+  { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },
+  // 서울시 주택 분야 새소식 (보도자료·공고), 경기도 보도자료
+  { id: 'seoul', name: '서울시', board: '주택 새소식', kind: 'gov', color: '#0b6db7', url: 'https://news.seoul.go.kr/citybuild/', feed: 'https://news.seoul.go.kr/citybuild/feed', fetch: fetchFeed, maxAgeH: 96 },
+  { id: 'gg', name: '경기도', board: '보도자료', kind: 'gov', color: '#0f766e', url: 'https://gnews.gg.go.kr/briefing/brief_gongbo.do', feed: 'https://gnews.gg.go.kr/rss/gnewsRssBodo.do', fetch: fetchFeed, filter: true, maxAgeH: 96 },
   // 정책브리핑 목록 페이지 (RSS는 2026-07-01 종료). 모든 부처 보도자료 중 부동산 관련 제목만, 부처 이름이 매체명으로 들어감
   { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 6, filter: true, fetch: fetchKorea },
   { id: 'korea-policy', name: '정책뉴스', board: '정책브리핑', kind: 'gov', color: '#2b7a9e', url: 'https://www.korea.kr/news/policyNewsList.do', pages: 2, filter: true, fetch: fetchKorea },
@@ -49,34 +55,10 @@ export const SOURCES = [
       comments: 'td.gall_tit .reply_num',
     },
   },
-  {
-    // 클라우드 접근을 막음(HTTP 403) → 앱이 휴대폰에서 직접 받아옴 (android PpomppuLocal.kt)
-    id: 'ppomppu', name: '뽐뿌', board: '부동산포럼', kind: 'community', color: '#d9534f', disabled: true,
-    url: 'https://www.ppomppu.co.kr/zboard/zboard.php?id=house',
-    keepParams: ['id', 'no'],
-    selectors: {
-      row: 'tr.baseList',
-      exclude: '.baseNotice',
-      title: 'a.baseList-title',
-      views: 'td.baseList-views',
-      likes: 'td.baseList-rec',
-      comments: '.baseList-c',
-    },
-  },
-  {
-    // 게시판 주소 확인 필요(HTTP 404) → 꺼둠
-    id: 'clien', name: '클리앙', board: '내집마련당', kind: 'community', color: '#3d5a80', disabled: true,
-    url: 'https://www.clien.net/service/board/cm_house',
-    selectors: {
-      row: 'div.list_item.symph_row',
-      exclude: '.blocked, .notice',
-      title: 'span.subject_fixed',
-      link: 'a.list_subject',
-      views: '.list_hit .hit',
-      comments: '.list_reply .rSymph05',
-      likes: '.list_symph span',
-    },
-  },
+  // 뽐뿌 부동산포럼: 목록 페이지는 클라우드를 막지만(403) RSS는 열림. 조회수는 없어서 최신순
+  { id: 'ppomppu', name: '뽐뿌', board: '부동산포럼', kind: 'community', color: '#d9534f', url: 'https://m.ppomppu.co.kr/new/bbs_list.php?id=house', feed: 'https://www.ppomppu.co.kr/rss.php?id=house', fetch: fetchFeed, keepOnly: ['id', 'no'] },
+  // 네이버 카페 부동산스터디 인기글
+  { id: 'navercafe', name: '부동산스터디', board: '네이버 카페 인기글', kind: 'community', color: '#03c75a', url: 'https://cafe.naver.com/jaegebal', cafeId: 12730407, cafeUrl: 'jaegebal', fetch: fetchNaverCafe, filter: true },
 ];
 
 export const ACTIVE_SOURCES = SOURCES.filter((s) => !s.disabled);

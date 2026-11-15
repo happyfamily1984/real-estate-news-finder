@@ -9,10 +9,11 @@ function stripHtml(s) {
   return cheerio.load(`<div>${s}</div>`)('div').text().replace(/\s+/g, ' ').trim();
 }
 
-function cleanUrl(link, keep = []) {
-  const u = new URL(link);
+/** keepOnly를 주면 그 파라미터만 남김 (검색어·순번 같은 꼬리표 때문에 같은 글이 다른 주소가 되지 않게) */
+function cleanUrl(link, keepOnly) {
+  const u = new URL(link.replace(/&#38;|&amp;/g, '&'));
   const kept = new URLSearchParams();
-  for (const [k, v] of u.searchParams) if (!/^utm_|^fbclid$|^ref$|^from$|^oc$/i.test(k) || keep.includes(k)) kept.set(k, v);
+  for (const [k, v] of u.searchParams) if (keepOnly ? keepOnly.includes(k) : !/^utm_|^fbclid$|^ref$|^from$|^oc$/i.test(k)) kept.set(k, v);
   u.search = kept.toString();
   u.hash = '';
   return u.toString();
@@ -46,14 +47,16 @@ export function parseFeed(xml, source, now = Date.now()) {
     const dateText = it.children('pubDate, published, updated, dc\\:date, date').first().text().trim();
     const t = dateText ? Date.parse(dateText) : NaN;
     const publishedAt = Number.isFinite(t) && t <= now + 3600_000 ? Math.min(t, now) : null;
-    if (publishedAt && now - publishedAt > MAX_AGE_MS) return;
+    if (publishedAt && now - publishedAt > (source.maxAgeH ? source.maxAgeH * 3600_000 : MAX_AGE_MS)) return;
 
     let url;
-    try { url = cleanUrl(link); } catch { return; }
+    try { url = cleanUrl(link, source.keepOnly); } catch { return; }
     if (seen.has(url)) return;
     seen.add(url);
 
-    const desc = source.outletFromTitle ? '' : stripHtml(it.children('description, summary').first().text());
+    // 경기도 피드는 요약이 <contents>에 들어 있음. 설명이 너무 짧으면(부서명 등) 본문 앞부분을 씀
+    let desc = source.outletFromTitle ? '' : stripHtml(it.children('description, summary').first().text());
+    if (!source.outletFromTitle && desc.length < 20) desc = stripHtml(it.children('contents, content\\:encoded').first().text()) || desc;
     const post = { id: `${source.id}:${url}`, source: source.id, title, url, views: null, comments: null, likes: null, publishedAt };
     if (outlet) post.outlet = outlet;
     if (desc && desc !== title) post.summary = desc.slice(0, 200);
@@ -70,7 +73,7 @@ export async function fetchFeed(source) {
   for (const url of [].concat(source.feed)) {
     for (const userAgent of [undefined, READER_UA]) {
       try {
-        const xml = await fetchHtml(url, userAgent ? { userAgent } : {});
+        const xml = await fetchHtml(url, { ...(userAgent ? { userAgent } : {}), cookies: !!source.cookies });
         if (!/<(rss|feed|rdf:RDF)[\s>]/i.test(xml.slice(0, 3000))) throw new Error('피드 형식이 아님');
         return parseFeed(xml, source);
       } catch (e) {

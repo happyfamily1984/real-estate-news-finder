@@ -51,7 +51,8 @@ function scoreCommunity(group) {
         w += WEIGHT[m];
       }
     }
-    const base = w > 0 ? sum / w : 1 - idx / Math.max(group.length - 1, 1);
+    // 숫자 정보가 없으면(뽐뿌 RSS) 목록 순서만 반영하고 점수 상한을 낮춤
+    const base = w > 0 ? sum / w : (1 - idx / Math.max(group.length - 1, 1)) * 0.7;
     const surge = Math.min(p.viewsPerMin ?? 0, 200) / 200;
     p.score = Math.round(Math.min(100, base * 85 + surge * 15));
     p.related = 0;

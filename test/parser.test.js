@@ -5,6 +5,7 @@ import { parseCount, parseList } from '../src/parser.js';
 import { parseFeed } from '../src/feeds.js';
 import { sourceById } from '../src/sources.js';
 import { parseKoreaList } from '../src/korea.js';
+import { parseCafePopular } from '../src/navercafe.js';
 import { tagsOf, isRelevant, keywordWeight, threadPick } from '../src/topics.js';
 
 const fixture = (n) => fs.readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8');
@@ -25,16 +26,29 @@ test('디시 부동산갤: 공지 제외, 숫자 추출, 주소 정규화', () =
   assert.equal(posts[0].views, 45678);
 });
 
-test('뽐뿌 부동산포럼: 공지 제외, 페이지 파라미터 제거', () => {
-  const posts = parseList(fixture('ppomppu.html'), sourceById.ppomppu);
-  assert.equal(sourceById.ppomppu.disabled, true);
+test('뽐뿌 부동산포럼 RSS: 주소에서 글 번호만 남김', () => {
+  const rss = `<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>부동산포럼</title>
+  <item><title>재건축 조합 질문</title><link>http://www.ppomppu.co.kr/zboard/view.php?id=house&amp;no=260240&amp;page=3</link><description>살고 있는 아파트가 재건축 조합설립된 아파트인데 질문이 있습니다...</description><pubDate>__NOW__</pubDate></item></channel></rss>`.replaceAll('__NOW__', new Date(now - 3600_000).toUTCString());
+  const posts = parseFeed(rss, sourceById.ppomppu, now);
   assert.equal(posts.length, 1);
-  assert.deepEqual(posts[0], {
-    id: 'ppomppu:https://www.ppomppu.co.kr/zboard/view.php?id=house&no=12345',
-    source: 'ppomppu', title: '전세 재계약 5% 인상 질문',
-    url: 'https://www.ppomppu.co.kr/zboard/view.php?id=house&no=12345',
-    views: 1204, comments: 7, likes: 3,
-  });
+  assert.equal(posts[0].url, 'http://www.ppomppu.co.kr/zboard/view.php?id=house&no=260240');
+  assert.equal(posts[0].summary, '살고 있는 아파트가 재건축 조합설립된 아파트인데 질문이 있습니다...');
+});
+
+test('국토부 RSS 주소 정리 · 네이버 카페 인기글은 부동산 글만', () => {
+  const rss = `<rss version="2.0"><channel><item><title><![CDATA[수도권 주택 공급 점검회의]]></title><link>https://www.molit.go.kr/USR/NEWS/m_71/dtl.jsp?id=95092598&#38;src=text&#38;kw=000004</link><description><![CDATA[<iframe src="x"></iframe>]]></description><pubDate>__NOW__</pubDate></item></channel></rss>`.replaceAll('__NOW__', new Date(now - 3600_000).toUTCString());
+  const m = parseFeed(rss, sourceById.molit, now);
+  assert.equal(m[0].url, 'https://www.molit.go.kr/USR/NEWS/m_71/dtl.jsp?id=95092598');
+  assert.equal(m[0].summary, undefined);
+
+  const json = { message: { result: { articleList: [
+    { articleId: 1, subject: '개포래미안포레스트 실거주 후기', readCount: 1125, commentCount: 6, upCount: 20, writeDateTimestamp: now - 3600_000 },
+    { articleId: 2, subject: '오늘 점심 뭐 먹지', readCount: 900, commentCount: 3, upCount: 1, writeDateTimestamp: now - 3600_000 },
+    { articleId: 3, subject: '분당 아파트 입지분석', readCount: 998, commentCount: 11, upCount: 9, writeDateTimestamp: now - 100 * 3600_000 },
+  ] } } };
+  const c = parseCafePopular(json, sourceById.navercafe, now);
+  assert.deepEqual(c.map((p) => p.url), ['https://cafe.naver.com/jaegebal/1']);
+  assert.deepEqual([c[0].views, c[0].comments, c[0].likes], [1125, 6, 20]);
 });
 
 test('구글 뉴스: 매체명 분리, 포토·오래된 기사 제외', () => {

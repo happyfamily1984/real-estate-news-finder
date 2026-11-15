@@ -7,6 +7,7 @@ import { Crawler } from './crawler.js';
 import { ACTIVE_SOURCES as SOURCES } from './sources.js';
 import { TOPICS } from './topics.js';
 import { demoFetchItems } from './demo.js';
+import { runStats } from './stats.js';
 
 const outDir = path.resolve(process.env.OUT_DIR || 'out');
 const demo = process.env.DEMO === '1';
@@ -32,6 +33,8 @@ for (const s of SOURCES) {
   const st = crawler.status[s.id];
   console.log(`${st.ok ? '✓' : '✗'} ${s.name}(${s.id}): ${st.ok ? `${st.count}개` : st.error}`);
 }
+if (!demo) await runStats(outDir); // 통계 탭용 stats.json (KB부동산)
+
 const okCount = Object.values(crawler.status).filter((s) => s.ok).length;
 console.log(`수집 완료 ${okCount}/${SOURCES.length}, 피드 글 ${feed.posts.length}개 → ${outDir}`);
 if (okCount === 0 && !demo) process.exit(1);
