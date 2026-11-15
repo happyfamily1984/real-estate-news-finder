@@ -1,0 +1,50 @@
+# 클라우드 수집기: 15분마다 부동산 뉴스·정부 발표·커뮤니티 글을 수집해 `data` 브랜치에 posts.json으로 올립니다.
+# 앱은 https://raw.githubusercontent.com/<owner>/<repo>/data/posts.json 을 받아갑니다.
+name: crawl
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 이전 상태 불러오기 (새 글 판별·급상승 계산용)
+        run: |
+          mkdir -p out
+          if git fetch --depth=1 origin data 2>/dev/null; then
+            git show FETCH_HEAD:state.json > out/state.json 2>/dev/null || rm -f out/state.json
+          fi
+
+      - name: 수집
+        run: OUT_DIR=out node src/crawl-once.js
+
+      - name: data 브랜치에 게시
+        run: |
+          cd out
+          git init -q -b data
+          git config user.name "real-estate-news-finder-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posts.json state.json
+          git commit -qm "data $(date -u +%FT%TZ)"
+          # 히스토리가 쌓이지 않도록 커밋 1개짜리 브랜치로 덮어씀
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

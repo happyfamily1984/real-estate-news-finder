@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 집 -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M54,30L31,49.5h6.5V72a3,3 0,0 0,3 3h27a3,3 0,0 0,3 -3V49.5H77z" />
+    <!-- 신문 줄 -->
+    <path android:strokeColor="#1D4ED8" android:strokeWidth="3.6" android:strokeLineCap="round"
+        android:pathData="M45,56h18M45,63h18M45,70h11" />
+</vector>

@@ -1,0 +1,63 @@
+package com.realestatenewsfinder.app
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class FeedTest {
+    private val json = """{"version":1,"updatedAt":1700000000000,"topics":["정책","청약·분양"],
+      "sources":[{"id":"gnews","name":"구글뉴스","board":"부동산 종합","color":"#4285f4","kind":"news","status":{"ok":true,"count":2}},
+                 {"id":"molit","name":"국토교통부","board":"보도자료","color":"#1f6f43","kind":"gov","status":{"ok":false,"count":0,"error":"HTTP 403"}},
+                 {"id":"dcinside","name":"디시 부동산갤","board":"개념글","color":"#3b4890","kind":"community","status":{"ok":true,"count":1}}],
+      "posts":[{"id":"gnews:1","source":"gnews","title":"과천 무순위 청약에 10만명","url":"https://news.google.com/rss/articles/A","views":null,"comments":null,"likes":null,
+                "score":88,"pick":74,"viewsPerMin":0,"firstSeenAt":1700000000000,"rank":1,"publishedAt":1699990000000,"tags":["청약·분양"],"related":3,"outlet":"한국경제"},
+               {"id":"dcinside:1","source":"dcinside","title":"전세 재계약 후기","url":"https://gall.dcinside.com/board/view/?id=immovables&no=5","views":1200,"comments":8,"likes":30,
+                "score":70,"pick":40,"viewsPerMin":3,"firstSeenAt":1700000000000,"rank":1}]}"""
+
+    @Test
+    fun parsesCrawlerFeed() {
+        val feed = Feed.parse(json)
+        assertEquals(listOf("정책", "청약·분양"), feed.topics)
+        assertEquals(3, feed.sources.size)
+        assertEquals("gov", feed.sourceById["molit"]!!.kind)
+        assertFalse(feed.sourceById["molit"]!!.ok)
+        assertEquals("HTTP 403", feed.sourceById["molit"]!!.error)
+        val p = feed.posts[0]
+        assertEquals("한국경제", p.outlet)
+        assertEquals(listOf("청약·분양"), p.tags)
+        assertEquals(3, p.related)
+        assertEquals(74, p.pick)
+        assertEquals(1699990000000, p.time)
+        assertNull(p.views)
+        // 발행 시각이 없으면 처음 수집한 시각
+        assertEquals(1700000000000, feed.posts[1].time)
+        assertEquals(1, feed.only("community").posts.size)
+        assertEquals(listOf("gnews"), feed.only("news").sources.map { it.id })
+    }
+
+    @Test
+    fun postJsonRoundTrip() {
+        val feed = Feed.parse(json)
+        feed.posts.forEach { assertEquals(it, Post.fromJson(it.toJson())) }
+    }
+
+    @Test
+    fun alertRule() {
+        val p = Feed.parse(json).posts[0]
+        assertTrue(matchesAlert(p, 80, emptyList(), emptySet()))
+        assertFalse(matchesAlert(p, 95, emptyList(), emptySet()))
+        assertTrue(matchesAlert(p, 95, listOf("청약"), emptySet()))
+        assertFalse(matchesAlert(p, 80, listOf("청약"), setOf("gnews")))
+    }
+
+    @Test
+    fun mobileUrls() {
+        fun post(source: String, url: String) = Post("x", source, "t", url)
+        assertEquals("https://m.dcinside.com/board/immovables/5", mobileUrl(post("dcinside", "https://gall.dcinside.com/board/view/?id=immovables&no=5")))
+        assertEquals("https://m.ppomppu.co.kr/new/bbs_view.php?id=house&no=77", mobileUrl(post("ppomppu", "https://www.ppomppu.co.kr/zboard/view.php?id=house&no=77")))
+        assertEquals("https://m.clien.net/service/board/cm_house/1", mobileUrl(post("clien", "https://www.clien.net/service/board/cm_house/1")))
+        assertEquals("https://www.hankyung.com/a/1", mobileUrl(post("hankyung", "https://www.hankyung.com/a/1")))
+    }
+}

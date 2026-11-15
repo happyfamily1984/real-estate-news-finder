@@ -1,0 +1,85 @@
+package com.realestatenewsfinder.app
+
+import android.content.Context
+
+class Prefs(ctx: Context) {
+    private val sp = ctx.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    var notifyEnabled: Boolean
+        get() = sp.getBoolean("notify", false)
+        set(v) = sp.edit().putBoolean("notify", v).apply()
+
+    var minScore: Int
+        get() = sp.getInt("minScore", 80)
+        set(v) = sp.edit().putInt("minScore", v).apply()
+
+    var keywordsText: String
+        get() = sp.getString("keywords", "") ?: ""
+        set(v) = sp.edit().putString("keywords", v).apply()
+
+    val keywords: List<String>
+        get() = keywordsText.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** 알림을 받지 않을 소스 (기본: 전부 받음) */
+    var mutedSources: Set<String>
+        get() = sp.getStringSet("muted", emptySet()) ?: emptySet()
+        set(v) = sp.edit().putStringSet("muted", v).apply()
+
+    var intervalMin: Int
+        get() = sp.getInt("interval", 30)
+        set(v) = sp.edit().putInt("interval", v).apply()
+
+    /** 요약용 Gemini API 키 (사용자가 구글 AI Studio에서 무료 발급) */
+    var geminiKey: String
+        get() = sp.getString("geminiKey", "") ?: ""
+        set(v) { sp.edit().putString("geminiKey", v.trim()).putString("geminiModel", "").putString("geminiModels", "").putLong("geminiCooldown", 0).apply() }
+
+    /** 시도할 Gemini 모델 후보 (쉼표 구분) */
+    var geminiModels: String
+        get() = sp.getString("geminiModels", "") ?: ""
+        set(v) = sp.edit().putString("geminiModels", v).apply()
+
+    var geminiModel: String
+        get() = sp.getString("geminiModel", "") ?: ""
+        set(v) = sp.edit().putString("geminiModel", v).apply()
+
+    var geminiCooldownUntil: Long
+        get() = sp.getLong("geminiCooldown", 0)
+        set(v) = sp.edit().putLong("geminiCooldown", v).apply()
+
+    /** 요약용 Groq API 키 (무료 발급). Gemini 다음 순서로 사용 */
+    var groqKey: String
+        get() = sp.getString("groqKey", "") ?: ""
+        set(v) { sp.edit().putString("groqKey", v.trim()).putString("groqModel", "").putLong("groqCooldown", 0).apply() }
+
+    var groqModel: String
+        get() = sp.getString("groqModel", "") ?: ""
+        set(v) = sp.edit().putString("groqModel", v).apply()
+
+    var groqCooldownUntil: Long
+        get() = sp.getLong("groqCooldown", 0)
+        set(v) = sp.edit().putLong("groqCooldown", v).apply()
+
+    /** 스레드 글 말투: true = 반말, false = 존댓말(해요체) */
+    var casualTone: Boolean
+        get() = sp.getBoolean("casualTone", false)
+        set(v) = sp.edit().putBoolean("casualTone", v).apply()
+
+    /** 카드 이미지 아래에 넣을 내 계정 이름 (예: @myhome). 비어 있으면 표시 안 함 */
+    var cardHandle: String
+        get() = sp.getString("cardHandle", "") ?: ""
+        set(v) = sp.edit().putString("cardHandle", v.trim()).apply()
+
+    var onboardingDone: Boolean
+        get() = sp.getBoolean("onboardingDone", false)
+        set(v) = sp.edit().putBoolean("onboardingDone", v).apply()
+
+    var feedUrl: String
+        get() = sp.getString("feedUrl", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.FEED_URL
+        set(v) = sp.edit().putString("feedUrl", v.trim()).apply()
+
+    /** 이미 확인한 글 id. null이면 아직 기준점을 잡지 않은 상태 */
+    var seenIds: Set<String>?
+        get() = sp.getStringSet("seen", null)
+        set(v) = sp.edit().putStringSet("seen", v).apply()
+}
