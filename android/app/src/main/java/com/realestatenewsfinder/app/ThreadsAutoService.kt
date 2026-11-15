@@ -21,6 +21,10 @@ object ThreadsAuto {
         val target: String, val files: List<java.io.File>? = null, val text: String? = null,
         val startedAt: Long = System.currentTimeMillis(), var lastActionAt: Long = 0, var steps: Int = 0,
         var loginClicked: Boolean = false, var sawOther: Boolean = false, var misses: Int = 0,
+        /** 마지막으로 무언가를 실제로 누른 시각 (0이면 아직 없음) */
+        var lastOkAt: Long = 0,
+        /** 로그아웃 확인을 누른 뒤 계정 목록 화면이 뜨기를 기다리는 중 */
+        var loggingOut: Boolean = false,
     )
 
     @Volatile var pending: Job? = null
@@ -77,6 +81,26 @@ object ThreadsAuto {
  */
 class ThreadsAutoService : AccessibilityService() {
     private val composeLabels = listOf("새 스레드", "새로운 스레드", "만들기", "작성", "New thread", "Create", "Compose")
+
+    // 화면이 멈춰 있으면 접근성 알림이 오지 않아 다음 동작으로 못 넘어감 → 계정 전환 중에는 0.25초마다 직접 화면을 확인
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            ThreadsAuto.switching?.let { runCatching { runSwitch(it) } }
+            handler.postDelayed(this, 250)
+        }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        handler.removeCallbacks(tick)
+        handler.postDelayed(tick, 250)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(tick)
+        super.onDestroy()
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         ThreadsAuto.switching?.let { runSwitch(it); return }
@@ -222,7 +246,16 @@ class ThreadsAutoService : AccessibilityService() {
     private fun runSwitch(job: ThreadsAuto.Switch) {
         val now = System.currentTimeMillis()
         if (now - job.startedAt > 60_000 || job.steps > 30) { endSwitch("계정 전환을 끝내지 못했어요. 스레드에서 직접 전환해 주세요."); return }
-        if (now - job.lastActionAt < 900) return
+        // 멈춤 규칙: 앞 동작 뒤 1초 안에 다음 동작이 이어지지 않으면 중단.
+        // 예외(화면이 뜨기를 기다리는 시간): 스레드가 처음 열릴 때 8초, 로그아웃·로그인 처리 중 10초
+        val waiting = job.loggingOut || job.loginClicked
+        val idle = now - (if (job.lastOkAt > 0) job.lastOkAt else job.startedAt)
+        val limit = when { job.lastOkAt == 0L -> 8000L; waiting -> 10_000L; else -> 1000L }
+        if (idle > limit) {
+            endSwitch(if (job.lastOkAt == 0L) "스레드 화면을 찾지 못해 멈췄어요." else "다음 동작이 1초 안에 이어지지 않아 멈췄어요. 설정의 '전환 기록'을 확인해 주세요.")
+            return
+        }
+        if (now - job.lastActionAt < 450) return
         val root = rootInActiveWindow ?: return
         if (root.packageName != ThreadsKit.THREADS_PACKAGE) return
         val nodes = all(root)
@@ -231,16 +264,16 @@ class ThreadsAutoService : AccessibilityService() {
         val screen = ThreadsAuto.screenOf(labels, hasEditable = nodes.any { it.isEditable })
         fun acted(what: String, ok: Boolean) {
             ThreadsAuto.note("$screen: $what → ${if (ok) "누름" else "실패"}")
-            if (ok) job.steps++
+            if (ok) { job.steps++; job.lastOkAt = now }
             job.lastActionAt = now // 실패해도 잠깐 쉬었다가 다시 봄 (기록이 넘치지 않게)
             if (!ok) job.misses++
-            if (job.misses > 12) endSwitch("스레드 화면에서 누를 곳을 찾지 못했어요. 설정의 '전환 기록'을 보내주세요.")
         }
 
         when (screen) {
             ThreadsAuto.Screen.LOGIN -> {
                 val account = nodes.firstOrNull { ThreadsAuto.isAccount(label(it), job.target) }
                 if (account == null) { endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요."); return }
+                job.loggingOut = false
                 val ok = press(account)
                 if (ok) job.loginClicked = true
                 acted("계정 ${job.target}", ok)
@@ -249,7 +282,9 @@ class ThreadsAutoService : AccessibilityService() {
                 // 확인 창의 '로그아웃' 버튼: 뒤에 깔린 설정 목록의 '로그아웃' 줄(화면 맨 아래)이 아니라 더 위에 있는 것
                 val buttons = nodes.filter { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
                 ThreadsAuto.note("  로그아웃 버튼: " + buttons.joinToString(" | ") { "y${bounds(it).centerY() * 100 / win.height().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
-                acted("로그아웃 확인", press(buttons.minByOrNull { bounds(it).centerY() }))
+                val ok = press(buttons.minByOrNull { bounds(it).centerY() })
+                if (ok) job.loggingOut = true
+                acted("로그아웃 확인", ok)
             }
             ThreadsAuto.Screen.COMPOSE -> acted("글쓰기 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK))
             ThreadsAuto.Screen.PROFILE -> {
@@ -274,7 +309,7 @@ class ThreadsAutoService : AccessibilityService() {
             ThreadsAuto.Screen.OTHER -> {
                 if (job.loginClicked) {
                     // 로그인 뒤 홈 화면이 뜸: 맨 위에 내 계정 이름이 보이거나 6초가 지나면 끝
-                    if (now - job.lastActionAt > 2500 && (nodes.any { ThreadsAuto.isAccount(label(it), job.target) } || now - job.lastActionAt > 6000)) switchDone(job, "@${job.target} 계정으로 전환했어요.")
+                    if (now - job.lastOkAt > 2000 && (nodes.any { ThreadsAuto.isAccount(label(it), job.target) } || now - job.lastOkAt > 6000)) switchDone(job, "@${job.target} 계정으로 전환했어요.")
                     return
                 }
                 // 홈 화면 맨 위 '새로운 소식을 전하세요' 바로 위에 지금 계정 이름이 나옴 → 이미 맞는 계정이면 프로필까지 갈 필요 없음
