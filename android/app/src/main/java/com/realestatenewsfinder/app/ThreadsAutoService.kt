@@ -20,7 +20,7 @@ object ThreadsAuto {
     class Switch(
         val target: String, val files: List<java.io.File>? = null, val text: String? = null,
         val startedAt: Long = System.currentTimeMillis(), var lastActionAt: Long = 0, var steps: Int = 0,
-        var loginClicked: Boolean = false, var sawOther: Boolean = false,
+        var loginClicked: Boolean = false, var sawOther: Boolean = false, var misses: Int = 0,
     )
 
     @Volatile var pending: Job? = null
@@ -32,6 +32,7 @@ object ThreadsAuto {
     fun startSwitch(ctx: Context, target: String, files: List<java.io.File>? = null, text: String? = null): Boolean {
         val launch = ctx.packageManager.getLaunchIntentForPackage(ThreadsKit.THREADS_PACKAGE) ?: return false
         switching = Switch(target.trim().removePrefix("@"), files, text)
+        log = ""
         ctx.startActivity(launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         return true
     }
@@ -43,7 +44,7 @@ object ThreadsAuto {
     }
 
     /** 화면에 보이는 글자들로 지금 어느 화면인지 판단 (테스트할 수 있게 분리) */
-    enum class Screen { LOGIN, LOGOUT_DIALOG, PROFILE, SETTINGS, OTHER }
+    enum class Screen { LOGIN, LOGOUT_DIALOG, PROFILE, SETTINGS, COMPOSE, OTHER }
 
     fun screenOf(labels: List<String>): Screen {
         fun has(vararg keys: String) = labels.any { l -> keys.any { l.contains(it, ignoreCase = true) } }
@@ -52,11 +53,17 @@ object ThreadsAuto {
             has("로그아웃하시겠어요", "Log out of your account", "Log out of") -> Screen.LOGOUT_DIALOG
             has("프로필 편집", "Edit profile") -> Screen.PROFILE
             has("Meta 계정", "Meta account") || (has("개인정보 보호", "Privacy") && has("콘텐츠 기본 설정", "Content preferences")) -> Screen.SETTINGS
+            // 글쓰기·답글 화면에 잘못 들어온 경우 (뒤로 나가야 함)
+            has("답글 달기", "새 스레드", "답글 또 달기", "스레드에 추가", "New thread", "Reply to") -> Screen.COMPOSE
             else -> Screen.OTHER
         }
     }
 
     fun isAccount(label: String, target: String) = label.trim().removePrefix("@").equals(target, ignoreCase = true)
+
+    /** 마지막 계정 전환 과정 기록 (안 될 때 원인을 찾기 위한 것. 설정 화면에서 볼 수 있음) */
+    @Volatile var log: String = ""
+    fun note(line: String) { log = (log + line + "\n").takeLast(2500) }
 }
 
 /**
@@ -132,12 +139,14 @@ class ThreadsAutoService : AccessibilityService() {
 
     private fun endSwitch(message: String) {
         ThreadsAuto.switching = null
+        ThreadsAuto.note("끝: $message")
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     /** 계정이 맞는 것을 확인했거나 전환을 마쳤을 때: 보낼 글이 있으면 이어서 스레드로 보냄 */
     private fun switchDone(job: ThreadsAuto.Switch, message: String) {
         ThreadsAuto.switching = null
+        ThreadsAuto.note("끝: $message")
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         val files = job.files; val text = job.text
         if (files != null && text != null) {
@@ -147,58 +156,95 @@ class ThreadsAutoService : AccessibilityService() {
     }
 
     /**
+     * 하단 탭의 프로필 버튼 찾기. 피드 글의 버튼(답글·공유 등)을 잘못 누르지 않도록
+     * 화면 맨 아래 탭 줄(아래 6.5%) 안에서, 오른쪽 끝(가로 75% 이후)에 있는 작은 것만 후보로 삼음.
+     */
+    private fun profileTab(nodes: List<AccessibilityNodeInfo>, win: android.graphics.Rect): AccessibilityNodeInfo? {
+        val zone = nodes.filter { n ->
+            val b = bounds(n)
+            b.width() > 0 && b.height() > 0 && b.centerY() > win.top + win.height() * 0.935f && b.height() < win.height() * 0.12f && b.width() < win.width() * 0.4f
+        }
+        ThreadsAuto.note("  하단 후보: " + zone.take(12).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
+        return zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
+            ?: zone.filter { bounds(it).centerX() > win.left + win.width() * 0.75f }.maxByOrNull { bounds(it).centerX() }
+    }
+
+    /** node 또는 그 위의 누를 수 있는 요소를 누름. 단, 너무 큰 요소(화면 일부가 아니라 목록 전체 등)는 누르지 않음 */
+    private fun clickSmall(n: AccessibilityNodeInfo?, win: android.graphics.Rect): Boolean {
+        var t = n
+        while (t != null && !t.isClickable) t = t.parent
+        if (t == null) return false
+        val b = bounds(t)
+        if (b.height() > win.height() * 0.2f || b.width() > win.width() * 0.6f) return false
+        return t.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /**
      * 한 번에 한 동작씩: 프로필 탭 → (다른 계정이면) 설정 → 맨 아래 로그아웃 → 확인 → 계정 목록에서 target 선택.
      * 프로필에서 target 계정이면 아무것도 누르지 않고 끝냄.
      */
     private fun runSwitch(job: ThreadsAuto.Switch) {
         val now = System.currentTimeMillis()
         if (now - job.startedAt > 60_000 || job.steps > 30) { endSwitch("계정 전환을 끝내지 못했어요. 스레드에서 직접 전환해 주세요."); return }
-        if (now - job.lastActionAt < 700) return
+        if (now - job.lastActionAt < 900) return
         val root = rootInActiveWindow ?: return
         if (root.packageName != ThreadsKit.THREADS_PACKAGE) return
         val nodes = all(root)
         val labels = nodes.map { label(it) }.filter { it.isNotEmpty() }
-        val dm = resources.displayMetrics
-        fun acted(ok: Boolean) { if (ok) { job.lastActionAt = now; job.steps++ } }
+        val win = bounds(root).takeIf { it.height() > 0 } ?: resources.displayMetrics.let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
+        val screen = ThreadsAuto.screenOf(labels)
+        fun acted(what: String, ok: Boolean) {
+            ThreadsAuto.note("$screen: $what → ${if (ok) "누름" else "실패"}")
+            if (ok) job.steps++
+            job.lastActionAt = now // 실패해도 잠깐 쉬었다가 다시 봄 (기록이 넘치지 않게)
+            if (!ok) job.misses++
+            if (job.misses > 12) endSwitch("스레드 화면에서 누를 곳을 찾지 못했어요. 설정의 '전환 기록'을 보내주세요.")
+        }
 
-        when (ThreadsAuto.screenOf(labels)) {
+        when (screen) {
             ThreadsAuto.Screen.LOGIN -> {
                 val account = nodes.firstOrNull { ThreadsAuto.isAccount(label(it), job.target) }
                 if (account == null) { endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요."); return }
                 val ok = click(account)
                 if (ok) job.loginClicked = true
-                acted(ok)
+                acted("계정 ${job.target}", ok)
             }
-            ThreadsAuto.Screen.LOGOUT_DIALOG -> acted(click(nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }))
+            ThreadsAuto.Screen.LOGOUT_DIALOG -> acted("로그아웃 확인", click(nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }))
+            ThreadsAuto.Screen.COMPOSE -> acted("글쓰기 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK))
             ThreadsAuto.Screen.PROFILE -> {
                 if (job.loginClicked) { switchDone(job, "@${job.target} 계정으로 전환했어요."); return }
                 if (nodes.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
                 job.sawOther = true
-                // 오른쪽 위 설정(톱니바퀴): 이름으로 찾고, 없으면 맨 위 줄에서 가장 오른쪽 버튼
-                val gear = nodes.firstOrNull { n -> n.contentDescription?.toString().orEmpty().let { it.contains("설정") || it.contains("Settings", true) } && bounds(n).top < dm.heightPixels * 0.2 }
-                    ?: nodes.filter { it.isClickable && bounds(it).let { b -> b.bottom < dm.heightPixels * 0.14 && b.width() < dm.widthPixels * 0.25 && b.width() > 0 } }.maxByOrNull { bounds(it).right }
-                acted(click(gear))
+                // 오른쪽 위 설정(톱니바퀴): 이름으로 찾고, 없으면 맨 위 줄에서 가장 오른쪽에 있는 작은 버튼
+                val top = nodes.filter { n -> val b = bounds(n); b.width() > 0 && b.centerY() < win.top + win.height() * 0.09f && b.width() < win.width() * 0.25f }
+                ThreadsAuto.note("  상단 후보: " + top.take(10).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
+                val gear = top.firstOrNull { n -> label(n).let { it.contains("설정") || it.contains("Settings", true) } }
+                    ?: top.filter { bounds(it).centerX() > win.left + win.width() * 0.8f }.maxByOrNull { bounds(it).centerX() }
+                acted("설정 버튼", clickSmall(gear, win))
             }
             ThreadsAuto.Screen.SETTINGS -> {
                 if (!job.sawOther) { // 프로필을 거치지 않고 설정 화면이 열려 있던 경우: 계정을 확인할 수 없으니 뒤로
-                    acted(performGlobalAction(GLOBAL_ACTION_BACK)); return
+                    acted("설정 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK)); return
                 }
                 val logout = nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
-                if (logout != null && bounds(logout).bottom <= dm.heightPixels) acted(click(logout))
-                else acted(nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
+                if (logout != null && bounds(logout).bottom <= win.bottom) acted("로그아웃", click(logout))
+                else acted("아래로 넘기기", nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
             }
             ThreadsAuto.Screen.OTHER -> {
-                if (job.loginClicked && job.steps > 0 && now - job.lastActionAt > 2500) {
-                    // 로그인 뒤 홈 화면이 뜸 → 프로필에서 한 번 더 확인하지 않고 끝냄 (맨 위에 내 계정 이름이 보이면 확실)
-                    if (nodes.any { ThreadsAuto.isAccount(label(it), job.target) } || now - job.lastActionAt > 6000) { switchDone(job, "@${job.target} 계정으로 전환했어요."); return }
+                if (job.loginClicked) {
+                    // 로그인 뒤 홈 화면이 뜸: 맨 위에 내 계정 이름이 보이거나 6초가 지나면 끝
+                    if (now - job.lastActionAt > 2500 && (nodes.any { ThreadsAuto.isAccount(label(it), job.target) } || now - job.lastActionAt > 6000)) switchDone(job, "@${job.target} 계정으로 전환했어요.")
                     return
                 }
-                if (job.loginClicked) return
-                // 아래 탭의 프로필(맨 오른쪽): 이름으로 찾고, 없으면 맨 아래 줄에서 가장 오른쪽 버튼
-                val bottom = nodes.filter { it.isClickable && bounds(it).top > dm.heightPixels * 0.86 }
-                val tab = bottom.firstOrNull { n -> n.contentDescription?.toString().orEmpty().let { it.contains("프로필") || it.contains("Profile", true) } }
-                    ?: bottom.maxByOrNull { bounds(it).right }
-                acted(click(tab))
+                // 홈 화면 맨 위 '새로운 소식을 전하세요' 바로 위에 지금 계정 이름이 나옴 → 이미 맞는 계정이면 프로필까지 갈 필요 없음
+                val prompt = nodes.firstOrNull { label(it).let { l -> l.contains("새로운 소식을 전하세요") || l.contains("What's new", true) } }
+                if (prompt != null) {
+                    val pb = bounds(prompt)
+                    val mine = nodes.filter { n -> val b = bounds(n); label(n).isNotEmpty() && n !== prompt && b.bottom <= pb.top + 8 && pb.top - b.bottom < win.height() * 0.05f && Math.abs(b.left - pb.left) < win.width() * 0.08f }
+                    ThreadsAuto.note("  홈 계정: " + mine.joinToString(",") { label(it).take(20) })
+                    if (mine.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
+                }
+                acted("프로필 탭", clickSmall(profileTab(nodes, win), win))
             }
         }
     }
