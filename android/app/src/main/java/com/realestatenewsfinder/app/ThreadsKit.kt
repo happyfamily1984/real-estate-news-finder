@@ -176,14 +176,29 @@ object ThreadsKit {
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
             putExtra(Intent.EXTRA_TEXT, text)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (ctx !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) // 접근성 서비스에서 보낼 때
         }
         if (isThreadsInstalled(ctx)) {
             intent.setPackage(THREADS_PACKAGE)
             runCatching { ctx.startActivity(intent) }.onFailure {
-                ctx.startActivity(Intent.createChooser(intent.setPackage(null), "공유할 앱 선택"))
+                ctx.startActivity(Intent.createChooser(intent.setPackage(null), "공유할 앱 선택").apply { if (ctx !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
             }
         } else {
-            ctx.startActivity(Intent.createChooser(intent, "공유할 앱 선택"))
+            ctx.startActivity(Intent.createChooser(intent, "공유할 앱 선택").apply { if (ctx !is android.app.Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
         }
+    }
+
+    /**
+     * '스레드에 올리기' 공통 동작. 접근성 자동 입력이 켜져 있고 '올리기 전 계정 확인'이 켜져 있으면
+     * 먼저 스레드 계정을 확인·전환한 뒤 보냄. 아니면 바로 보냄.
+     */
+    fun upload(ctx: Context, files: List<File>, text: String) {
+        val prefs = Prefs(ctx)
+        val account = prefs.threadsAccount
+        if (ThreadsAuto.isEnabled(ctx) && prefs.autoSwitchAccount && account.isNotBlank() && isThreadsInstalled(ctx) &&
+            ThreadsAuto.startSwitch(ctx, account, files, text)
+        ) return
+        if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(text)
+        shareToThreads(ctx, files, text)
     }
 }

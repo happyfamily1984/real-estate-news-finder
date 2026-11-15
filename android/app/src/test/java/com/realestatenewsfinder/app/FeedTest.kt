@@ -71,4 +71,15 @@ class FeedTest {
         assertEquals("https://m.cafe.naver.com/jaegebal/6534272", mobileUrl(post("navercafe", "https://cafe.naver.com/jaegebal/6534272")))
         assertEquals("https://www.hankyung.com/a/1", mobileUrl(post("hankyung", "https://www.hankyung.com/a/1")))
     }
+
+    @Test
+    fun threadsScreensAreRecognizedFromVisibleText() {
+        assertEquals(ThreadsAuto.Screen.LOGIN, ThreadsAuto.screenOf(listOf("로그인 또는 가입하기", "developingrider", "buals_zip", "부동산 알려주는 스레드", "다른 프로필 사용하기")))
+        assertEquals(ThreadsAuto.Screen.LOGOUT_DIALOG, ThreadsAuto.screenOf(listOf("설정", "알림", "계정에서 로그아웃하시겠어요?", "로그아웃", "취소")))
+        assertEquals(ThreadsAuto.Screen.PROFILE, ThreadsAuto.screenOf(listOf("웃긴글 저장소", "utgingeul_archive", "프로필 편집", "인사이트 보기")))
+        assertEquals(ThreadsAuto.Screen.SETTINGS, ThreadsAuto.screenOf(listOf("설정", "Meta 계정", "알림", "개인정보 보호", "로그아웃")))
+        assertEquals(ThreadsAuto.Screen.OTHER, ThreadsAuto.screenOf(listOf("utgingeul_archive", "새로운 소식을 전하세요.", "lawyer__hjr")))
+        assertTrue(ThreadsAuto.isAccount("buals_zip", "buals_zip") && ThreadsAuto.isAccount("@Buals_zip ", "buals_zip"))
+        assertFalse(ThreadsAuto.isAccount("buals_zip_fan", "buals_zip"))
+    }
 }

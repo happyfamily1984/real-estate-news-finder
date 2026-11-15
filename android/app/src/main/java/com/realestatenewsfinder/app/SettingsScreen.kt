@@ -285,6 +285,36 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     OutlinedPillField(handle, { handle = it; prefs.cardHandle = it }, "계정 이름 (예: @my_threads)", 50.dp, 15.sp)
                 }
 
+                // 스레드 계정 전환
+                SettingsCard {
+                    var account by remember { mutableStateOf(prefs.threadsAccount) }
+                    var auto by remember { mutableStateOf(prefs.autoSwitchAccount) }
+                    var note by remember { mutableStateOf<String?>(null) }
+                    AccentTitle("스레드 계정 전환")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "스레드가 아래 계정으로 로그인돼 있으면 아무것도 하지 않고, 다른 계정이면 로그아웃한 뒤 이 계정으로 다시 로그인해요. 스레드에 이 계정 로그인 정보가 저장돼 있어야 하고, 접근성의 '스레드 자동 입력'이 켜져 있어야 해요.",
+                        fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedPillField(account, { account = it; prefs.threadsAccount = it }, "올릴 계정 (예: buals_zip)", 50.dp, 15.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("올리기 전에 계정 확인·전환", fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        PurpleSwitch(auto) { auto = it; prefs.autoSwitchAccount = it }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(shape = CircleShape, onClick = {
+                        note = when {
+                            account.isBlank() -> "올릴 계정을 먼저 적어주세요."
+                            !ThreadsAuto.isEnabled(ctx) -> "접근성에서 '부동산뉴스파인더 · 스레드 자동 입력'을 먼저 켜주세요."
+                            !ThreadsAuto.startSwitch(ctx, account) -> "스레드 앱을 열 수 없어요."
+                            else -> null
+                        }
+                    }) { Text("지금 전환해 보기", fontWeight = FontWeight.Bold) }
+                    note?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }
+                }
+
                 // 네이버 로그인 (카페 글 본문 보기용)
                 if (onNaverLogin != null) SettingsCard {
                     AccentTitle("네이버 로그인 (부동산스터디 글 보기)")

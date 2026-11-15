@@ -90,6 +90,16 @@ class Prefs(ctx: Context) {
         get() = sp.getString("cardTagline", "부동산 알려주는 스레드") ?: ""
         set(v) = sp.edit().putString("cardTagline", v.trim()).apply()
 
+    /** 스레드에 올릴 계정 이름 (@ 없이). 다른 계정으로 로그인돼 있으면 이 계정으로 전환 */
+    var threadsAccount: String
+        get() = sp.getString("threadsAccount", "buals_zip") ?: ""
+        set(v) = sp.edit().putString("threadsAccount", v.trim().removePrefix("@")).apply()
+
+    /** 스레드에 올리기 전에 계정을 확인하고 다르면 전환할지 (접근성 자동 입력이 켜져 있어야 동작) */
+    var autoSwitchAccount: Boolean
+        get() = sp.getBoolean("autoSwitchAccount", true)
+        set(v) = sp.edit().putBoolean("autoSwitchAccount", v).apply()
+
     var onboardingDone: Boolean
         get() = sp.getBoolean("onboardingDone", false)
         set(v) = sp.edit().putBoolean("onboardingDone", v).apply()

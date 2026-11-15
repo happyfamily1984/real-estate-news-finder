@@ -144,7 +144,7 @@ fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSen
         pieces = p; files = f
     }
 
-    fun share() { files?.let { sent = true; ThreadsKit.shareToThreads(ctx, it, text) } }
+    fun share() { files?.let { sent = true; ThreadsKit.upload(ctx, it, text) } }
     if (showAutoHelp) AlertDialog(
         onDismissRequest = { showAutoHelp = false },
         title = { Text("자동 입력 켜기") },
@@ -213,7 +213,7 @@ fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSen
             GradientButton("스레드에 올리기", null, onClick = {
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", text)
-                    if (ThreadsAuto.isEnabled(ctx)) { ThreadsAuto.start(text); share() } else showAutoHelp = true
+                    if (ThreadsAuto.isEnabled(ctx)) share() else showAutoHelp = true
                 }
             }, modifier = Modifier.weight(1f))
         }

@@ -87,7 +87,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val outText = if (linkOn) thread.trimEnd() + "\n\n" + link else thread
 
     if (showAutoHelp) {
-        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.shareToThreads(ctx, it, outText) }; Unit }
+        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.upload(ctx, it, outText) }; Unit }
         AlertDialog(
             onDismissRequest = { showAutoHelp = false },
             title = { Text("자동 입력 켜기") },
@@ -316,8 +316,8 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
             GradientButton("스레드에 올리기", null, onClick = {
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", outText) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
-                    if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(outText) else showAutoHelp = true
-                    if (!showAutoHelp) { sent = true; ThreadsKit.shareToThreads(ctx, files, outText) }
+                    // 자동 입력이 켜져 있으면: (설정에 따라) 계정 확인·전환 → 보내기 → 본문 붙여넣기
+                    if (ThreadsAuto.isEnabled(ctx)) { sent = true; ThreadsKit.upload(ctx, files, outText) } else showAutoHelp = true
                 }
             }, modifier = Modifier.weight(1f))
         }
