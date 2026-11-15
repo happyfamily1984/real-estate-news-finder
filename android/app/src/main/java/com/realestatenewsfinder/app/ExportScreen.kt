@@ -103,18 +103,18 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val done = (scan as? ScanState.Done)?.result
     val scanEnded = scan !is ScanState.Loading
 
-    // 원문을 읽으면 자동으로 요약 (Gemini → Groq). '다시 요약'을 누르면 재실행
+    // 원문을 읽으면 자동으로 요약 (Gemini → Groq → Cerebras → OpenRouter). '다시 요약'을 누르면 재실행
     LaunchedEffect(scanEnded, summaryRun) {
         if (!scanEnded) return@LaunchedEffect
         if (summaryRun == 0 && summaryState == "done") return@LaunchedEffect
-        if (!Summarizer.hasKey(ctx)) { summaryState = "AI 요약을 쓰려면 설정에서 Gemini나 Groq 무료 키를 넣어주세요. 지금은 제목과 기사 앞부분만 들어가요."; return@LaunchedEffect }
+        if (!Summarizer.hasKey(ctx)) { summaryState = "AI 요약을 쓰려면 설정에서 무료 AI 키(Gemini 등)를 넣어주세요. 지금은 제목과 기사 앞부분만 들어가요."; return@LaunchedEffect }
         val body = done?.text.orEmpty()
         if (body.length < 80 && post.summary.isNullOrBlank()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
         summaryState = "working"
         val sum = Summarizer.summarize(ctx, post, kind, sourceName, body)
         if (sum != null) {
             thread = sum.thread; headline = sum.headline; pointsText = sum.points.joinToString("\n"); summaryState = "done"
-        } else summaryState = "요약 실패: ${Gemini.lastError ?: Groq.lastError ?: "알 수 없는 오류"}"
+        } else summaryState = "요약 실패: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
     }
 
     // 이미지 만들기: 카드(기본) 또는 원문 캡처 분할. 내용을 고치면 잠시 뒤 다시 그림

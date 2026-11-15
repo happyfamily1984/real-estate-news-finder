@@ -212,10 +212,10 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
 
                 // 요약 AI 2순위
                 SettingsCard {
-                    AccentTitle("예비 요약 (Groq 무료 키)")
+                    AccentTitle("예비 요약 1 (Groq 무료 키)")
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Gemini 한도가 떨어지면 Groq(무료 AI)으로 넘어가요. 순서: Gemini → Groq",
+                        "Gemini 한도가 떨어지면 Groq(무료 AI)으로 넘어가요.",
                         fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(10.dp))
@@ -235,6 +235,37 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                         }) { Text("연결 테스트", fontWeight = FontWeight.Bold) }
                     }
                     groqStatus?.let { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 13.sp, lineHeight = 18.sp) }
+                }
+
+                // 요약 AI 3·4순위 (Cerebras, OpenRouter)
+                ExtraAi.ALL.forEachIndexed { i, ai ->
+                    var key by remember { mutableStateOf(prefs.aiKey(ai.id)) }
+                    var status by remember { mutableStateOf<String?>(null) }
+                    SettingsCard {
+                        AccentTitle("예비 요약 ${i + 2} (${ai.label} 무료 키)")
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "앞 순서 AI가 모두 한도를 다 썼을 때 써요. 넣어두면 요약이 멈추는 일이 줄어요. 순서: Gemini → Groq → Cerebras → OpenRouter",
+                            fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedPillField(key, { key = it; prefs.setAiKey(ai.id, it); status = null }, ai.keyHint, 50.dp, 13.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(shape = CircleShape, onClick = {
+                                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(ai.keyUrl)))
+                            }) { Text("키 발급 페이지", fontWeight = FontWeight.Bold) }
+                            Button(shape = CircleShape, enabled = key.isNotBlank(), onClick = {
+                                status = "확인 중…"
+                                scope.launch {
+                                    prefs.setAiCooldown(ai.id, 0)
+                                    val r = ai.ask(ctx, "한 문장으로만 답해라.", "'연결 확인'이라고만 답해줘.")
+                                    status = if (r != null) "✅ 연결됨 (${prefs.aiModel(ai.id)})" else "⚠ ${ai.lastError ?: "실패"}"
+                                }
+                            }) { Text("연결 테스트", fontWeight = FontWeight.Bold) }
+                        }
+                        status?.let { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 13.sp, lineHeight = 18.sp) }
+                    }
                 }
 
                 // 스레드 글 스타일

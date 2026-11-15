@@ -8,7 +8,7 @@ data class Summary(val thread: String, val headline: String, val points: List<St
 /**
  * 스레드용 요약: 기사·보도자료·커뮤니티 글 본문을 읽고, 사람들이 부동산 글에서 궁금해하는 것
  * (나한테 해당되나 · 언제부터 · 얼마 · 뭘 해야 하나)에 답하는 글과 카드 내용을 만듦.
- * Gemini → Groq 순서. 키가 없거나 둘 다 실패하면 null.
+ * Gemini → Groq → Cerebras → OpenRouter 순서. 키가 없거나 모두 실패하면 null.
  */
 object Summarizer {
     const val MAX_THREAD_CHARS = 480 // 스레드 글자 수 제한(500자) 안쪽
@@ -54,7 +54,18 @@ object Summarizer {
             "- 항목: 내용  ← 이런 줄 3~5개. 항목은 '대상', '시행일', '한도', '금리', '분양가', '일정', '지역', '변동', '신청', '주의' 같은 2~5자 낱말, 내용은 28자 이내. 본문에 있는 것만."
     }
 
-    fun hasKey(ctx: Context) = Prefs(ctx).let { it.geminiKey.isNotBlank() || it.groqKey.isNotBlank() }
+    fun hasKey(ctx: Context) = Prefs(ctx).let { p -> p.geminiKey.isNotBlank() || p.groqKey.isNotBlank() || ExtraAi.ALL.any { p.aiKey(it.id).isNotBlank() } }
+
+    /** 마지막 실패 사유 (키를 넣은 AI 중 맨 앞 것) */
+    fun lastError(): String? = Gemini.lastError ?: Groq.lastError ?: ExtraAi.ALL.firstNotNullOfOrNull { it.lastError }
+
+    /** Gemini → Groq → Cerebras → OpenRouter 순서로, 답이 나올 때까지 */
+    suspend fun ask(ctx: Context, system: String, input: String): String? {
+        Gemini.ask(ctx, system, input)?.let { return it }
+        Groq.ask(ctx, system, input)?.let { return it }
+        for (ai in ExtraAi.ALL) ai.ask(ctx, system, input)?.let { return it }
+        return null
+    }
 
     fun buildInput(post: Post, sourceName: String, body: String): String {
         val text = body.replace(Regex("[ \\t\\u00A0]+"), " ").replace(Regex("\\n\\s*\\n+"), "\n").trim()
@@ -102,7 +113,7 @@ object Summarizer {
         if (!hasKey(ctx)) return null
         val system = system(kind, post.tags, Prefs(ctx).casualTone)
         val input = buildInput(post, sourceName, body)
-        val raw = Gemini.ask(ctx, system, input) ?: Groq.ask(ctx, system, input) ?: return null
+        val raw = ask(ctx, system, input) ?: return null
         return parse(raw, post.title)
     }
 }

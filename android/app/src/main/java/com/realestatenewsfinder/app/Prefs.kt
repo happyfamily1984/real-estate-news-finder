@@ -60,6 +60,16 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("groqCooldown", 0)
         set(v) = sp.edit().putLong("groqCooldown", v).apply()
 
+    // 예비 요약 AI (ExtraAi: cerebras, openrouter) — 키를 바꾸면 모델·쉬는 시간 초기화
+    fun aiKey(id: String): String = sp.getString("ai.$id.key", "") ?: ""
+    fun setAiKey(id: String, v: String) = sp.edit().putString("ai.$id.key", v.trim()).putString("ai.$id.model", "").putString("ai.$id.models", "").putLong("ai.$id.cooldown", 0).apply()
+    fun aiModel(id: String): String = sp.getString("ai.$id.model", "") ?: ""
+    fun setAiModel(id: String, v: String) = sp.edit().putString("ai.$id.model", v).apply()
+    fun aiModels(id: String): String = sp.getString("ai.$id.models", "") ?: ""
+    fun setAiModels(id: String, v: String) = sp.edit().putString("ai.$id.models", v).apply()
+    fun aiCooldown(id: String): Long = sp.getLong("ai.$id.cooldown", 0)
+    fun setAiCooldown(id: String, v: Long) = sp.edit().putLong("ai.$id.cooldown", v).apply()
+
     /** 스레드 글 말투: true = 반말, false = 존댓말(해요체) */
     var casualTone: Boolean
         get() = sp.getBoolean("casualTone", false)
