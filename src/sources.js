@@ -37,7 +37,7 @@ export const SOURCES = [
   // 구글 뉴스에서 정부 사이트 글만 검색 (클라우드에서 받을 수 있는 정부 발표)
   {
     id: 'gov-search', name: '정부 발표 검색', board: '정부 사이트', kind: 'gov', color: '#3f7d5c',
-    url: 'https://news.google.com/', fetch: fetchGoogleNews, outletFromTitle: true, limit: 40, windowDays: 3,
+    url: 'https://news.google.com/', fetch: fetchGoogleNews, outletFromTitle: true, limit: 40, windowDays: 3, filter: true,
     queries: ['site:korea.kr 주택', 'site:korea.kr 부동산', 'site:korea.kr 전세 OR 청약 OR 대출'],
   },
 
