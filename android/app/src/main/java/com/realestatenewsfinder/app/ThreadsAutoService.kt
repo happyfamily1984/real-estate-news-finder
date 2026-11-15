@@ -9,7 +9,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
-/** 스레드 자동 입력 작업 (내보내기 화면에서 '스레드에 올리기'를 누르면 90초 동안 유효) */
+/** 스레드 자동 입력 작업 (내보내기 화면에서 '스레드에 올리기'를 누르면 30초 동안 유효, 한 번만 입력) */
 object ThreadsAuto {
     class Job(val text: String, val startedAt: Long = System.currentTimeMillis(), var composeClicked: Boolean = false)
 
@@ -27,7 +27,7 @@ object ThreadsAuto {
 /**
  * 스레드 앱 화면에서만 동작하는 접근성 서비스.
  * - 글쓰기 화면이 아니면 '새 스레드/만들기' 버튼을 눌러 글쓰기 화면을 엶
- * - 본문 입력칸에 감상평+출처를 입력
+ * - 본문 입력칸에 본문을 한 번 붙여넣음
  * - 게시 버튼은 누르지 않음 (사용자가 확인 후 직접 게시)
  */
 class ThreadsAutoService : AccessibilityService() {
@@ -36,19 +36,26 @@ class ThreadsAutoService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val job = ThreadsAuto.pending ?: return
         val elapsed = System.currentTimeMillis() - job.startedAt
-        if (elapsed > 90_000) { ThreadsAuto.pending = null; return }
+        if (elapsed > 30_000) { ThreadsAuto.pending = null; return }
         val root = rootInActiveWindow ?: return
         if (root.packageName != ThreadsKit.THREADS_PACKAGE) return
 
         val input = find(root) { it.isEditable }
         if (input != null) {
+            // 딱 한 번만 넣음. 계속 다시 넣으면 사용자가 고친 내용·줄바꿈이 덮어써져서 수정이 안 먹는 것처럼 보임
+            ThreadsAuto.pending = null
             val current = if (input.isShowingHintText) "" else input.text?.toString().orEmpty()
-            if (current.contains(job.text.take(15))) { finish(); return }
-            val args = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, if (current.isBlank()) job.text else current + "\n" + job.text)
-            }
+            if (current.contains(job.text.take(15))) return // 스레드가 이미 본문을 받아 넣은 경우
             input.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-            if (input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) finish()
+            // 붙여넣기로 입력 (본문은 올리기 직전에 클립보드에 복사해 둠).
+            // 글자를 강제로 바꿔 넣는 방식(SET_TEXT)은 스레드 입력창 내부 상태와 어긋나 이후 줄바꿈·수정이 꼬일 수 있음
+            val ok = input.performAction(AccessibilityNodeInfo.ACTION_PASTE) || run {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, if (current.isBlank()) job.text else current + "\n" + job.text)
+                }
+                input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            }
+            if (ok) finish()
             return
         }
         // 글쓰기 화면이 아직 아니면 (공유로 바로 안 열렸을 때) 새 글 버튼을 한 번 누름
