@@ -81,15 +81,32 @@ export async function fetchFeed(source) {
   throw new Error([...new Set(errors)].join(' / '));
 }
 
+// 구글 뉴스는 요청이 몰리면 503을 돌려줌 → 모든 검색을 한 줄로 세워 간격을 두고, 실패하면 한 번 더 시도
+let googleGate = Promise.resolve();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function googleFetch(url, gapMs) {
+  const run = googleGate.then(async () => {
+    try {
+      return await fetchHtml(url);
+    } catch (e) {
+      if (!/HTTP (429|503)/.test(e.message)) throw e;
+      await sleep(gapMs * 4);
+      return fetchHtml(url);
+    }
+  });
+  googleGate = run.catch(() => {}).then(() => sleep(gapMs));
+  return run;
+}
+
 /** 구글 뉴스 검색 RSS: 여러 검색어 결과를 합침 (언론사 여러 곳을 한 번에) */
-export async function fetchGoogleNews(source) {
+export async function fetchGoogleNews(source, { gapMs = 1500 } = {}) {
   const all = [];
   const seen = new Set();
   let lastError = null;
   for (const q of source.queries) {
     const feed = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:${source.windowDays ?? 1}d`)}&hl=ko&gl=KR&ceid=KR:ko`;
     try {
-      for (const p of parseFeed(await fetchHtml(feed), source)) {
+      for (const p of parseFeed(await googleFetch(feed, gapMs), source)) {
         const key = `${p.outlet}|${p.title}`;
         if (seen.has(key)) continue;
         seen.add(key);

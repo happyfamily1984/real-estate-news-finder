@@ -124,13 +124,26 @@ object FeedRepository {
             val text = conn.inputStream.bufferedReader().use { it.readText() }
             val feed = Feed.parse(text)
             cacheFile(ctx).writeText(text)
-            feed
+            withLocal(ctx, feed, network = true)
         } finally {
             conn.disconnect()
         }
     }
 
-    fun cached(ctx: Context): Feed? = runCatching { Feed.parse(cacheFile(ctx).readText()) }.getOrNull()
+    /** 화면을 처음 열 때: 저장해 둔 결과만 즉시 표시 */
+    fun cached(ctx: Context): Feed? = runCatching { Feed.parse(cacheFile(ctx).readText()) }.getOrNull()?.let { withLocal(ctx, it, network = false) }
+
+    /** 클라우드에서 막힌 정부 보도자료를 휴대폰에서 직접 받아 합침 */
+    private fun withLocal(ctx: Context, feed: Feed, network: Boolean): Feed {
+        val (sources, posts) = runCatching { GovLocal.load(ctx, network) }.getOrDefault(emptyList<Source>() to emptyList())
+        if (sources.isEmpty()) return feed
+        val ids = sources.map { it.id }.toSet()
+        return feed.copy(
+            sources = feed.sources.filter { it.id !in ids } + sources,
+            posts = feed.posts.filter { it.source !in ids } + posts,
+            topics = feed.topics.ifEmpty { Topics.names },
+        )
+    }
 }
 
 /** 알림 조건: 선택한 소스의 새 글 중 (중요도 >= 기준) 또는 (제목에 키워드 포함) */

@@ -6,11 +6,12 @@
 //   disabled : true면 수집 안 함
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
 
-// 정책브리핑 부처별 보도자료 RSS (+ 부처 자체 RSS가 있으면 먼저 시도)
-const korea = (id, name, dept, color, { filter = true, own = [] } = {}) => ({
-  id, name, board: '보도자료', kind: 'gov', color, filter,
+// 정책브리핑 부처별 보도자료 RSS. 정부 사이트(korea.kr, molit.go.kr, fsc.go.kr)는 해외 클라우드 접속을 막아서(HTTP 404/503)
+// 클라우드에서는 꺼두고, 앱이 휴대폰에서 직접 받아옴 (android GovLocal.kt). 테스트에서 피드 형식 확인용으로 정의는 남겨둠
+const korea = (id, name, dept, color, filter = true) => ({
+  id, name, board: '보도자료', kind: 'gov', color, filter, disabled: true,
   url: 'https://www.korea.kr/briefing/pressReleaseList.do',
-  feed: [...own, `https://www.korea.kr/rss/dept_${dept}.xml`, `http://www.korea.kr/rss/dept_${dept}.xml`], fetch: fetchFeed,
+  feed: `https://www.korea.kr/rss/dept_${dept}.xml`, fetch: fetchFeed,
 });
 
 export const SOURCES = [
@@ -31,16 +32,13 @@ export const SOURCES = [
   { id: 'sedaily', name: '서울경제', board: '부동산', kind: 'news', color: '#7a3e9d', url: 'https://www.sedaily.com/v/NewsMain/GB', feed: 'https://www.sedaily.com/rss/realestate', fetch: fetchFeed },
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
-  korea('molit', '국토교통부', 'molit', '#1f6f43', { filter: false, own: ['https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS'] }),
-  korea('fsc', '금융위원회', 'fsc', '#8a6d1d', { own: ['https://www.fsc.go.kr/about/fsc_bbs_rss/?fid=0111'] }),
-  korea('moef', '기획재정부', 'moef', '#5a4fcf'),
-  korea('nts', '국세청', 'nts', '#b0542c'),
-  { id: 'policy', name: '정책브리핑', board: '정책뉴스', kind: 'gov', color: '#2b7a9e', url: 'https://www.korea.kr/news/policyNewsList.do', feed: ['https://www.korea.kr/rss/policy.xml', 'http://www.korea.kr/rss/policy.xml'], fetch: fetchFeed, filter: true },
-  // 구글 뉴스에서 정부 사이트 글만 검색 (부처 RSS가 막혔을 때도 정부 발표가 비지 않도록)
+  korea('molit', '국토교통부', 'molit', '#1f6f43', false),
+  korea('fsc', '금융위원회', 'fsc', '#8a6d1d'),
+  // 구글 뉴스에서 정부 사이트 글만 검색 (클라우드에서 받을 수 있는 정부 발표)
   {
     id: 'gov-search', name: '정부 발표 검색', board: '정부 사이트', kind: 'gov', color: '#3f7d5c',
     url: 'https://news.google.com/', fetch: fetchGoogleNews, outletFromTitle: true, limit: 40, windowDays: 3,
-    queries: ['site:korea.kr 주택', 'site:korea.kr 부동산', 'site:molit.go.kr 주택', 'site:korea.kr 전세 OR 청약 OR 대출'],
+    queries: ['site:korea.kr 주택', 'site:korea.kr 부동산', 'site:korea.kr 전세 OR 청약 OR 대출'],
   },
 
   // ---- 커뮤니티 ----
