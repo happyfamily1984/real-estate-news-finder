@@ -204,10 +204,10 @@ object StatCards {
         return RectF(area.left + 28f * F, area.top + stripH + 22f * F, area.right - 28f * F, area.bottom - 24f * F)
     }
 
-    private fun captions(c: Canvas, s: StatSeries, top: Float) {
+    private fun captions(c: Canvas, s: StatSeries, top: Float, withDesc: Boolean = true) {
         val p = text(29f * F, GRAY, bold = false)
         var y = top
-        if (s.desc.isNotBlank()) { c.drawText(CardMaker.wrapWords(s.desc, W - PAD * 2 - 20f) { p.measureText(it) }.lines().first(), PAD + 18f * F, y, p); y += 44f * F }
+        if (withDesc && s.desc.isNotBlank()) { c.drawText(CardMaker.wrapWords(s.desc, W - PAD * 2 - 20f) { p.measureText(it) }.lines().first(), PAD + 18f * F, y, p); y += 44f * F }
         c.drawText("자료 : ${s.note}", PAD + 18f * F, y, p)
     }
 
@@ -217,7 +217,9 @@ object StatCards {
         if (rows.size < 5) return null
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val area = frame(ctx, c, s, "지역별 한눈에", mark)
+        val base = frame(ctx, c, s, "지역별 한눈에", mark)
+        // 17개 시도가 다 들어가도록 판을 아래로 조금 더 키움 (설명 줄은 추이 카드에만)
+        val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val inner = panel(c, area, "지역별 ${s.short}")
 
         val rowH = inner.height() / rows.size
@@ -230,13 +232,13 @@ object StatCards {
         val span = (hi - lo).takeIf { it > 0 } ?: 1.0
         fun x(v: Double) = (chartL + (v - lo) / span * (chartR - chartL)).toFloat()
         val zeroX = x(if (s.kind == "change") 0.0 else lo)
-        val size = (rowH * 0.62f).coerceIn(20f, 34f)
+        val size = (rowH * 0.74f).coerceIn(20f, 36f)
         var y = inner.top
         rows.forEach { r ->
             val v = r.latest!!
             val cy = y + rowH / 2
             c.drawText(r.name, inner.left, cy + size * 0.36f, text(size, INK))
-            val bh = rowH * 0.58f
+            val bh = rowH * 0.62f
             val x1 = x(v)
             val left = minOf(zeroX, x1)
             c.drawRoundRect(RectF(left, cy - bh / 2, maxOf(zeroX, x1).coerceAtLeast(left + 4f), cy + bh / 2), 6f, 6f, fill(colorOf(s, v)))
@@ -245,7 +247,7 @@ object StatCards {
         }
         val baseX = if (s.kind == "change") zeroX else s.base?.let { x(it) }
         if (baseX != null) c.drawRect(baseX - 1.5f, inner.top, baseX + 1.5f, inner.bottom, fill(0x6614213D))
-        captions(c, s, area.bottom + 52f * F)
+        captions(c, s, area.bottom + 48f * F, withDesc = false)
         return bmp
     }
 
