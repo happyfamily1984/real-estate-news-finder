@@ -85,7 +85,7 @@ export function scorePosts(posts, kindOf = () => 'community', now = Date.now(), 
     }
     p.related = others.size;
     const ageH = Math.max(0, now - (p.publishedAt ?? p.firstSeenAt ?? now)) / 3600_000;
-    const recency = Math.pow(0.5, ageH / 6); // 6시간마다 절반
+    const recency = Math.pow(0.5, ageH / (kindOf(p.source) === 'gov' ? 24 : 6)); // 뉴스는 6시간, 정부 발표는 하루마다 절반
     const cluster = Math.min(others.size, 4) / 4;
     const bonus = (kindOf(p.source) === 'gov' ? 10 : 0) - (DULL.test(p.title) ? 15 : 0);
     const interest = threadPick(p.title);

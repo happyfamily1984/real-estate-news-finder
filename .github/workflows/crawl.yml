@@ -5,7 +5,8 @@ name: crawl
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # 정각을 피해서 15분마다 (정각은 GitHub 예약 실행이 몰려 밀리기 쉬움)
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:

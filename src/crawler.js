@@ -4,9 +4,10 @@ import { ACTIVE_SOURCES as SOURCES } from './sources.js';
 import { fetchHtml } from './fetcher.js';
 import { parseList } from './parser.js';
 import { scorePosts } from './score.js';
-import { tagsOf } from './topics.js';
+import { tagsOf, isRelevant } from './topics.js';
 
 const KEEP_MS = 36 * 60 * 60 * 1000; // 36시간 지난 글은 정리
+const KEEP_GOV_MS = 96 * 60 * 60 * 1000; // 정부 발표는 4일 (주말에는 새 글이 거의 없음)
 
 export class Crawler {
   constructor({ dataDir, fetchItems, sources = SOURCES, onNewPosts = () => {} } = {}) {
@@ -83,8 +84,11 @@ export class Crawler {
     });
 
     for (const [id, p] of this.posts) {
-      const base = this.kindOf(p.source) === 'community' ? p.lastSeenAt : (p.publishedAt ?? p.firstSeenAt);
-      if (now - base > KEEP_MS || !this.sources.some((s) => s.id === p.source)) this.posts.delete(id);
+      const src = this.sources.find((s) => s.id === p.source);
+      const base = src?.kind === 'community' ? p.lastSeenAt : (p.publishedAt ?? p.firstSeenAt);
+      const keep = src?.kind === 'gov' ? KEEP_GOV_MS : KEEP_MS;
+      // 없어진 소스의 글, 기한 지난 글, 부동산 글만 남기는 소스에 예전 기준으로 들어온 무관한 글 정리
+      if (!src || now - base > keep || (src.filter && !isRelevant(p.title))) this.posts.delete(id);
     }
 
     scorePosts([...this.posts.values()].filter((p) => p.onBoard), this.kindOf, now, this.nameOf);

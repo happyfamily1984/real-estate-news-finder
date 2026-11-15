@@ -17,7 +17,10 @@ function dateOf(text, now) {
   return Math.floor((noon + KST) / DAY) >= today ? null : noon;
 }
 
-export function parseKoreaList(html, source, now = Date.now()) {
+const MAX_AGE_MS = 96 * 3600_000; // 보도자료는 주말에 거의 없어서 4일치까지
+
+/** sample: 넘기면 거르기 전 제목을 담아줌 (구조 확인용 로그) */
+export function parseKoreaList(html, source, now = Date.now(), sample = null) {
   const $ = cheerio.load(html);
   const out = [];
   const seen = new Set();
@@ -30,11 +33,12 @@ export function parseKoreaList(html, source, now = Date.now()) {
     const title = clean(a.find('strong').first().text() || box.find('strong, .tit, .title').first().text() || a.attr('title') || a.text());
     if (title.length < 6) return;
     seen.add(id);
+    if (sample) sample.push(title);
     if (source.filter && !isRelevant(title)) return;
 
     const sourceText = clean(box.find('.source, .info, .date').first().text() || box.text());
     const publishedAt = dateOf(sourceText, now);
-    if (publishedAt && now - publishedAt > 36 * 3600_000) return;
+    if (publishedAt && now - publishedAt > MAX_AGE_MS) return;
     // 출처 칸: <span class="source"><span>2026.11.15</span><span>국토교통부</span></span>
     const dept = clean(box.find('.source span').last().text());
     const lead = clean(box.find('.lead, .txt').first().text());
@@ -52,6 +56,7 @@ export async function fetchKorea(source) {
   const all = [];
   const seen = new Set();
   let total = 0;
+  const sample = [];
   for (let page = 1; page <= (source.pages ?? 1); page++) {
     const html = await fetchHtml(`${source.url}?pageIndex=${page}`);
     const links = (html.match(/View\.do\?newsId=/g) || []).length;
@@ -61,9 +66,9 @@ export async function fetchKorea(source) {
       console.log(`[korea] ${source.id} p${page}: 글 링크 없음. 길이 ${html.length}, newsId ${(html.match(/newsId/g) || []).length}회, 앞부분: ${html.slice(0, 300).replace(/\s+/g, ' ')}`);
       break;
     }
-    for (const p of parseKoreaList(html, source)) if (!seen.has(p.id)) { seen.add(p.id); all.push(p); }
+    for (const p of parseKoreaList(html, source, Date.now(), sample)) if (!seen.has(p.id)) { seen.add(p.id); all.push(p); }
   }
-  console.log(`[korea] ${source.id}: 글 링크 ${total}개 중 부동산 관련 ${all.length}개`);
+  console.log(`[korea] ${source.id}: 글 링크 ${total}개, 제목 ${sample.length}개 중 부동산 관련 ${all.length}개. 예: ${sample.slice(0, 4).join(' / ')}`);
   if (total === 0) throw new Error('목록에서 글을 찾지 못했습니다 (사이트 구조 변경 가능성)');
   return all;
 }
