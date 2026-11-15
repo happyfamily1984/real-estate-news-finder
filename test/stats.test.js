@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kbSeries, kbPir } from '../src/stats.js';
+import { kbSeries, kbPir, roneSeries } from '../src/stats.js';
 
 test('KB 증감률: 날짜 순서대로 값, 지역 이름 정리, 필요 없는 지역 제외', () => {
   const data = { 날짜리스트: ['20261102', '20261109'], 데이터리스트: [
@@ -34,4 +34,24 @@ test('KB PIR: 3분위 주택 · 3분위 소득', () => {
   const s = kbPir({ id: 'p', digits: 1 }, data);
   assert.equal(s.date, '2026-06');
   assert.deepEqual(s.regions, [{ name: '서울', values: [10.4, 10.5] }]);
+});
+
+test('R-ONE: 지수에서 전주 대비 변동률 계산, 맨 위 단계 지역만', () => {
+  const row = (t, d, nm, full, v) => ({ WRTTIME_IDTFR_ID: t, WRTTIME_DESC: d, CLS_NM: nm, CLS_FULLNM: full, ITM_NM: '지수', DTA_VAL: v });
+  const rows = [
+    row('202645', '2026-11-02', '전국', '전국', 100), row('202646', '2026-11-09', '전국', '전국', 100.07),
+    row('202645', '2026-11-02', '서울', '서울', 104), row('202646', '2026-11-09', '서울', '서울', 104.104),
+    row('202645', '2026-11-02', '강북지역', '서울>강북지역', 103), row('202646', '2026-11-09', '강북지역', '서울>강북지역', 103.206),
+    row('202645', '2026-11-02', '지방권', '지방권', 99), row('202646', '2026-11-09', '지방권', '지방권', 98.98),
+    row('202646', '2026-11-09', '은평구', '서울>강북지역>서북권>은평구', 103.8),
+    row('202646', '2026-11-09', '광주', '경기>동부1권>광주', 101),
+  ];
+  const s = roneSeries({ id: 'r', digits: 2 }, rows, { change: true });
+  assert.equal(s.date, '2026-11-09');
+  assert.deepEqual(s.dates, ['2026-11-09']);
+  assert.deepEqual(s.regions, [
+    { name: '전국', values: [0.07] }, { name: '서울', values: [0.1] }, { name: '서울 강북', values: [0.2] }, { name: '지방', values: [-0.02] },
+  ]);
+  const lv = roneSeries({ id: 'l', digits: 1 }, rows.map((r) => ({ ...r, ITM_NM: '매매수급지수' })));
+  assert.deepEqual(lv.regions[0], { name: '전국', values: [100, 100.1] });
 });
