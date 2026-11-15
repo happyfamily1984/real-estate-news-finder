@@ -35,7 +35,8 @@ object CardMaker {
     private const val GRAY = 0xFF6B7280.toInt()
     private const val PAPER = 0xFFF7F9FC.toInt()
 
-    data class Meta(val tag: String, val sourceName: String, val time: Long, val handle: String = "")
+    /** mark: 직접 만든 카드에 넣는 워터마크 (기사 머리 캡처에는 넣지 않음) */
+    data class Meta(val tag: String, val sourceName: String, val time: Long, val mark: Watermark.Mark = Watermark.Mark("", ""))
 
     private fun paint(size: Float, color: Int, bold: Boolean = true) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size; this.color = color
@@ -101,12 +102,8 @@ object CardMaker {
     }
 
     private fun footer(c: Canvas, meta: Meta, color: Int, y: Float) {
-        val p = paint(34f, color, bold = false)
-        c.drawText("${meta.sourceName} · ${date(meta.time)}", PAD, y, p)
-        if (meta.handle.isNotBlank()) {
-            val hp = paint(34f, color)
-            c.drawText(meta.handle, W - PAD - hp.measureText(meta.handle), y, hp)
-        }
+        c.drawText("${meta.sourceName} · ${date(meta.time)}", PAD, y, paint(34f, color, bold = false))
+        Watermark.corner(c, meta.mark, W, H)
     }
 
     fun cover(headline: String, meta: Meta): Bitmap {
@@ -152,7 +149,7 @@ object CardMaker {
 
         // 항목들: 남은 높이에 다 들어가도록 글자 크기를 함께 줄임
         val textW = (W - PAD * 2 - 96f).toInt()
-        val avail = H - 170f - y
+        val avail = H - (if (meta.mark.isEmpty) 170f else 210f) - y
         var size = 54f
         var layouts: List<StaticLayout>
         var gap: Float
@@ -209,8 +206,7 @@ object CardMaker {
         val side = (title.left * scale).coerceIn(36f, PAD) // 기사 글과 왼쪽 줄 맞춤
         c.drawText(meta.sourceName, side, 104f, paint(46f, BLUE))
         val dp = paint(32f, GRAY, bold = false)
-        val right = if (meta.handle.isNotBlank()) meta.handle else meta.tag
-        c.drawText(right, W - side - dp.measureText(right), 100f, dp)
+        c.drawText(meta.tag, W - side - dp.measureText(meta.tag), 100f, dp)
         c.drawRect(side, headH - 4f, W - side, headH - 1f, Paint().apply { color = 0xFFDDE3EE.toInt() })
         c.drawBitmap(src, android.graphics.Rect(0, top, w, bottom), android.graphics.Rect(0, headH, W, headH + bodyH), Paint(Paint.FILTER_BITMAP_FLAG))
         return out

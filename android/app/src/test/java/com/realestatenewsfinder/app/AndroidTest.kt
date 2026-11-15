@@ -70,7 +70,7 @@ class AndroidTest {
 
     @Test
     fun cardImages() {
-        val meta = CardMaker.Meta("금리·대출", "한국경제", 1794700000000, "@my_threads")
+        val meta = CardMaker.Meta("금리·대출", "한국경제", 1794700000000, Watermark.Mark("부동산 알려주는 스레드", "@buals_zip"))
         val summary = Summary(
             "", "7월부터 수도권 주담대 한도 최대 5000만원 축소",
             listOf("시행일: 7월 1일부터", "대상: 수도권 주택담보대출 신규 신청", "가산금리: 1.5%p (지방은 0.75%p 유지)", "한도: 연소득 1억원 기준 약 5000만원 감소", "예외: 6월 30일까지 계약·신청 완료분", "주의: 잔금대출도 같은 규정 적용"),
@@ -91,11 +91,12 @@ class AndroidTest {
         val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
         File("build/screens").mkdirs()
         stats.series.take(3).forEachIndexed { i, s ->
-            StatCards.render(s, stats.sido, "@my_threads").forEachIndexed { j, b ->
+            StatCards.render(app, s, stats.sido, Watermark.Mark("부동산 알려주는 스레드", "@buals_zip")).forEachIndexed { j, b ->
                 File("build/screens/stat-${i + 1}-${j + 1}.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
         }
-        assertEquals(2, StatCards.render(stats.series[0], stats.sido).size)
+        assertEquals(2, StatCards.render(app, stats.series[0], stats.sido).size)
+        assertEquals("아파트 매매가격" to "주간 변동률", StatCards.titleLines(stats.series[0]))
         compose.setContent { AppTheme(dark = false) { StatsScreen(stats, null, false, {}, {}) } }
         compose.onRoot().captureRoboImage("build/screens/stats.png")
     }

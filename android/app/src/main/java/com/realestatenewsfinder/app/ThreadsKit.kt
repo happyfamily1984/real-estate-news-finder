@@ -14,10 +14,28 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
 
-/** 스레드(Threads) 업로드용 도구: 캡처 분할, 복사/저장/공유 */
+/** 스레드(Threads) 업로드용 도구: 작성자 모자이크, 캡처 분할, 복사/저장/공유 */
 object ThreadsKit {
     const val THREADS_PACKAGE = "com.instagram.barcelona"
     private const val MAX_PIECES = 20
+
+    /** 작성자 닉네임 영역을 모자이크 (원본은 건드리지 않고 새 비트맵 반환) */
+    fun mosaic(src: Bitmap, rects: List<Rect>, block: Int = 14): Bitmap {
+        if (rects.isEmpty()) return src
+        val out = src.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = android.graphics.Canvas(out)
+        val paint = android.graphics.Paint().apply { isFilterBitmap = false }
+        rects.forEach { r0 ->
+            // 닉네임 왼쪽에 붙은 작은 프로필 사진까지 가리도록 왼쪽으로 조금 넓힘
+            val r = Rect(r0.left - minOf(r0.height(), 60), r0.top - 4, r0.right + 6, r0.bottom + 4)
+            if (!r.intersect(0, 0, out.width, out.height) || r.width() < 2 || r.height() < 2) return@forEach
+            val part = Bitmap.createBitmap(out, r.left, r.top, r.width(), r.height())
+            val small = Bitmap.createScaledBitmap(part, maxOf(1, r.width() / block), maxOf(1, r.height() / block), true)
+            canvas.drawBitmap(small, null, r, paint)
+            part.recycle(); small.recycle()
+        }
+        return out
+    }
 
     /**
      * 스레드용 세로 분할 위치 계산 (픽셀 없이 테스트 가능하도록 분리).
@@ -26,14 +44,14 @@ object ThreadsKit {
      * - 빈 줄(여백)에서만 자르고, 사진/영상 영역(avoid) 안에서는 자르지 않음
      * 반환: [시작, 자르는 위치들..., 끝]
      */
-    fun cutPoints(blank: BooleanArray, w: Int, avoid: List<IntRange> = emptyList()): List<Int> {
+    fun cutPoints(blank: BooleanArray, w: Int, avoid: List<IntRange> = emptyList(), maxRatio: Float = 2f, idealRatio: Float = 1.6f): List<Int> {
         var top = 0
         var bottom = blank.size
         while (top < bottom && blank[top]) top++
         while (bottom > top && blank[bottom - 1]) bottom--
         top = maxOf(0, top - 8); bottom = minOf(blank.size, bottom + 8) // 위아래 여백은 조금만 남김
         val h = bottom - top
-        val maxH = w * 2 // 한 장으로 둘 수 있는 최대 길이 (가로의 2배)
+        val maxH = (w * maxRatio).toInt() // 한 장으로 둘 수 있는 최대 길이 (기본: 가로의 2배)
         if (h <= maxH) return listOf(top, bottom)
 
         // 사진 안에서는 자르지 않음. 단, 한 장에 다 안 들어가는 긴 사진(글 캡처 이미지 등)은 그 안의 여백에서 자를 수 있음
@@ -57,7 +75,7 @@ object ThreadsKit {
             val prev = cuts.last()
             val rem = bottom - prev
             if (rem <= maxH) break
-            val ideal = rem / Math.ceil(rem / (w * 1.6)).toFloat()
+            val ideal = rem / Math.ceil(rem / (w * idealRatio.toDouble())).toFloat()
             val target = (prev + ideal).toInt()
             var cut = cands
                 .filter { it.first - prev >= ideal * 0.45f && it.first - prev <= maxH && bottom - it.first >= ideal * 0.3f }
@@ -93,14 +111,15 @@ object ThreadsKit {
         return true
     }
 
-    fun split(src: Bitmap, avoid: List<IntRange> = emptyList()): List<Bitmap> {
+    /** maxRatio·idealRatio를 키우면 한 장이 길어지고 장수가 줄어듦 (커뮤니티 글: 내용이 안 잘리는 게 우선) */
+    fun split(src: Bitmap, avoid: List<IntRange> = emptyList(), maxRatio: Float = 2f, idealRatio: Float = 1.6f): List<Bitmap> {
         val w = src.width
         val row = IntArray(w)
         val blank = BooleanArray(src.height) { y ->
             src.getPixels(row, 0, w, 0, y, w, 1)
             isBlankRow(row)
         }
-        val cuts = cutPoints(blank, w, avoid)
+        val cuts = cutPoints(blank, w, avoid, maxRatio, idealRatio)
         return cuts.zipWithNext { a, b -> Bitmap.createBitmap(src, 0, a, w, b - a) }
     }
 

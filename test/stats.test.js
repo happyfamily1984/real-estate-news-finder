@@ -45,12 +45,13 @@ test('R-ONE: 지수에서 전주 대비 변동률 계산, 맨 위 단계 지역�
     row('202645', '2026-11-02', '지방권', '지방권', 99), row('202646', '2026-11-09', '지방권', '지방권', 98.98),
     row('202646', '2026-11-09', '은평구', '서울>강북지역>서북권>은평구', 103.8),
     row('202646', '2026-11-09', '광주', '경기>동부1권>광주', 101),
+    row('202645', '2026-11-02', '전남', '광주전남>전남', 100), row('202646', '2026-11-09', '전남', '광주전남>전남', 99.95),
   ];
   const s = roneSeries({ id: 'r', digits: 2 }, rows, { change: true });
   assert.equal(s.date, '2026-11-09');
   assert.deepEqual(s.dates, ['2026-11-09']);
   assert.deepEqual(s.regions, [
-    { name: '전국', values: [0.07] }, { name: '서울', values: [0.1] }, { name: '서울 강북', values: [0.2] }, { name: '지방', values: [-0.02] },
+    { name: '전국', values: [0.07] }, { name: '서울', values: [0.1] }, { name: '서울 강북', values: [0.2] }, { name: '지방', values: [-0.02] }, { name: '전남', values: [-0.05] },
   ]);
   const lv = roneSeries({ id: 'l', digits: 1 }, rows.map((r) => ({ ...r, ITM_NM: '매매수급지수' })));
   assert.deepEqual(lv.regions[0], { name: '전국', values: [100, 100.1] });

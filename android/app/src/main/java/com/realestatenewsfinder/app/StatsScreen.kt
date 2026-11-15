@@ -69,7 +69,7 @@ fun StatsScreen(stats: Stats?, error: String?, loading: Boolean, onRefresh: () -
                 items(stats?.series.orEmpty(), key = { it.id }) { s -> StatCard(s, stats?.sido.orEmpty()) { onOpen(s) } }
                 if (stats != null) item {
                     Text(
-                        "자료: KB부동산 데이터허브 주택가격동향 · 확인 ${ago(stats.updatedAt)}\n한국부동산원(R-ONE)·KOSIS 통계는 API 키를 등록하면 추가할 수 있어요.",
+                        "자료: 한국부동산원 R-ONE, KB부동산 데이터허브 · 확인 ${ago(stats.updatedAt)}",
                         Modifier.padding(horizontal = 20.dp, vertical = 10.dp), fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -138,7 +138,7 @@ fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSen
 
     LaunchedEffect(s.id) {
         val (p, f) = withContext(Dispatchers.Default) {
-            val imgs = StatCards.render(s, sido, prefs.cardHandle)
+            val imgs = StatCards.render(ctx, s, sido)
             imgs to ThreadsKit.writeCache(ctx, "stat-${s.id}", imgs)
         }
         pieces = p; files = f

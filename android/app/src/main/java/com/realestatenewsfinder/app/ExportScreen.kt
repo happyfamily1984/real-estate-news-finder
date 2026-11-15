@@ -66,7 +66,9 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val sourceName = post.outlet ?: source?.name ?: post.source
     var attempt by remember { mutableIntStateOf(0) }
     var scan by remember(attempt) { mutableStateOf<ScanState>(ScanState.Loading(0, "페이지 여는 중")) }
-    var useCapture by remember { mutableStateOf(false) }
+    // 커뮤니티 글은 원문 캡처(작성자 모자이크) + 요약이 기본. 뉴스·정부 글은 카드
+    var useCapture by remember { mutableStateOf(kind == "community") }
+    var mosaicOn by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<ExportResult?>(null) }
 
     val basic = remember(post) { Summarizer.basic(post) }
@@ -126,17 +128,20 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     }
 
     // 이미지 만들기: 카드(기본) 또는 원문 캡처 분할. 내용을 고치면 잠시 뒤 다시 그림
-    LaunchedEffect(useCapture, done, headline, pointsText) {
-        if (useCapture && done == null) return@LaunchedEffect
+    LaunchedEffect(useCapture, mosaicOn, done, headline, pointsText, scanEnded) {
+        // 캡처를 기다리는 중이면 그대로 둠. 원문을 끝내 못 읽었으면 카드로 대신함
+        if (useCapture && done == null && !scanEnded) return@LaunchedEffect
         if (!useCapture) delay(500)
         result = withContext(Dispatchers.Default) {
             var header = false
             val pieces = if (useCapture && done != null) {
-                val c = ThreadsKit.cropRect(done.bitmap, done.contentRect)
-                val body = Bitmap.createBitmap(done.bitmap, c.left, c.top, c.width(), c.height())
-                ThreadsKit.split(body, done.imageRects.map { (it.top - c.top)..(it.bottom - c.top) })
+                val masked = if (mosaicOn) ThreadsKit.mosaic(done.bitmap, done.authorRects) else done.bitmap
+                val c = ThreadsKit.cropRect(masked, done.contentRect)
+                val body = Bitmap.createBitmap(masked, c.left, c.top, c.width(), c.height())
+                // 장수를 줄이려고 한 장을 길게 (가로의 3배까지 한 장, 여러 장이면 2.4배 안팎). 여백에서만 잘라 내용이 끊기지 않게
+                ThreadsKit.split(body, done.imageRects.map { (it.top - c.top)..(it.bottom - c.top) }, maxRatio = 3f, idealRatio = 2.4f)
             } else {
-                val meta = CardMaker.Meta(post.tags.firstOrNull() ?: kindLabel(kind), sourceName, post.time, prefs.cardHandle)
+                val meta = CardMaker.Meta(post.tags.firstOrNull() ?: kindLabel(kind), sourceName, post.time, Watermark.of(ctx))
                 val points = pointsText.lines().map { it.trim() }.filter { it.isNotEmpty() }
                 // 뉴스·정부 글: 1번 이미지는 기사 머리 부분(매체명·제목·날짜·요약) 캡처, 그다음이 핵심 정리
                 val head = if (kind != "community" && done != null) runCatching { CardMaker.articleHeader(done.bitmap, done.titleRect, done.imageRects, meta) }.getOrNull() else null
@@ -178,7 +183,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
             Text("스레드용 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
         }
         Box(Modifier.weight(1f)) {
-            PageScanner(post, attempt) { scan = it }
+            PageScanner(post, attempt, community = kind == "community") { scan = it }
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 원문 읽기 상태
                 when (val s = scan) {
@@ -199,9 +204,15 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                         Row(Modifier.padding(horizontal = 16.dp).heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("이미지 ${pieces.size}장", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
                             if (kind == "community") {
-                                Text("원문 캡처 사용", fontSize = 13.sp)
-                                Spacer(Modifier.width(6.dp))
+                                Text("글 캡처", fontSize = 13.sp)
+                                Spacer(Modifier.width(4.dp))
                                 Switch(checked = useCapture, onCheckedChange = { useCapture = it }, modifier = Modifier.height(28.dp))
+                                if (useCapture) {
+                                    Spacer(Modifier.width(10.dp))
+                                    Text("모자이크", fontSize = 13.sp)
+                                    Spacer(Modifier.width(4.dp))
+                                    Switch(checked = mosaicOn, onCheckedChange = { mosaicOn = it }, modifier = Modifier.height(28.dp))
+                                }
                             }
                         }
                         Spacer(Modifier.height(10.dp))
@@ -218,6 +229,10 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             }
                         }
                         if (result == null) Text(if (useCapture) "원문 캡처를 기다리는 중…" else "이미지 만드는 중…", Modifier.padding(16.dp), color = muted)
+                        if (kind == "community") Text(
+                            if (useCapture) "글 본문만 캡처했어요 (광고·댓글 제외, 작성자는 모자이크). 길면 여백에서 나눠요." else "캡처 대신 직접 만든 카드예요.",
+                            Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), fontSize = 12.sp, color = muted,
+                        )
                         if (kind != "community") Text(
                             if (result?.header == true) "1번은 기사 머리 부분(매체명 · 제목 · 날짜 · 요약) 캡처, 그다음은 핵심 정리 카드예요."
                             else "기사 제목 위치를 찾지 못하면 직접 만든 표지 카드가 들어가요.",

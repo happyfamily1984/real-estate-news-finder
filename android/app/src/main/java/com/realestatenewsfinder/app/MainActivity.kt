@@ -135,7 +135,7 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
 
 /** communityOnly: 조회수·댓글이 있는 커뮤니티 탭에서만 보이는 정렬 */
 enum class SortBy(val label: String, val communityOnly: Boolean = false) {
-    SCORE("중요도"), PICK("스레드 추천"), LATEST("최신"), VIEWS("조회수", true), COMMENTS("댓글", true)
+    LATEST("최신"), SCORE("중요도"), PICK("스레드 추천"), VIEWS("조회수", true), COMMENTS("댓글", true)
 }
 
 /** 글 열기: 브라우저로 원문 열기 */
@@ -372,7 +372,7 @@ fun HomeScreen(
 ) {
     var source by rememberSaveable { mutableStateOf("") }
     var topic by rememberSaveable { mutableStateOf("") }
-    var sort by rememberSaveable { mutableStateOf(SortBy.SCORE) }
+    var sort by rememberSaveable { mutableStateOf(SortBy.LATEST) } // 각 탭은 최신순이 기본
     var query by rememberSaveable { mutableStateOf("") }
     var sortMenu by remember { mutableStateOf(false) }
 
@@ -414,7 +414,7 @@ fun HomeScreen(
                         Spacer(Modifier.width(10.dp))
                         // 필터 버튼: 정렬 · 출처
                         Box {
-                            val active = source.isNotEmpty() || sort != SortBy.SCORE
+                            val active = source.isNotEmpty() || sort != SortBy.LATEST
                             Surface(
                                 onClick = { sortMenu = true }, shape = RoundedCornerShape(16.dp),
                                 color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,

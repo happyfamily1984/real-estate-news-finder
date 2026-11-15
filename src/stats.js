@@ -113,8 +113,8 @@ export function roneSeries(meta, rows, { change = false, itemRe = /지수/ } = {
     const full = r.CLS_FULLNM || r.CLS_NM || '';
     const depth = full.split('>').length;
     const name = RONE_REGION[r.CLS_NM];
-    // 시도는 맨 위 단계만 (경기 광주시 같은 하위 지역과 헷갈리지 않게). 광주는 묶음 아래에 있기도 해서 2단계까지
-    if (!name || depth > 2 || (depth === 2 && !['강북지역', '강남지역', '광주'].includes(r.CLS_NM))) continue;
+    // 시도는 맨 위 단계만 (경기 광주시 같은 하위 지역과 헷갈리지 않게). 광주·전남은 묶음 아래에 있어서 2단계까지
+    if (!name || depth > 2 || (depth === 2 && !['강북지역', '강남지역', '광주', '전남'].includes(r.CLS_NM))) continue;
     if (typeof r.DTA_VAL !== 'number') continue;
     if (!byTime.has(r.WRTTIME_IDTFR_ID)) byTime.set(r.WRTTIME_IDTFR_ID, new Map());
     byTime.get(r.WRTTIME_IDTFR_ID).set(name, r.DTA_VAL);

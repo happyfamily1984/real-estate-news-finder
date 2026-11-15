@@ -54,6 +54,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
     var feedUrl by remember { mutableStateOf(prefs.feedUrl) }
     var casual by remember { mutableStateOf(prefs.casualTone) }
     var handle by remember { mutableStateOf(prefs.cardHandle) }
+    var tagline by remember { mutableStateOf(prefs.cardTagline) }
     var geminiKey by remember { mutableStateOf(prefs.geminiKey) }
     var geminiStatus by remember { mutableStateOf<String?>(null) }
     var groqKey by remember { mutableStateOf(prefs.groqKey) }
@@ -277,9 +278,11 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                         IntervalPill("존댓말", !casual) { casual = false; prefs.casualTone = false }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text("카드 이미지에 넣을 내 계정 이름 (비워두면 표시 안 함)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("워터마크 (직접 만든 카드·그래프 이미지 오른쪽 아래에 들어가요. 기사·커뮤니티 캡처에는 넣지 않아요)", fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedPillField(handle, { handle = it; prefs.cardHandle = it }, "예: @my_threads", 50.dp, 15.sp)
+                    OutlinedPillField(tagline, { tagline = it; prefs.cardTagline = it }, "문구 (예: 부동산 알려주는 스레드)", 50.dp, 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedPillField(handle, { handle = it; prefs.cardHandle = it }, "계정 이름 (예: @my_threads)", 50.dp, 15.sp)
                 }
 
                 // 네이버 로그인 (카페 글 본문 보기용)

@@ -29,6 +29,8 @@ import kotlin.coroutines.suspendCoroutine
 data class ScanResult(
     val bitmap: Bitmap,
     val truncated: Boolean,
+    /** 작성자 닉네임·프로필 위치 (커뮤니티 글 모자이크용) */
+    val authorRects: List<Rect>,
     val contentRect: Rect?,
     /** 기사 제목 위치 (스레드용 첫 이미지: 제목~요약 부분 캡처에 사용) */
     val titleRect: Rect?,
@@ -57,6 +59,34 @@ val BODY_SELECTORS = mapOf(
     "navercafe" to ".se-main-container, #postContent, .post_cont, .ArticleContentBox, .content_area",
 )
 
+/** 사이트별 작성자(글쓴이·댓글 작성자) 닉네임/프로필 위치. 여기에 없어도 흔한 이름(nick, writer, author…)은 자동으로 찾음 */
+val AUTHOR_SELECTORS = mapOf(
+    "dcinside" to "ul.ginfo2 > li:first-child, .gallview-tit-box .nick, .gall-writer, .comment-box .nick, .all-comment-lst .nick, a.nick, .ginfo-area .nick, .sp-nick, .nick-icon",
+    "clien" to ".post_contact .contact_name, .contact_name, .nickname, .post_info .nickname, .comment_info .nickname, .nickimg",
+    "ppomppu" to ".bbs.view .info .name, .info a[href*='member'], h4 + .info b, .hi, .writer, .view_info .name, .baseList-name",
+    "navercafe" to ".nick_box, .profile_area, .user_wrap .nick, .ArticleWriterProfile, .thumb_area, a.nick, .nickname, .profile_info, .user_area .name",
+)
+
+/**
+ * 본문만 남기기: 본문 요소를 찾아 페이지 전체를 '제목 + 본문'으로 바꿈 (메뉴·광고·댓글·추천글·작성자 줄 제거).
+ * 사진은 화면 폭에 맞추고 글자는 읽기 좋은 크기로. 본문을 못 찾으면 아무것도 하지 않고 false.
+ */
+private fun isolateJs(title: String, sel: String) = """
+(function(){try{
+  var list=document.querySelectorAll(${JSONObject.quote(sel)}), c=null;
+  for(var i=0;i<list.length;i++){var e=list[i]; if((e.innerText||'').trim().length+e.querySelectorAll('img,video').length*40>=40){c=e;break;}}
+  if(!c) return false;
+  c.querySelectorAll('script,style,ins,iframe:not([src*="youtube"]):not([src*="youtu.be"]),[class*="adsbygoogle"],[id^="div-gpt-ad"],[class*="coupang"],a[href*="coupang"]').forEach(function(x){x.remove();});
+  c.querySelectorAll('img').forEach(function(i){var d=i.getAttribute('data-src')||i.getAttribute('data-original')||i.getAttribute('data-lazy-src'); if(d) i.src=d; i.removeAttribute('width'); i.removeAttribute('height'); i.removeAttribute('style'); i.loading='eager';});
+  var t=document.createElement('div'); t.textContent=${JSONObject.quote(title)};
+  var html='<div id="cf"><h1 class="cf_title">'+t.innerHTML+'</h1><div class="cf_body">'+c.innerHTML+'</div></div>';
+  document.querySelectorAll('meta[name=viewport]').forEach(function(m){m.remove();});
+  document.head.insertAdjacentHTML('beforeend','<meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0!important;padding:0!important;background:#fff!important;width:auto!important;min-width:0!important;height:auto!important;overflow:visible!important}#cf{padding:18px 16px 22px;font-size:17px;line-height:1.7;color:#111;word-break:break-word;font-family:sans-serif;background:#fff}#cf .cf_title{font-size:22px;font-weight:800;line-height:1.35;margin:0 0 16px;padding-bottom:14px;border-bottom:1px solid #e5e7eb}#cf *{max-width:100%!important;box-sizing:border-box;float:none!important;position:static!important}#cf .cf_body, #cf .cf_body *{font-size:17px!important;line-height:1.7!important;color:#111!important;background:transparent!important}#cf img,#cf video{width:auto!important;max-width:100%!important;height:auto!important;display:block;margin:10px auto}#cf table{width:100%!important;table-layout:fixed}</style>');
+  document.body.innerHTML=html; document.body.className=''; document.body.removeAttribute('style'); window.scrollTo(0,0);
+  return true;
+}catch(x){return false;}})()
+"""
+
 /** 캡처 전에 광고와 댓글 영역을 숨김 */
 private const val HIDE_ADS_JS = """
 (function(){try{
@@ -68,10 +98,19 @@ private const val HIDE_ADS_JS = """
 }catch(x){}})()
 """
 
-private fun analyzeJs(title: String, bodySel: String) = """
+private fun analyzeJs(title: String, bodySel: String, authorSel: String? = null) = """
 (function(){
   var d=document.documentElement, vw=d.clientWidth||window.innerWidth, sx=window.scrollX, sy=window.scrollY;
   function R(e){var r=e.getBoundingClientRect();return [r.left+sx,r.top+sy,r.width,r.height];}
+  var authors=[], site=${JSONObject.quote(authorSel ?: "")}, findAuthors=${if (authorSel != null) "true" else "false"};
+  if(findAuthors){
+    if(site){try{document.querySelectorAll(site).forEach(function(e){var r=e.getBoundingClientRect();
+      if(r.width>0&&r.height>0&&r.height<90&&r.width<vw*0.8)authors.push(R(e));});}catch(x){}}
+    document.querySelectorAll('[class*="profile"] img,[class*="avatar"],img[class*="profile"],img[class*="level"],img[class*="icon_nick"]').forEach(function(e){
+      var r=e.getBoundingClientRect();if(r.width>0&&r.width<90&&r.height>0&&r.height<90)authors.push(R(e));});
+    document.querySelectorAll('[class*="nick"],[class*="Nick"],[class*="writer"],[class*="Writer"],[class*="author"],[class*="Author"],[class*="user_name"],[class*="userName"],[class*="username"],[class*="user-name"],[class*="profile_name"],[class*="member_name"]').forEach(function(e){var r=e.getBoundingClientRect(),t=(e.innerText||'').trim();
+      if(r.width>0&&r.height>0&&r.height<70&&r.width<vw*0.7&&t.length>0&&t.length<40)authors.push(R(e));});
+  }
   var imgs=[];
   document.querySelectorAll('img,video,canvas').forEach(function(e){var r=e.getBoundingClientRect();if(r.width>vw*0.3&&r.height>60)imgs.push(R(e));});
   var cands=[];
@@ -91,7 +130,7 @@ private fun analyzeJs(title: String, bodySel: String) = """
   var text=best?(best.e.innerText||''):'';
   if(text.trim().length<200&&og)text=(og.getAttribute('content')||'')+'\n'+text;
   return JSON.stringify({w:Math.max(d.scrollWidth,document.body.scrollWidth),h:Math.max(d.scrollHeight,document.body.scrollHeight),
-    imgs:imgs.slice(0,200),content:best?R(best.e):null,title:titleR,text:text.slice(0,7000)});
+    authors:authors.slice(0,300),imgs:imgs.slice(0,200),content:best?R(best.e):null,title:titleR,text:text.slice(0,7000)});
 })()
 """
 
@@ -101,7 +140,7 @@ private fun analyzeJs(title: String, bodySel: String) = """
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun PageScanner(post: Post, attempt: Int, onState: (ScanState) -> Unit) {
+fun PageScanner(post: Post, attempt: Int, community: Boolean = false, onState: (ScanState) -> Unit) {
     val density = LocalDensity.current
     val config = LocalConfiguration.current
     val widthPx = with(density) { config.screenWidthDp.dp.roundToPx() }
@@ -118,19 +157,28 @@ fun PageScanner(post: Post, attempt: Int, onState: (ScanState) -> Unit) {
     suspend fun capture(wv: WebView) {
         if (busy) return
         busy = true
+        // 커뮤니티 글: 본문만 추려 '제목 + 본문' 화면으로 다시 구성 (작성자 줄·메뉴·광고·댓글이 빠짐)
+        var isolated = false
+        if (community) BODY_SELECTORS[post.source]?.let { sel ->
+            onState(ScanState.Loading(87, "본문만 추리는 중"))
+            delay(900) // 늦게 그려지는 본문(네이버 카페 등) 기다림
+            if (eval(wv, isolateJs(post.title, sel)) == "true") { isolated = true; delay(700) }
+        }
         eval(wv, HIDE_ADS_JS)
         onState(ScanState.Loading(90, "글 전체 펼치는 중"))
         delay(600)
-        val bodySel = listOfNotNull(BODY_SELECTORS[post.source], ARTICLE_SELECTORS).joinToString(", ")
+        val bodySel = if (isolated) "#cf" else listOfNotNull(BODY_SELECTORS[post.source], ARTICLE_SELECTORS).joinToString(", ")
+        // 본문만 추린 화면에는 작성자 정보가 없으므로 모자이크 위치도 찾지 않음
+        val authorSel: String? = if (community && !isolated) AUTHOR_SELECTORS[post.source].orEmpty() else null
         fun parse(raw: String?) = runCatching { JSONObject(JSONArray("[$raw]").getString(0)) }.getOrNull()
-        val first = parse(eval(wv, analyzeJs(post.title, bodySel)))
+        val first = parse(eval(wv, analyzeJs(post.title, bodySel, authorSel)))
         val cssW = first?.optDouble("w")?.takeIf { it > 0 } ?: (widthPx / density.density).toDouble()
         val fullPx = ((first?.optDouble("h") ?: 0.0) * widthPx / cssW).toInt().coerceAtLeast(screenHeightPx)
         webHeightPx = fullPx.coerceAtMost(MAX_SCAN_HEIGHT_PX)
         onState(ScanState.Loading(95, "이미지 불러오는 중"))
         delay(1800)
         // 늘어난 화면 기준으로 위치 다시 측정
-        val info = parse(eval(wv, analyzeJs(post.title, bodySel))) ?: first
+        val info = parse(eval(wv, analyzeJs(post.title, bodySel, authorSel))) ?: first
         onState(ScanState.Loading(99, "캡처 중"))
         try {
             val bmp = Bitmap.createBitmap(wv.width.coerceAtLeast(1), wv.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
@@ -142,11 +190,12 @@ fun PageScanner(post: Post, attempt: Int, onState: (ScanState) -> Unit) {
                 Rect((it.getDouble(0) * scale).toInt(), (it.getDouble(1) * scale).toInt(),
                     ((it.getDouble(0) + it.getDouble(2)) * scale).toInt(), ((it.getDouble(1) + it.getDouble(3)) * scale).toInt())
             }
+            val authors = info?.optJSONArray("authors")?.let { arr -> (0 until arr.length()).mapNotNull { rect(arr.optJSONArray(it)) } }.orEmpty()
             val images = info?.optJSONArray("imgs")?.let { arr -> (0 until arr.length()).mapNotNull { rect(arr.optJSONArray(it)) } }.orEmpty()
             var content = rect(info?.optJSONArray("content"))
             val title = rect(info?.optJSONArray("title"))
             if (content != null && title != null && title.top < content.top) content = Rect(content.left, title.top, content.right, content.bottom)
-            onState(ScanState.Done(ScanResult(bmp, fullPx > MAX_SCAN_HEIGHT_PX, content, title, images, info?.optString("text").orEmpty(), wv.url)))
+            onState(ScanState.Done(ScanResult(bmp, fullPx > MAX_SCAN_HEIGHT_PX, authors, content, title, images, info?.optString("text").orEmpty(), wv.url)))
         } catch (e: OutOfMemoryError) {
             onState(ScanState.Failed("글이 너무 길어서 캡처하지 못했어요"))
         } catch (e: Exception) {

@@ -22,6 +22,8 @@ data class StatRegion(val name: String, val values: List<Double?>) {
 data class StatSeries(
     val id: String, val title: String, val short: String, val unit: String, val digits: Int, val cycle: String,
     val kind: String, val base: Double?, val desc: String, val source: String,
+    /** 카드 아래 자료 표기 (예: 한국부동산원 R-ONE 주간아파트가격동향) */
+    val note: String,
     /** 기준일 "2026-11-09" 또는 "2026-06" */
     val date: String, val dates: List<String>, val regions: List<StatRegion>,
 ) {
@@ -55,7 +57,7 @@ data class Stats(val updatedAt: Long, val sido: List<String>, val series: List<S
                     id = s.getString("id"), title = s.getString("title"), short = s.optString("short", s.getString("title")),
                     unit = s.optString("unit"), digits = s.optInt("digits", 1), cycle = s.optString("cycle"),
                     kind = s.optString("kind", "level"), base = if (s.has("base")) s.optDouble("base") else null,
-                    desc = s.optString("desc"), source = s.optString("source"), date = s.optString("date"), dates = strings(s.optJSONArray("dates")),
+                    desc = s.optString("desc"), source = s.optString("source"), note = s.optString("note").ifBlank { s.optString("source") }, date = s.optString("date"), dates = strings(s.optJSONArray("dates")),
                     regions = (0 until rs.length()).map { j ->
                         val r = rs.getJSONObject(j)
                         val v = r.getJSONArray("values")

@@ -55,6 +55,20 @@ class ThreadsKitTest {
     }
 }
 
+class LongPieceTest {
+    private fun rows(h: Int, blankAt: List<IntRange>) = BooleanArray(h) { y -> blankAt.any { y in it } }
+
+    // 커뮤니티 글: 가로의 3배까지는 한 장, 넘으면 2.4배 안팎에서 여백을 찾아 자름
+    @org.junit.Test
+    fun communityCaptureUsesFewerLongerPieces() {
+        org.junit.Assert.assertEquals(listOf(0, 290), ThreadsKit.cutPoints(rows(290, listOf(140..150)), 100, maxRatio = 3f, idealRatio = 2.4f))
+        val cuts = ThreadsKit.cutPoints(rows(700, listOf(228..236, 470..480)), 100, maxRatio = 3f, idealRatio = 2.4f)
+        org.junit.Assert.assertEquals(listOf(0, 232, 475, 700), cuts)
+        // 기본값(뉴스 캡처 등)은 예전처럼 2배·1.6배
+        org.junit.Assert.assertEquals(2, ThreadsKit.cutPoints(rows(290, listOf(140..150)), 100).size - 1)
+    }
+}
+
 class CardWrapTest {
     // 글자 하나의 폭을 10으로 가정
     private fun wrap(text: String, width: Float) = CardMaker.wrapWords(text, width) { it.length * 10f }

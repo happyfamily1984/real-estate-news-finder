@@ -75,15 +75,20 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("casualTone", true)
         set(v) = sp.edit().putBoolean("casualTone", v).apply()
 
-    /** 카드 이미지 아래에 넣을 내 계정 이름 (예: @myhome). 비어 있으면 표시 안 함 */
+    /** 워터마크 둘째 줄: 내 계정 이름. 비우면 표시 안 함 */
     var cardHandle: String
-        get() = sp.getString("cardHandle", "") ?: ""
+        get() = sp.getString("cardHandle", "@buals_zip") ?: ""
         set(v) = sp.edit().putString("cardHandle", v.trim()).apply()
 
     /** 뉴스·정부 글을 스레드로 보낼 때 본문 끝에 원문 링크를 넣을지 */
     var includeLink: Boolean
         get() = sp.getBoolean("includeLink", true)
         set(v) = sp.edit().putBoolean("includeLink", v).apply()
+
+    /** 워터마크 첫 줄 문구. 비우면 표시 안 함 */
+    var cardTagline: String
+        get() = sp.getString("cardTagline", "부동산 알려주는 스레드") ?: ""
+        set(v) = sp.edit().putString("cardTagline", v.trim()).apply()
 
     var onboardingDone: Boolean
         get() = sp.getBoolean("onboardingDone", false)
