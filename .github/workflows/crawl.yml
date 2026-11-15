@@ -37,6 +37,8 @@ jobs:
 
       - name: 진단
         if: github.event_name == 'workflow_dispatch' && inputs.diag
+        env:
+          REB_API_KEY: ${{ secrets.REB_API_KEY }}
         run: node src/diag.js
 
       - name: 이전 상태 불러오기 (새 글 판별·급상승 계산용)
@@ -48,6 +50,9 @@ jobs:
           fi
 
       - name: 수집
+        env:
+          REB_API_KEY: ${{ secrets.REB_API_KEY }}
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: OUT_DIR=out node src/crawl-once.js
 
       - name: data 브랜치에 게시
