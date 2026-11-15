@@ -25,6 +25,8 @@ object ThreadsAuto {
         var lastOkAt: Long = 0,
         /** 로그아웃 확인을 누른 뒤 계정 목록 화면이 뜨기를 기다리는 중 */
         var loggingOut: Boolean = false,
+        /** 빈 화면이거나 '…하는 중' 화면 (스레드가 다시 켜지는 중) */
+        var loading: Boolean = false,
         /** 탭이 없는 화면에서 뒤로 나간 횟수 */
         var backs: Int = 0,
     )
@@ -256,10 +258,10 @@ class ThreadsAutoService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (now - job.startedAt > 60_000 || job.steps > 30) { endSwitch("계정 전환을 끝내지 못했어요. 스레드에서 직접 전환해 주세요."); return }
         // 멈춤 규칙: 앞 동작 뒤 1초 안에 다음 동작이 이어지지 않으면 중단.
-        // 예외(화면이 뜨기를 기다리는 시간): 스레드가 처음 열릴 때 8초, 로그아웃·로그인 처리 중 10초
-        val waiting = job.loggingOut || job.loginClicked
+        // 예외(화면이 뜨기를 기다리는 시간): 스레드가 처음 열릴 때 8초, 로그아웃·로그인 처리 중이거나 빈 화면(불러오는 중)일 때 20초
+        val waiting = job.loggingOut || job.loginClicked || job.loading
         val idle = now - (if (job.lastOkAt > 0) job.lastOkAt else job.startedAt)
-        val limit = when { job.lastOkAt == 0L -> 8000L; waiting -> 10_000L; else -> 1000L }
+        val limit = when { job.lastOkAt == 0L -> 8000L; waiting -> 20_000L; else -> 1000L }
         if (idle > limit) {
             endSwitch(if (job.lastOkAt == 0L) "스레드 화면을 찾지 못해 멈췄어요." else "다음 동작이 1초 안에 이어지지 않아 멈췄어요. 설정의 '전환 기록'을 확인해 주세요.")
             return
@@ -273,7 +275,7 @@ class ThreadsAutoService : AccessibilityService() {
         val screen = ThreadsAuto.screenOf(labels, hasEditable = nodes.any { it.isEditable })
         fun acted(what: String, ok: Boolean) {
             ThreadsAuto.note("$screen: $what → ${if (ok) "누름" else "실패"}")
-            if (ok) { job.steps++; job.lastOkAt = now }
+            if (ok) { job.steps++; job.lastOkAt = now; job.loading = false }
             job.lastActionAt = now // 실패해도 잠깐 쉬었다가 다시 봄 (기록이 넘치지 않게)
             if (!ok) job.misses++
         }
@@ -311,6 +313,7 @@ class ThreadsAutoService : AccessibilityService() {
                 if (!job.sawOther) { // 프로필을 거치지 않고 설정 화면이 열려 있던 경우: 계정을 확인할 수 없으니 뒤로
                     acted("설정 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK)); return
                 }
+                if (job.loggingOut) return // 로그아웃 확인을 이미 눌렀음: 처리될 때까지 기다림
                 val logout = nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
                 if (logout != null && bounds(logout).bottom <= win.bottom) acted("로그아웃", press(logout))
                 else acted("아래로 넘기기", nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
@@ -330,7 +333,11 @@ class ThreadsAutoService : AccessibilityService() {
                     if (mine.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
                 }
                 if (pressProfileTab(nodes, win)) acted("프로필 탭", true)
-                else {
+                else if (job.loggingOut || labels.isEmpty() || labels.any { it.contains("하는 중") || it.contains("불러오는") || it.contains("Loading", true) }) {
+                    // 로그아웃 처리 중이거나 스레드가 다시 켜지는 중(빈 화면): 아무것도 누르지 않고 기다림
+                    if (!job.loading) ThreadsAuto.note("  화면이 뜨기를 기다리는 중: " + labels.take(3).joinToString(" | ") { it.take(14) })
+                    job.loading = true
+                } else {
                     // 하단 탭이 없는 화면(글쓰기, 설정 하위 화면 등): 뒤로 나가서 탭이 있는 화면까지 돌아감
                     ThreadsAuto.note("  보이는 글자: " + labels.take(8).joinToString(" | ") { it.take(14) })
                     job.backs++
