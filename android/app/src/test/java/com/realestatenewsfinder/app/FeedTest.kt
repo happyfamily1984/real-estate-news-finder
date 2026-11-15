@@ -79,7 +79,9 @@ class FeedTest {
         assertEquals(ThreadsAuto.Screen.PROFILE, ThreadsAuto.screenOf(listOf("웃긴글 저장소", "utgingeul_archive", "프로필 편집", "인사이트 보기")))
         assertEquals(ThreadsAuto.Screen.SETTINGS, ThreadsAuto.screenOf(listOf("설정", "Meta 계정", "알림", "개인정보 보호", "로그아웃")))
         assertEquals(ThreadsAuto.Screen.OTHER, ThreadsAuto.screenOf(listOf("utgingeul_archive", "새로운 소식을 전하세요.", "lawyer__hjr")))
-        assertEquals(ThreadsAuto.Screen.COMPOSE, ThreadsAuto.screenOf(listOf("답글 달기", "ps4_justdoit", "buals_zip", "답글 또 달기", "게시")))
+        assertEquals(ThreadsAuto.Screen.COMPOSE, ThreadsAuto.screenOf(listOf("답글 달기", "ps4_justdoit", "buals_zip", "답글 또 달기", "게시"), hasEditable = true))
+        // 홈 화면: 버튼 이름에 '새 스레드', '답글 달기'가 있어도 입력칸이 없으면 글쓰기 화면이 아님
+        assertEquals(ThreadsAuto.Screen.OTHER, ThreadsAuto.screenOf(listOf("utgingeul_archive", "새로운 소식을 전하세요.", "새 스레드", "답글 달기", "프로필")))
         assertTrue(ThreadsAuto.isAccount("buals_zip", "buals_zip") && ThreadsAuto.isAccount("@Buals_zip ", "buals_zip"))
         assertFalse(ThreadsAuto.isAccount("buals_zip_fan", "buals_zip"))
     }

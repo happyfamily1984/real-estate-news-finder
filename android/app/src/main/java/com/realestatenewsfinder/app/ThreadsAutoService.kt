@@ -46,15 +46,17 @@ object ThreadsAuto {
     /** 화면에 보이는 글자들로 지금 어느 화면인지 판단 (테스트할 수 있게 분리) */
     enum class Screen { LOGIN, LOGOUT_DIALOG, PROFILE, SETTINGS, COMPOSE, OTHER }
 
-    fun screenOf(labels: List<String>): Screen {
+    /** hasEditable: 화면에 글자 입력칸이 있는지 (글쓰기·답글 화면 판단용. 홈 화면에는 입력칸이 없음) */
+    fun screenOf(labels: List<String>, hasEditable: Boolean = false): Screen {
         fun has(vararg keys: String) = labels.any { l -> keys.any { l.contains(it, ignoreCase = true) } }
         return when {
             has("로그인 또는 가입하기", "다른 프로필 사용하기", "Log in or sign up", "Use another profile") -> Screen.LOGIN
             has("로그아웃하시겠어요", "Log out of your account", "Log out of") -> Screen.LOGOUT_DIALOG
             has("프로필 편집", "Edit profile") -> Screen.PROFILE
             has("Meta 계정", "Meta account") || (has("개인정보 보호", "Privacy") && has("콘텐츠 기본 설정", "Content preferences")) -> Screen.SETTINGS
-            // 글쓰기·답글 화면에 잘못 들어온 경우 (뒤로 나가야 함)
-            has("답글 달기", "새 스레드", "답글 또 달기", "스레드에 추가", "New thread", "Reply to") -> Screen.COMPOSE
+            // 글쓰기·답글 화면에 잘못 들어온 경우 (뒤로 나가야 함).
+            // 홈 화면의 버튼 이름(새 스레드, 답글 등)과 헷갈리지 않도록 입력칸이 있을 때만 글쓰기 화면으로 봄
+            hasEditable && (has("답글 또 달기", "스레드에 추가", "Add to thread") || labels.any { it.trim() == "게시" || it.trim().equals("Post", true) }) -> Screen.COMPOSE
             else -> Screen.OTHER
         }
     }
@@ -192,7 +194,7 @@ class ThreadsAutoService : AccessibilityService() {
         val nodes = all(root)
         val labels = nodes.map { label(it) }.filter { it.isNotEmpty() }
         val win = bounds(root).takeIf { it.height() > 0 } ?: resources.displayMetrics.let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
-        val screen = ThreadsAuto.screenOf(labels)
+        val screen = ThreadsAuto.screenOf(labels, hasEditable = nodes.any { it.isEditable })
         fun acted(what: String, ok: Boolean) {
             ThreadsAuto.note("$screen: $what → ${if (ok) "누름" else "실패"}")
             if (ok) job.steps++
