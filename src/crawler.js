@@ -14,6 +14,7 @@ export class Crawler {
     this.fetchItems = fetchItems ?? (async (source) => (source.fetch ? source.fetch(source) : parseList(await fetchHtml(source.url), source)));
     this.sources = sources;
     this.kindOf = (id) => this.sources.find((s) => s.id === id)?.kind ?? 'community';
+    this.nameOf = (id) => this.sources.find((s) => s.id === id)?.name ?? id;
     this.onNewPosts = onNewPosts;
     this.posts = new Map();
     this.status = {}; // source id -> { ok, count, error, at }
@@ -86,7 +87,7 @@ export class Crawler {
       if (now - base > KEEP_MS || !this.sources.some((s) => s.id === p.source)) this.posts.delete(id);
     }
 
-    scorePosts([...this.posts.values()].filter((p) => p.onBoard), this.kindOf, now);
+    scorePosts([...this.posts.values()].filter((p) => p.onBoard), this.kindOf, now, this.nameOf);
     this.lastCrawlAt = now;
     this.save();
 

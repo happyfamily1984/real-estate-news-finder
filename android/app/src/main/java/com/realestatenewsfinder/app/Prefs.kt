@@ -10,7 +10,7 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putBoolean("notify", v).apply()
 
     var minScore: Int
-        get() = sp.getInt("minScore", 80)
+        get() = sp.getInt("minScore", 55)
         set(v) = sp.edit().putInt("minScore", v).apply()
 
     var keywordsText: String

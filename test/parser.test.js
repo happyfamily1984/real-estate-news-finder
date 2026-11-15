@@ -26,6 +26,7 @@ test('디시 부동산갤: 공지 제외, 숫자 추출, 주소 정규화', () =
 
 test('뽐뿌 부동산포럼: 공지 제외, 페이지 파라미터 제거', () => {
   const posts = parseList(fixture('ppomppu.html'), sourceById.ppomppu);
+  assert.equal(sourceById.ppomppu.disabled, true);
   assert.equal(posts.length, 1);
   assert.deepEqual(posts[0], {
     id: 'ppomppu:https://www.ppomppu.co.kr/zboard/view.php?id=house&no=12345',

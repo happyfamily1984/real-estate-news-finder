@@ -3,10 +3,10 @@ import iconv from 'iconv-lite';
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
-export async function fetchHtml(url, { timeoutMs = 15000 } = {}) {
+export async function fetchHtml(url, { timeoutMs = 15000, userAgent = UA } = {}) {
   const res = await fetch(url, {
     headers: {
-      'User-Agent': UA,
+      'User-Agent': userAgent,
       'Accept-Language': 'ko-KR,ko;q=0.9',
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     },

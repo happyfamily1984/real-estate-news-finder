@@ -25,6 +25,9 @@ test('점수: 여러 매체가 다룬 최신 글 > 단독 글 > 오래된 글, �
   ], kindOf, now);
   const s = Object.fromEntries(posts.map((p) => [p.id, p]));
   assert.equal(s['a:1'].related, 1);
+  // 같은 주제 묶음은 한 글만 대표로 남음
+  assert.equal([s['a:1'], s['b:2']].filter((p) => p.dupOf).length, 1);
+  assert.equal(s['a:3'].dupOf, undefined);
   assert.ok(s['a:1'].score > s['a:3'].score);
   assert.ok(s['a:3'].score > s['a:4'].score);
   assert.ok(s['g:5'].score > s['a:3'].score);

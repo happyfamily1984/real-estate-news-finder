@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,13 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,9 +66,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
     ) {
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(52.dp).background(Brand, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Apartment, null, tint = Color.White, modifier = Modifier.size(32.dp))
-            }
+            Image(painterResource(R.drawable.app_logo), null, Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)))
             Spacer(Modifier.width(12.dp))
             Column {
                 Text("처음 설정", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)

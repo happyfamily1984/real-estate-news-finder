@@ -2,7 +2,11 @@ package com.realestatenewsfinder.app
 
 import android.graphics.Bitmap
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,8 +49,17 @@ private data class ExportResult(val pieces: List<Bitmap>, val files: List<File>)
  * 커뮤니티 글은 원문 캡처(분할 이미지)로 바꿀 수 있음.
  */
 @Composable
-fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit) {
+fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> Unit = {}) {
     val ctx = LocalContext.current
+    // 스레드로 보내고 앱이 뒤로 가면 이 화면을 닫음 → 다시 앱을 열면 목록이 보임
+    var sent by remember { mutableStateOf(false) }
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && sent) onSent() }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    BackHandler(onBack = onBack)
     val prefs = remember { Prefs(ctx) }
     val kind = source?.kind ?: "news"
     val sourceName = post.outlet ?: source?.name ?: post.source
@@ -65,7 +78,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit) {
     var showAutoHelp by remember { mutableStateOf(false) }
 
     if (showAutoHelp) {
-        val send = { showAutoHelp = false; result?.files?.let { ThreadsKit.shareToThreads(ctx, it, thread) }; Unit }
+        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.shareToThreads(ctx, it, thread) }; Unit }
         AlertDialog(
             onDismissRequest = { showAutoHelp = false },
             title = { Text("자동 입력 켜기") },
@@ -257,7 +270,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit) {
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", thread) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
                     if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(thread) else showAutoHelp = true
-                    if (!showAutoHelp) ThreadsKit.shareToThreads(ctx, files, thread)
+                    if (!showAutoHelp) { sent = true; ThreadsKit.shareToThreads(ctx, files, thread) }
                 }
             }, modifier = Modifier.weight(1f))
         }

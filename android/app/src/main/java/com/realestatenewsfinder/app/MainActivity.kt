@@ -9,7 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,12 +29,16 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
@@ -45,6 +51,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -111,10 +124,10 @@ fun AppTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> U
 }
 
 enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
-    HOME("뉴스", Icons.Filled.Newspaper, Icons.Outlined.Newspaper),
+    HOME("뉴스", Icons.Filled.Home, Icons.Outlined.Home),
     GOV("정부·공공", Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
     COMMUNITY("커뮤니티", Icons.Filled.Forum, Icons.Outlined.Forum),
-    RECENT("최근 본", Icons.Outlined.History, Icons.Outlined.History),
+    RECENT("최근 본", Icons.Filled.History, Icons.Outlined.History),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
 
@@ -153,7 +166,18 @@ fun App() {
         }
     }
     LaunchedEffect(Unit) { refresh() }
-    if (tab != Tab.HOME) BackHandler { tab = Tab.HOME }
+    // 뒤로가기: 내보내기 → 미리보기 → 목록 → 뉴스 탭 → 종료 확인 (나중에 등록한 것이 먼저 동작)
+    var askExit by remember { mutableStateOf(false) }
+    BackHandler { if (tab != Tab.HOME) tab = Tab.HOME else askExit = true }
+    if (askExit) {
+        AlertDialog(
+            onDismissRequest = { askExit = false },
+            title = { Text("종료하시겠습니까?") },
+            text = { Text("부동산뉴스파인더를 종료합니다.") },
+            confirmButton = { TextButton(onClick = { askExit = false; (ctx as? android.app.Activity)?.finish() }) { Text("종료", fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { askExit = false }) { Text("취소") } },
+        )
+    }
 
     val feedNews = remember(feed) { feed?.only("news") }
     val feedGov = remember(feed) { feed?.only("gov") }
@@ -191,6 +215,7 @@ fun App() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = { BottomBar(tab) { tab = it } },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
@@ -213,7 +238,7 @@ fun App() {
         PreviewScreen(
             post = p,
             source = feed?.sourceById?.get(p.source),
-            onExport = { preview = null; toExport(p) },
+            onExport = { toExport(p) }, // 미리보기는 그대로 두고 위에 띄움 → 뒤로가기로 한 단계씩 돌아옴
             onOpenSite = { openPost(ctx, p) },
             onBack = { preview = null },
         )
@@ -221,7 +246,9 @@ fun App() {
     // 스레드용 내보내기 (미리보기의 '내보내기' 또는 글 길게 누르기)
     exportPost?.let { p -> key("x" + p.id) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            ExportDetail(p, feed?.sourceById?.get(p.source), onBack = { exportPost = null })
+            ExportDetail(p, feed?.sourceById?.get(p.source), onBack = { exportPost = null },
+                // 스레드로 보낸 뒤에는 내보내기·미리보기를 닫아, 앱에 돌아오면 목록이 보이게
+                onSent = { exportPost = null; preview = null })
         }
     } }
     }
@@ -229,44 +256,106 @@ fun App() {
 
 @Composable
 fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
+    val primary = MaterialTheme.colorScheme.primary
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        Modifier.fillMaxWidth()
+            .shadow(16.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), ambientColor = Color(0x332563EB), spotColor = Color(0x332563EB))
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
+            .navigationBarsPadding().padding(horizontal = 8.dp).height(68.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Tab.entries.forEach { t ->
             val sel = t == current
-            NavigationBarItem(
-                selected = sel,
-                onClick = { onSelect(t) },
-                icon = { Icon(if (sel) t.on else t.off, null) },
-                label = { Text(t.label, fontSize = 12.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = Color.Transparent,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            )
+            Column(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(18.dp))
+                    .background(if (sel) primary.copy(alpha = 0.07f) else Color.Transparent)
+                    .clickable { onSelect(t) },
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(if (sel) t.on else t.off, null, tint = if (sel) primary else muted, modifier = Modifier.size(26.dp))
+                Spacer(Modifier.height(3.dp))
+                Text(t.label, fontSize = 12.sp, maxLines = 1, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.Medium, color = if (sel) primary else muted)
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.width(34.dp).height(3.dp).background(if (sel) primary else Color.Transparent, CircleShape))
+            }
         }
     }
 }
 
+/** 상단: 하늘색 배경 + 아파트 단지 그림 + 로고 · 앱 이름 · 알림 버튼 */
 @Composable
 fun Header(showDot: Boolean, onBell: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(38.dp).background(Brand, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Apartment, null, tint = Color.White, modifier = Modifier.size(24.dp))
-        }
-        Spacer(Modifier.width(10.dp))
-        Text("부동산뉴스파인더", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-        IconButton(onClick = onBell) {
-            Box {
-                Icon(Icons.Filled.Notifications, "알림 설정", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
-                if (showDot) Box(Modifier.align(Alignment.TopEnd).size(8.dp).background(HotRed, CircleShape))
+    val bg = MaterialTheme.colorScheme.background
+    val dark = bg.red < 0.5f
+    Box(Modifier.fillMaxWidth()) {
+        // 그림은 상태 표시줄 뒤까지 채움
+        Canvas(Modifier.matchParentSize()) { drawSkyline(dark, bg) }
+        Row(Modifier.statusBarsPadding().fillMaxWidth().height(128.dp).padding(start = 16.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painterResource(R.drawable.app_logo), null,
+                Modifier.size(62.dp).shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Brand, spotColor = Brand).clip(RoundedCornerShape(16.dp)),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("부동산\n뉴스파인더", fontSize = 25.sp, lineHeight = 28.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp)
+                Spacer(Modifier.height(3.dp))
+                Text("실시간 부동산 뉴스를 한눈에", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+            }
+            Box(Modifier.align(Alignment.Top).padding(top = 14.dp)) {
+                Surface(onClick = onBell, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 4.dp, modifier = Modifier.size(44.dp)) {
+                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Filled.Notifications, "알림 설정", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f), modifier = Modifier.size(24.dp)) }
+                }
+                if (showDot) Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp).size(9.dp).background(HotRed, CircleShape))
             }
         }
     }
+}
+
+/** 헤더 배경 그림: 하늘 그라데이션, 구름, 오른쪽 아파트 단지, 나무. 아래·왼쪽은 배경색으로 자연스럽게 사라짐 */
+private fun DrawScope.drawSkyline(dark: Boolean, bg: Color) {
+    val w = size.width; val h = size.height
+    val sky = if (dark) Color(0xFF16243F) else Color(0xFFCFE4FF)
+    drawRect(Brush.verticalGradient(listOf(sky, bg)))
+    val cloud = Color.White.copy(alpha = if (dark) 0.06f else 0.75f)
+    listOf(Triple(0.52f, 0.20f, 0.055f), Triple(0.58f, 0.17f, 0.07f), Triple(0.64f, 0.21f, 0.05f), Triple(0.30f, 0.10f, 0.04f), Triple(0.345f, 0.085f, 0.05f))
+        .forEach { (x, y, r) -> drawCircle(cloud, r * w, Offset(x * w, y * h * 2f)) }
+    // (왼쪽 x, 폭, 높이) — 화면 폭 기준 비율. 뒤쪽 동부터 그림
+    val towers = listOf(
+        listOf(0.50f, 0.07f, 0.42f), listOf(0.93f, 0.08f, 0.50f), listOf(0.58f, 0.075f, 0.58f),
+        listOf(0.84f, 0.085f, 0.66f), listOf(0.66f, 0.085f, 0.74f), listOf(0.745f, 0.095f, 0.92f),
+    )
+    val base = h * 0.90f
+    towers.forEachIndexed { i, (x, tw, th) ->
+        val left = x * w; val width = tw * w; val top = base - th * h
+        val front = i >= 3
+        val wall = if (dark) Color(if (front) 0xFF3A4E78 else 0xFF2A3A5C) else Color(if (front) 0xFFF7FAFF else 0xFFDCE9FB)
+        val side = if (dark) Color(0xFF24324F) else Color(0xFFB9D0F2)
+        drawRect(side, Offset(left + width * 0.72f, top + width * 0.08f), Size(width * 0.28f, base - top))
+        drawRect(wall, Offset(left, top), Size(width * 0.74f, base - top))
+        // 창문 줄
+        val win = if (dark) Color(0xFF8FB6FF).copy(alpha = 0.55f) else Color(0xFF6FA2EA).copy(alpha = 0.75f)
+        val rowH = width * 0.20f
+        var y = top + rowH * 0.7f
+        while (y < base - rowH) {
+            for (c in 0..2) drawRect(win, Offset(left + width * (0.07f + c * 0.22f), y), Size(width * 0.15f, rowH * 0.5f))
+            y += rowH
+        }
+    }
+    // 나무
+    val tree = if (dark) Color(0xFF1F5D3A) else Color(0xFF5DBB63)
+    val tree2 = if (dark) Color(0xFF184A2E) else Color(0xFF3F9E4D)
+    var x = 0.47f
+    var k = 0
+    while (x < 1.02f) {
+        val r = w * (if (k % 2 == 0) 0.028f else 0.022f)
+        drawCircle(if (k % 3 == 0) tree2 else tree, r, Offset(x * w, base - r * 0.35f))
+        x += 0.04f; k++
+    }
+    // 아래쪽과 왼쪽을 배경색으로 흐리게
+    drawRect(Brush.verticalGradient(listOf(Color.Transparent, bg), startY = h * 0.70f, endY = h))
+    drawRect(Brush.horizontalGradient(listOf(bg.copy(alpha = 0f), Color.Transparent), startX = w * 0.40f, endX = w * 0.62f))
+    drawRect(Brush.horizontalGradient(listOf(sky.copy(alpha = 0.9f), sky.copy(alpha = 0f)), startX = w * 0.38f, endX = w * 0.60f), size = Size(w, h * 0.55f))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -278,7 +367,6 @@ fun HomeScreen(
 ) {
     var source by rememberSaveable { mutableStateOf("") }
     var topic by rememberSaveable { mutableStateOf("") }
-    var sourceMenu by remember { mutableStateOf(false) }
     var sort by rememberSaveable { mutableStateOf(SortBy.SCORE) }
     var query by rememberSaveable { mutableStateOf("") }
     var sortMenu by remember { mutableStateOf(false) }
@@ -287,6 +375,7 @@ fun HomeScreen(
         val list = feed?.posts.orEmpty()
             .filter { source.isEmpty() || it.source == source }
             .filter { topic.isEmpty() || topic in it.tags }
+            .filter { it.dupOf == null || query.isNotBlank() } // 같은 주제를 다룬 글은 대표 하나만 (검색할 때는 전부)
             .filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
         when (sort) {
             SortBy.SCORE -> list.sortedByDescending { it.score }
@@ -298,54 +387,48 @@ fun HomeScreen(
     }
     val hasNew = remember(feed) { feed?.posts?.any { isNew(it) } == true }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize()) {
         Header(hasNew, onBell)
         PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
             LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
                 item {
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         // 주제 칩: 사람들이 많이 찾는 주제별로 모아 보기
-                        item { SourceChip("전체", null, topic == "", ok = true) { topic = "" } }
+                        item { SourceChip("전체", null, topic == "", ok = true, icon = Icons.Filled.GridView) { topic = "" } }
                         items(feed?.topics.orEmpty()) { t ->
                             SourceChip(t, null, topic == t, ok = true) { topic = if (topic == t) "" else t }
                         }
                     }
                 }
                 item {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         SearchPill(query, { query = it }, Modifier.weight(1f))
-                        Spacer(Modifier.width(8.dp))
-                        // 매체(소스) 선택
+                        Spacer(Modifier.width(10.dp))
+                        // 필터 버튼: 정렬 · 출처
                         Box {
-                            val picked = feed?.sourceById?.get(source)
-                            Surface(onClick = { sourceMenu = true }, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer,
-                                modifier = Modifier.height(44.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)) {
-                                Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(picked?.name ?: "출처", fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1)
-                                    Text(" ▾", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            DropdownMenu(expanded = sourceMenu, onDismissRequest = { sourceMenu = false }) {
-                                DropdownMenuItem(text = { Text("전체") }, onClick = { source = ""; sourceMenu = false })
-                                feed?.sources.orEmpty().forEach { s ->
-                                    DropdownMenuItem(text = { Text(if (s.ok) s.name else "${s.name} ⚠") }, onClick = { source = s.id; sourceMenu = false })
-                                }
-                            }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Box {
-                            val pickSort = sort == SortBy.PICK
-                            Surface(onClick = { sortMenu = true }, shape = CircleShape, color = (if (pickSort) PickGreen else Brand).copy(alpha = 0.12f), modifier = Modifier.height(44.dp)) {
-                                Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(sort.label, color = if (pickSort) PickGreen else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            val active = source.isNotEmpty() || sort != SortBy.SCORE
+                            Surface(
+                                onClick = { sortMenu = true }, shape = RoundedCornerShape(16.dp),
+                                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                                shadowElevation = 3.dp, modifier = Modifier.size(48.dp),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.Tune, "정렬 · 출처", tint = if (active) Color.White else MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                 }
                             }
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                MenuLabel("정렬")
                                 SortBy.entries.filter { community || !it.communityOnly }.forEach {
-                                    DropdownMenuItem(text = { Text(it.label) }, onClick = { sort = it; sortMenu = false })
+                                    MenuChoice(it.label, sort == it) { sort = it; sortMenu = false }
+                                }
+                                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                                MenuLabel("출처")
+                                MenuChoice("전체", source.isEmpty()) { source = ""; sortMenu = false }
+                                feed?.sources.orEmpty().forEach { s ->
+                                    MenuChoice(if (s.ok) s.name else "${s.name} ⚠", source == s.id) { source = s.id; sortMenu = false }
                                 }
                             }
                         }
@@ -400,25 +483,43 @@ fun EmptyText(text: String) {
 }
 
 @Composable
-fun SourceChip(label: String, dot: Color?, selected: Boolean, ok: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier
-            .height(38.dp)
-            .then(if (selected) Modifier else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)),
+private fun MenuLabel(text: String) {
+    Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp))
+}
+
+@Composable
+private fun MenuChoice(text: String, selected: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(text, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }, onClick = onClick,
+        trailingIcon = { if (selected) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
+    )
+}
+
+@Composable
+fun SourceChip(label: String, dot: Color?, selected: Boolean, ok: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
+    val shape = CircleShape
+    Box(
+        Modifier.height(44.dp)
+            .shadow(if (selected) 6.dp else 3.dp, shape, ambientColor = Color(0x402563EB), spotColor = Color(0x402563EB))
+            .then(
+                if (selected) Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF4F8BFF), Brand)), shape)
+                else Modifier.background(MaterialTheme.colorScheme.surfaceContainer, shape),
+            )
+            .clip(shape).clickable(onClick = onClick).padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, null, tint = if (selected) Color.White else MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+            }
             if (dot != null) {
                 Box(Modifier.size(8.dp).background(if (selected) Color.White else dot, CircleShape))
                 Spacer(Modifier.width(7.dp))
             }
             Text(
-                if (ok) label else "$label ⚠",
-                fontSize = 14.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = if (ok) 0.85f else 0.45f),
+                if (ok) label else "$label ⚠", fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = if (ok) 0.9f else 0.45f),
             )
         }
     }
@@ -429,17 +530,16 @@ fun SearchPill(value: String, onChange: (String) -> Unit, modifier: Modifier = M
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier
-            .height(44.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .padding(horizontal = 14.dp),
+            .height(48.dp)
+            .shadow(3.dp, CircleShape, ambientColor = Color(0x302563EB), spotColor = Color(0x302563EB))
+            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, null, tint = muted, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Outlined.Search, null, tint = muted, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text("제목 검색", color = muted, fontSize = 15.sp)
+            if (value.isEmpty()) Text("제목 검색어를 입력하세요", color = muted, fontSize = 15.sp)
             BasicTextField(
                 value = value, onValueChange = onChange, singleLine = true,
                 textStyle = TextStyle(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface),
@@ -470,7 +570,7 @@ fun StatusLine(feed: Feed?, error: String?) {
 
 fun scoreColor(score: Int) = when {
     score >= 85 -> HotRed
-    score >= 75 -> HotOrange
+    score >= 70 -> HotOrange
     else -> Calm
 }
 
@@ -486,47 +586,68 @@ fun PostCard(p: Post, src: Source?, favorite: Boolean, onClick: () -> Unit, onLo
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val number = if (showPick) p.pick else p.score
     val accent = if (showPick) (if (p.pick >= 70) PickGreen else Calm) else scoreColor(p.score)
-    val srcColor = src?.let { Color(it.color) } ?: Color.Gray
+    val primary = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(20.dp)
     Row(
         Modifier
-            .padding(horizontal = 14.dp, vertical = 3.dp)
+            .padding(horizontal = 14.dp, vertical = 5.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(5.dp, shape, ambientColor = Color(0x262563EB), spotColor = Color(0x262563EB))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 왼쪽 색 막대
+        // 왼쪽: 색 막대 + 점수 칸 (아래에 도시 실루엣)
         Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
-        Column(Modifier.width(54.dp).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$number", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = accent, lineHeight = 24.sp)
-            Text(if (showPick) "추천" else "중요도", fontSize = 10.sp, color = muted, lineHeight = 12.sp)
-        }
-        Box(Modifier.width(1.dp).height(30.dp).background(MaterialTheme.colorScheme.outlineVariant))
-        Column(Modifier.weight(1f).padding(start = 12.dp, top = 8.dp, bottom = 8.dp)) {
-            Text(
-                p.title, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    p.outlet ?: src?.name ?: p.source, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = srcColor, maxLines = 1,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(srcColor.copy(alpha = 0.12f))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                )
-                if (isNew(p)) Text(" NEW", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = HotRed, maxLines = 1)
-                if (!showPick && p.pick >= 70) Text("  ✍추천", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PickGreen, maxLines = 1)
-                p.tags.firstOrNull()?.let { Text("  #$it", fontSize = 12.sp, color = muted, maxLines = 1) }
-                if (p.related > 0) Text("  ${p.related + 1}곳 보도", fontSize = 12.sp, color = HotOrange, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                p.views?.let { Stat(Icons.Outlined.Visibility, fmt(it)) }
-                p.comments?.let { Stat(Icons.Outlined.ChatBubbleOutline, fmt(it)) }
-                Text("  " + ago(p.time), fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Clip)
+        Box(Modifier.width(72.dp).fillMaxHeight().background(accent.copy(alpha = 0.08f))) {
+            Canvas(Modifier.matchParentSize()) {
+                val heights = listOf(0.16f, 0.26f, 0.20f, 0.34f, 0.24f, 0.30f, 0.18f)
+                val bw = size.width / heights.size
+                heights.forEachIndexed { i, hh ->
+                    drawRoundRect(accent.copy(alpha = 0.16f), Offset(i * bw + bw * 0.1f, size.height * (1f - hh)), Size(bw * 0.8f, size.height * hh), CornerRadius(3f, 3f))
+                }
+            }
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$number", fontWeight = FontWeight.Black, fontSize = 27.sp, color = accent, lineHeight = 29.sp)
+                Text(if (showPick) "추천" else "중요도", fontSize = 11.sp, color = muted, lineHeight = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted.copy(alpha = 0.6f), modifier = Modifier.padding(end = 6.dp))
+        Column(Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, bottom = 12.dp)) {
+            Text(
+                p.title, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(7.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tag(p.outlet ?: src?.name ?: p.source, primary, Modifier.weight(1f, fill = false))
+                if (isNew(p)) Text("  NEW", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = HotRed, maxLines = 1)
+                if (!showPick && p.pick >= 70) {
+                    Spacer(Modifier.width(6.dp))
+                    Row(Modifier.clip(RoundedCornerShape(7.dp)).background(PickGreen.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Filled.TrendingUp, null, tint = PickGreen, modifier = Modifier.size(13.dp))
+                        Text("추천", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PickGreen, maxLines = 1)
+                    }
+                }
+                p.tags.firstOrNull()?.let { Text("  #$it", fontSize = 12.sp, color = muted, maxLines = 1, softWrap = false) }
+                if (p.related > 0) { Spacer(Modifier.width(6.dp)); Tag("${p.related + 1}곳 보도", HotOrange) }
+                p.views?.let { Stat(Icons.Outlined.Visibility, fmt(it)) }
+                p.comments?.let { Stat(Icons.Outlined.ChatBubbleOutline, fmt(it)) }
+                Text("  " + ago(p.time), fontSize = 12.sp, color = muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+            }
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted.copy(alpha = 0.7f), modifier = Modifier.padding(end = 8.dp).size(26.dp))
     }
+}
+
+/** 옅은 바탕의 둥근 꼬리표 (출처, N곳 보도) */
+@Composable
+private fun Tag(text: String, color: Color, modifier: Modifier = Modifier) {
+    Text(
+        text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = modifier.clip(RoundedCornerShape(7.dp)).background(color.copy(alpha = 0.12f)).padding(horizontal = 7.dp, vertical = 2.dp),
+    )
 }
 
 @Composable

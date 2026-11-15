@@ -62,8 +62,23 @@ export function parseFeed(xml, source, now = Date.now()) {
   return out.slice(0, source.limit ?? 40);
 }
 
+const READER_UA = 'Mozilla/5.0 (compatible; RSS reader)';
+
+/** source.feed(주소 또는 주소 배열)를 차례로 시도. 사이트에 따라 브라우저 UA를 막는 곳이 있어 리더 UA로도 시도 */
 export async function fetchFeed(source) {
-  return parseFeed(await fetchHtml(source.feed), source);
+  const errors = [];
+  for (const url of [].concat(source.feed)) {
+    for (const userAgent of [undefined, READER_UA]) {
+      try {
+        const xml = await fetchHtml(url, userAgent ? { userAgent } : {});
+        if (!/<(rss|feed|rdf:RDF)[\s>]/i.test(xml.slice(0, 3000))) throw new Error('피드 형식이 아님');
+        return parseFeed(xml, source);
+      } catch (e) {
+        errors.push(`${new URL(url).hostname} ${e.message}`);
+      }
+    }
+  }
+  throw new Error([...new Set(errors)].join(' / '));
 }
 
 /** 구글 뉴스 검색 RSS: 여러 검색어 결과를 합침 (언론사 여러 곳을 한 번에) */
@@ -72,7 +87,7 @@ export async function fetchGoogleNews(source) {
   const seen = new Set();
   let lastError = null;
   for (const q of source.queries) {
-    const feed = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:1d`)}&hl=ko&gl=KR&ceid=KR:ko`;
+    const feed = `https://news.google.com/rss/search?q=${encodeURIComponent(`${q} when:${source.windowDays ?? 1}d`)}&hl=ko&gl=KR&ceid=KR:ko`;
     try {
       for (const p of parseFeed(await fetchHtml(feed), source)) {
         const key = `${p.outlet}|${p.title}`;

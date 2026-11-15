@@ -42,6 +42,8 @@ data class Post(
     val outlet: String? = null,
     /** 피드에 들어 있던 기사 앞부분 */
     val summary: String? = null,
+    /** 같은 주제를 다룬 글 묶음에서 대표가 아닌 글이면, 대표 글의 id */
+    val dupOf: String? = null,
 ) {
     val time: Long get() = publishedAt ?: firstSeenAt
 
@@ -50,7 +52,7 @@ data class Post(
         .put("views", views ?: JSONObject.NULL).put("comments", comments ?: JSONObject.NULL).put("likes", likes ?: JSONObject.NULL)
         .put("score", score).put("pick", pick).put("viewsPerMin", viewsPerMin).put("firstSeenAt", firstSeenAt)
         .put("publishedAt", publishedAt ?: JSONObject.NULL).put("tags", JSONArray(tags)).put("related", related)
-        .put("outlet", outlet ?: JSONObject.NULL).put("summary", summary ?: JSONObject.NULL)
+        .put("outlet", outlet ?: JSONObject.NULL).put("summary", summary ?: JSONObject.NULL).put("dupOf", dupOf ?: JSONObject.NULL)
 
     companion object {
         private fun JSONObject.intOrNull(k: String): Int? = if (!has(k) || isNull(k)) null else optInt(k)
@@ -63,7 +65,7 @@ data class Post(
             firstSeenAt = p.optLong("firstSeenAt", 0),
             publishedAt = if (!p.has("publishedAt") || p.isNull("publishedAt")) null else p.optLong("publishedAt"),
             tags = p.optJSONArray("tags")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
-            related = p.optInt("related", 0), outlet = p.strOrNull("outlet"), summary = p.strOrNull("summary"),
+            related = p.optInt("related", 0), outlet = p.strOrNull("outlet"), summary = p.strOrNull("summary"), dupOf = p.strOrNull("dupOf"),
         )
     }
 }
@@ -133,7 +135,7 @@ object FeedRepository {
 
 /** 알림 조건: 선택한 소스의 새 글 중 (중요도 >= 기준) 또는 (제목에 키워드 포함) */
 fun matchesAlert(post: Post, minScore: Int, keywords: List<String>, mutedSources: Set<String>): Boolean {
-    if (post.source in mutedSources) return false
+    if (post.source in mutedSources || post.dupOf != null) return false
     val title = post.title.lowercase()
     if (keywords.any { it.isNotBlank() && title.contains(it.trim().lowercase()) }) return true
     return post.score >= minScore
