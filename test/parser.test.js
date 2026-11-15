@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { parseCount, parseList } from '../src/parser.js';
 import { parseFeed } from '../src/feeds.js';
 import { sourceById } from '../src/sources.js';
+import { parseKoreaList } from '../src/korea.js';
 import { tagsOf, isRelevant, keywordWeight, threadPick } from '../src/topics.js';
 
 const fixture = (n) => fs.readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8');
@@ -46,8 +47,8 @@ test('구글 뉴스: 매체명 분리, 포토·오래된 기사 제외', () => {
   assert.equal(posts[0].summary, undefined);
 });
 
-test('정부 보도자료: 부동산 관련만, 요약에서 태그 제거', () => {
-  const posts = parseFeed(xml('korea.xml'), sourceById.fsc, now);
+test('RSS 피드: 부동산 관련만, 요약에서 태그 제거', () => {
+  const posts = parseFeed(xml('korea.xml'), { id: 'fsc', filter: true }, now);
   assert.equal(posts.length, 1);
   assert.equal(posts[0].title, '스트레스 DSR 3단계 시행방안 발표');
   assert.equal(posts[0].summary, '금융위원회는 7월 1일부터 스트레스 DSR 3단계를 시행한다고 밝혔다.');
@@ -69,4 +70,20 @@ test('스레드 추천: 독자가 궁금해할 글(대상·시행일·금액)이
   const d = threadPick('건설협회 창립 기념 행사 개최');
   assert.ok(a >= 80 && b >= 70, `${a} ${b}`);
   assert.ok(c <= 30 && d === 0, `${c} ${d}`);
+});
+
+test('정책브리핑 목록: 부동산 관련만, 부처 이름·날짜·요약 추출', () => {
+  const html = `<ul>
+    <li><a href="/briefing/pressReleaseView.do?newsId=156700001&amp;pageIndex=1"><span class="text"><strong>수도권 주택 공급 확대 방안 발표</strong><span class="lead">국토교통부는 수도권에 3만 가구를 공급한다.</span><span class="source"><span>2026.11.14</span><span>국토교통부</span></span></span></a></li>
+    <li><a href="/briefing/pressReleaseView.do?newsId=156700002"><strong>가을철 산불방지대책본부 가동</strong><span class="source"><span>2026.11.15</span><span>산림청</span></span></a></li>
+    <li><a href="/briefing/pressReleaseView.do?newsId=156700003"><strong>전세사기 피해자 지원 현황</strong><span class="source"><span>2026.11.15</span><span>국토교통부</span></span></a></li>
+    <li><a href="/briefing/pressReleaseView.do?newsId=156600000"><strong>청약 제도 개선</strong><span class="source"><span>2026.11.01</span><span>국토교통부</span></span></a></li>
+  </ul>`;
+  const posts = parseKoreaList(html, sourceById['korea-press'], now);
+  assert.deepEqual(posts.map((p) => p.title), ['수도권 주택 공급 확대 방안 발표', '전세사기 피해자 지원 현황']);
+  assert.equal(posts[0].url, 'https://www.korea.kr/briefing/pressReleaseView.do?newsId=156700001');
+  assert.equal(posts[0].outlet, '국토교통부');
+  assert.equal(posts[0].summary, '국토교통부는 수도권에 3만 가구를 공급한다.');
+  assert.equal(new Date(posts[0].publishedAt).toISOString(), '2026-11-14T03:00:00.000Z');
+  assert.equal(posts[1].publishedAt, null); // 오늘 글은 처음 수집한 시각을 씀
 });

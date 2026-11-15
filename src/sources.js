@@ -5,14 +5,7 @@
 //   keepParams : 글 주소에서 남길 쿼리 파라미터 (같은 글이 같은 id가 되도록)
 //   disabled : true면 수집 안 함
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
-
-// 정책브리핑 부처별 보도자료 RSS. 정부 사이트(korea.kr, molit.go.kr, fsc.go.kr)는 해외 클라우드 접속을 막아서(HTTP 404/503)
-// 클라우드에서는 꺼두고, 앱이 휴대폰에서 직접 받아옴 (android GovLocal.kt). 테스트에서 피드 형식 확인용으로 정의는 남겨둠
-const korea = (id, name, dept, color, filter = true) => ({
-  id, name, board: '보도자료', kind: 'gov', color, filter, disabled: true,
-  url: 'https://www.korea.kr/briefing/pressReleaseList.do',
-  feed: `https://www.korea.kr/rss/dept_${dept}.xml`, fetch: fetchFeed,
-});
+import { fetchKorea } from './korea.js';
 
 export const SOURCES = [
   // ---- 언론 ----
@@ -32,8 +25,9 @@ export const SOURCES = [
   { id: 'sedaily', name: '서울경제', board: '부동산', kind: 'news', color: '#7a3e9d', url: 'https://www.sedaily.com/v/NewsMain/GB', feed: 'https://www.sedaily.com/rss/realestate', fetch: fetchFeed },
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
-  korea('molit', '국토교통부', 'molit', '#1f6f43', false),
-  korea('fsc', '금융위원회', 'fsc', '#8a6d1d'),
+  // 정책브리핑 목록 페이지 (RSS는 2026-07-01 종료). 모든 부처 보도자료 중 부동산 관련 제목만, 부처 이름이 매체명으로 들어감
+  { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 4, filter: true, fetch: fetchKorea },
+  { id: 'korea-policy', name: '정책뉴스', board: '정책브리핑', kind: 'gov', color: '#2b7a9e', url: 'https://www.korea.kr/news/policyNewsList.do', pages: 2, filter: true, fetch: fetchKorea },
   // 구글 뉴스에서 정부 사이트 글만 검색 (클라우드에서 받을 수 있는 정부 발표)
   {
     id: 'gov-search', name: '정부 발표 검색', board: '정부 사이트', kind: 'gov', color: '#3f7d5c',
@@ -56,7 +50,7 @@ export const SOURCES = [
     },
   },
   {
-    // 클라우드 접근을 막음(HTTP 403) → 꺼둠
+    // 클라우드 접근을 막음(HTTP 403) → 앱이 휴대폰에서 직접 받아옴 (android PpomppuLocal.kt)
     id: 'ppomppu', name: '뽐뿌', board: '부동산포럼', kind: 'community', color: '#d9534f', disabled: true,
     url: 'https://www.ppomppu.co.kr/zboard/zboard.php?id=house',
     keepParams: ['id', 'no'],
