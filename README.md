@@ -35,4 +35,4 @@ npm run crawl:demo            # 가짜 데이터로 out/posts.json 생성
 cd android && ./gradlew assembleRelease                      # APK
 cd android && ./gradlew testDebugUnitTest -PlocalJvmOnly      # 네트워크 제한 환경용 (화면 테스트 제외)
 ```
-출시는 Actions > android > Run workflow 에서 `release`를 체크했을 때만 됩니다.
+출시는 GitHub Actions > android > Run workflow 에서 `release`를 체크했을 때만 됩니다.
