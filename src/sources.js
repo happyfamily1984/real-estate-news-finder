@@ -26,7 +26,7 @@ export const SOURCES = [
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
   // 정책브리핑 목록 페이지 (RSS는 2026-07-01 종료). 모든 부처 보도자료 중 부동산 관련 제목만, 부처 이름이 매체명으로 들어감
-  { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 4, filter: true, fetch: fetchKorea },
+  { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 6, filter: true, fetch: fetchKorea },
   { id: 'korea-policy', name: '정책뉴스', board: '정책브리핑', kind: 'gov', color: '#2b7a9e', url: 'https://www.korea.kr/news/policyNewsList.do', pages: 2, filter: true, fetch: fetchKorea },
   // 구글 뉴스에서 정부 사이트 글만 검색 (클라우드에서 받을 수 있는 정부 발표)
   {
