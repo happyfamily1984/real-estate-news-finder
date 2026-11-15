@@ -25,6 +25,8 @@ object ThreadsAuto {
         var lastOkAt: Long = 0,
         /** 로그아웃 확인을 누른 뒤 계정 목록 화면이 뜨기를 기다리는 중 */
         var loggingOut: Boolean = false,
+        /** 탭이 없는 화면에서 뒤로 나간 횟수 */
+        var backs: Int = 0,
     )
 
     @Volatile var pending: Job? = null
@@ -203,7 +205,11 @@ class ThreadsAutoService : AccessibilityService() {
     /** 접근성 누르기를 먼저 해보고, 안 되면 그 요소의 가운데를 직접 누름 */
     private fun press(n: AccessibilityNodeInfo?): Boolean {
         if (n == null) return false
-        if (click(n)) return true
+        // 누를 수 있는 윗요소가 줄 하나 크기일 때만 접근성 누르기를 씀.
+        // (목록 전체 같은 큰 요소를 누르면 엉뚱한 항목이 눌릴 수 있음 → 그럴 땐 글자 자리를 직접 터치)
+        var t: AccessibilityNodeInfo? = n
+        while (t != null && !t.isClickable) t = t.parent
+        if (t != null && bounds(t).height() < resources.displayMetrics.heightPixels * 0.2f && t.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
         val b = bounds(n)
         return b.width() > 0 && b.height() > 0 && tapAt(b.exactCenterX(), b.exactCenterY())
     }
@@ -222,11 +228,14 @@ class ThreadsAutoService : AccessibilityService() {
             b.width() > 0 && b.height() > 0 && b.centerY() > barTop && b.centerY() < barBottom && b.width() < win.width() * 0.4f && b.height() < screenH * 0.12f
         }
         ThreadsAuto.note("  탭 줄 ${barTop.toInt()}~${barBottom.toInt()}/${screenH} 후보: " + zone.take(12).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
+        // 하단 탭이 있는 화면인지 확인: 탭 이름(피드·메시지·만들기·활동·프로필) 중 둘 이상이 탭 줄에 보여야 함.
+        // 탭이 없는 화면(설정 하위 화면, 글쓰기 등)에서는 아무 데나 누르지 않음
+        val tabNames = listOf("피드", "홈", "메시지", "검색", "만들기", "활동", "프로필", "Home", "Search", "Create", "Activity", "Profile")
+        if (zone.count { n -> tabNames.any { label(n).contains(it, true) } } < 2) return false
         val tab = zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
             ?: zone.filter { bounds(it).centerX() > win.left + win.width() * 0.75f }.maxByOrNull { bounds(it).centerX() }
-        if (tab != null && (clickSmall(tab, win) || bounds(tab).let { tapAt(it.exactCenterX(), it.exactCenterY()) })) return true
-        // 탭 정보가 없을 때: 탭 줄 가운데 높이, 다섯 칸 중 맨 오른쪽 칸
-        return tapAt(win.left + win.width() * 0.867f, barBottom - screenH * 0.036f)
+            ?: return false
+        return clickSmall(tab, win) || bounds(tab).let { tapAt(it.exactCenterX(), it.exactCenterY()) }
     }
 
     /** node 또는 그 위의 누를 수 있는 요소를 누름. 단, 너무 큰 요소(화면 일부가 아니라 목록 전체 등)는 누르지 않음 */
@@ -320,7 +329,14 @@ class ThreadsAutoService : AccessibilityService() {
                     ThreadsAuto.note("  홈 계정: " + mine.joinToString(",") { label(it).take(20) })
                     if (mine.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
                 }
-                acted("프로필 탭", pressProfileTab(nodes, win))
+                if (pressProfileTab(nodes, win)) acted("프로필 탭", true)
+                else {
+                    // 하단 탭이 없는 화면(글쓰기, 설정 하위 화면 등): 뒤로 나가서 탭이 있는 화면까지 돌아감
+                    ThreadsAuto.note("  보이는 글자: " + labels.take(8).joinToString(" | ") { it.take(14) })
+                    job.backs++
+                    if (job.backs > 6) { endSwitch("스레드 첫 화면으로 돌아가지 못해 멈췄어요."); return }
+                    acted("탭 없는 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK))
+                }
             }
         }
     }
