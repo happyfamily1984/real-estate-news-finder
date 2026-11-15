@@ -1,3 +1,4 @@
+# 워크플로 등록 확인용 주석
 # 클라우드 수집기: 15분마다 부동산 뉴스·정부 발표·커뮤니티 글을 수집해 `data` 브랜치에 posts.json으로 올립니다.
 # 앱은 https://raw.githubusercontent.com/<owner>/<repo>/data/posts.json 을 받아갑니다.
 name: crawl
