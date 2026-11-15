@@ -38,8 +38,8 @@ jobs:
 
       - name: APK 빌드
         run: |
-          # 버전 번호는 계속 커져야 덮어쓰기 설치가 됨 (100 + 실행 번호)
-          export VERSION_CODE=$((100 + ${{ github.run_number }}))
+          # 버전 번호는 계속 커져야 덮어쓰기 설치가 됨 (테스트 APK보다 크게: 200 + 실행 번호)
+          export VERSION_CODE=$((200 + ${{ github.run_number }}))
           export VERSION_NAME=1.0.${{ github.run_number }}
           ./gradlew assembleRelease
           cp app/build/outputs/apk/release/app-release.apk ../real-estate-news-finder.apk

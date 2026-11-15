@@ -54,6 +54,7 @@ fun mobileUrl(post: Post): String {
         "dcinside" -> m("[?&]id=([^&]+).*[?&]no=(\\d+)")?.let { "https://m.dcinside.com/board/${it[1]}/${it[2]}" }
         "clien" -> m("www\\.clien\\.net(/.*)")?.let { "https://m.clien.net${it[1]}" }
         "ppomppu" -> m("[?&]id=([^&]+).*[?&]no=(\\d+)")?.let { "https://m.ppomppu.co.kr/new/bbs_view.php?id=${it[1]}&no=${it[2]}" }
+        "navercafe" -> m("cafe\\.naver\\.com/([^/?]+)/(\\d+)")?.let { "https://m.cafe.naver.com/${it[1]}/${it[2]}" }
         else -> null
     } ?: u
 }

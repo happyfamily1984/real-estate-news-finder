@@ -54,6 +54,7 @@ val BODY_SELECTORS = mapOf(
     "dcinside" to ".thum-txtin, .thum-txt, .gallview-thum, .write_div",
     "clien" to ".post_article, .post_content, .post_view",
     "ppomppu" to "#KH_Content, .bbs.view .cont, .board-contents, td.board-contents",
+    "navercafe" to ".se-main-container, #postContent, .post_cont, .ArticleContentBox, .content_area",
 )
 
 /** 캡처 전에 광고와 댓글 영역을 숨김 */

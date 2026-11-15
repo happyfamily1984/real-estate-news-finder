@@ -26,7 +26,6 @@ class PostStore(ctx: Context, name: String, private val max: Int) {
     }
 
     companion object {
-        fun recent(ctx: Context) = PostStore(ctx, "recent", 100)
         fun toJson(p: Post): JSONObject = p.toJson()
         fun fromJson(o: JSONObject) = Post.fromJson(o)
     }

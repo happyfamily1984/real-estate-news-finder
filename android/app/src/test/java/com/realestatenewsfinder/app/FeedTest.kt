@@ -67,6 +67,8 @@ class FeedTest {
         assertEquals("https://m.dcinside.com/board/immovables/5", mobileUrl(post("dcinside", "https://gall.dcinside.com/board/view/?id=immovables&no=5")))
         assertEquals("https://m.ppomppu.co.kr/new/bbs_view.php?id=house&no=77", mobileUrl(post("ppomppu", "https://www.ppomppu.co.kr/zboard/view.php?id=house&no=77")))
         assertEquals("https://m.clien.net/service/board/cm_house/1", mobileUrl(post("clien", "https://www.clien.net/service/board/cm_house/1")))
+        assertEquals("https://m.ppomppu.co.kr/new/bbs_view.php?id=house&no=260240", mobileUrl(post("ppomppu", "http://www.ppomppu.co.kr/zboard/view.php?id=house&no=260240")))
+        assertEquals("https://m.cafe.naver.com/jaegebal/6534272", mobileUrl(post("navercafe", "https://cafe.naver.com/jaegebal/6534272")))
         assertEquals("https://www.hankyung.com/a/1", mobileUrl(post("hankyung", "https://www.hankyung.com/a/1")))
     }
 }

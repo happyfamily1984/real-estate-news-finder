@@ -45,7 +45,7 @@ export class Crawler {
     try {
       const items = await this.fetchItems(source);
       // 부동산 글만 거르는 소스는 그 시각에 해당 글이 없을 수 있음 → 0개도 정상
-      if (items.length === 0 && !source.filter) throw new Error('글을 찾지 못했습니다 (사이트 구조 변경 또는 차단 가능성)');
+      if (items.length === 0 && !source.filter && !source.allowEmpty) throw new Error('글을 찾지 못했습니다 (사이트 구조 변경 또는 차단 가능성)');
       this.status[source.id] = { ok: true, count: items.length, at: now };
       return items;
     } catch (e) {
@@ -86,7 +86,7 @@ export class Crawler {
     for (const [id, p] of this.posts) {
       const src = this.sources.find((s) => s.id === p.source);
       const base = src?.kind === 'community' ? p.lastSeenAt : (p.publishedAt ?? p.firstSeenAt);
-      const keep = src?.kind === 'gov' ? KEEP_GOV_MS : KEEP_MS;
+      const keep = src?.maxAgeH ? src.maxAgeH * 3600_000 : src?.kind === 'gov' ? KEEP_GOV_MS : KEEP_MS;
       // 없어진 소스의 글, 기한 지난 글, 부동산 글만 남기는 소스에 예전 기준으로 들어온 무관한 글 정리
       if (!src || now - base > keep || (src.filter && !isRelevant(p.title))) this.posts.delete(id);
     }

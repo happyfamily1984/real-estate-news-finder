@@ -29,7 +29,7 @@ export const SOURCES = [
   // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
   { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },
   // 서울시 주택 분야 새소식 (보도자료·공고), 경기도 보도자료
-  { id: 'seoul', name: '서울시', board: '주택 새소식', kind: 'gov', color: '#0b6db7', url: 'https://news.seoul.go.kr/citybuild/', feed: 'https://news.seoul.go.kr/citybuild/feed', fetch: fetchFeed, maxAgeH: 96 },
+  { id: 'seoul', name: '서울시', board: '주택 새소식', kind: 'gov', color: '#0b6db7', url: 'https://news.seoul.go.kr/citybuild/', feed: 'https://news.seoul.go.kr/citybuild/feed', fetch: fetchFeed, maxAgeH: 240, allowEmpty: true }, // 글이 주 몇 건이라 10일치
   { id: 'gg', name: '경기도', board: '보도자료', kind: 'gov', color: '#0f766e', url: 'https://gnews.gg.go.kr/briefing/brief_gongbo.do', feed: 'https://gnews.gg.go.kr/rss/gnewsRssBodo.do', fetch: fetchFeed, filter: true, maxAgeH: 96 },
   // 정책브리핑 목록 페이지 (RSS는 2026-07-01 종료). 모든 부처 보도자료 중 부동산 관련 제목만, 부처 이름이 매체명으로 들어감
   { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 6, filter: true, fetch: fetchKorea },

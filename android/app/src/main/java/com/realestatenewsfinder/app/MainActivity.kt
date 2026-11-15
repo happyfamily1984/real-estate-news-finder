@@ -32,7 +32,8 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Home
@@ -128,7 +129,7 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
     HOME("뉴스", Icons.Filled.Home, Icons.Outlined.Home),
     GOV("정부·공공", Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
     COMMUNITY("커뮤니티", Icons.Filled.Forum, Icons.Outlined.Forum),
-    RECENT("최근 본", Icons.Filled.History, Icons.Outlined.History),
+    STATS("통계", Icons.Filled.BarChart, Icons.Outlined.BarChart),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
 
@@ -137,9 +138,8 @@ enum class SortBy(val label: String, val communityOnly: Boolean = false) {
     SCORE("중요도"), PICK("스레드 추천"), LATEST("최신"), VIEWS("조회수", true), COMMENTS("댓글", true)
 }
 
-/** 글 열기: 브라우저로 열고 최근 본 글에 기록 */
+/** 글 열기: 브라우저로 원문 열기 */
 fun openPost(ctx: Context, p: Post) {
-    PostStore.recent(ctx).add(p)
     ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(p.url)))
 }
 
@@ -150,8 +150,6 @@ fun App() {
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
-    // 즐겨찾기/최근 목록이 바뀌면 화면 갱신
-    var storeVersion by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     fun refresh() {
@@ -167,6 +165,21 @@ fun App() {
         }
     }
     LaunchedEffect(Unit) { refresh() }
+
+    // 통계 탭: 처음 열 때 받아옴
+    var stats by remember { mutableStateOf(StatsRepository.cached(ctx)) }
+    var statsError by remember { mutableStateOf<String?>(null) }
+    var statsLoading by remember { mutableStateOf(false) }
+    var statShare by remember { mutableStateOf<StatSeries?>(null) }
+    var naverLogin by remember { mutableStateOf(false) }
+    fun refreshStats() {
+        scope.launch {
+            statsLoading = true
+            try { stats = StatsRepository.fetch(ctx); statsError = null } catch (e: Exception) { statsError = e.message ?: "불러오기 실패" }
+            statsLoading = false
+        }
+    }
+    LaunchedEffect(tab) { if (tab == Tab.STATS && !statsLoading) refreshStats() }
     // 뒤로가기: 내보내기 → 미리보기 → 목록 → 뉴스 탭 → 종료 확인 (나중에 등록한 것이 먼저 동작)
     var askExit by remember { mutableStateOf(false) }
     BackHandler { if (tab != Tab.HOME) tab = Tab.HOME else askExit = true }
@@ -190,7 +203,7 @@ fun App() {
     val toExport: (Post) -> Unit = { p -> exportPost = p }
     // 글 누르면 앱 안에서 모바일 화면 스캔 이미지로 보기
     var preview by remember { mutableStateOf<Post?>(null) }
-    val open: (Post) -> Unit = { PostStore.recent(ctx).add(it); storeVersion++; preview = it }
+    val open: (Post) -> Unit = { preview = it }
 
     // 알림을 눌러 들어온 글 → 앱 안 미리보기로 열기
     val fromNotification = MainActivity.pendingPost.value
@@ -223,14 +236,8 @@ fun App() {
                 Tab.HOME -> HomeScreen(feedNews, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS })
                 Tab.GOV -> HomeScreen(feedGov, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS })
                 Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS }, community = true)
-                Tab.RECENT -> SavedScreen(
-                    title = "최근 본 글",
-                    posts = remember(storeVersion) { PostStore.recent(ctx).all() },
-                    empty = "최근에 본 글이 없어요.",
-                    feed = feed, favIds = favIds, onOpen = open, onLongPress = toExport,
-                    action = "기록 지우기" to { PostStore.recent(ctx).clear(); storeVersion++ },
-                )
-                Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true })
+                Tab.STATS -> StatsScreen(stats, statsError, statsLoading, ::refreshStats) { statShare = it }
+                Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true }, onNaverLogin = { naverLogin = true })
             }
         }
     }
@@ -252,6 +259,9 @@ fun App() {
                 onSent = { exportPost = null; preview = null })
         }
     } }
+    // 통계 지표를 스레드용으로 (통계 탭에서 지표를 누르면)
+    statShare?.let { s -> key("s" + s.id) { StatShareScreen(s, stats?.sido.orEmpty(), onBack = { statShare = null }, onSent = { statShare = null }) } }
+    if (naverLogin) NaverLoginScreen(onBack = { naverLogin = false })
     }
 }
 
@@ -445,25 +455,6 @@ fun HomeScreen(
                 items(posts, key = { it.id }) { p ->
                     PostCard(p, feed?.sourceById?.get(p.source), p.id in favIds, { onOpen(p) }, { onLongPress(p) }, showPick = sort == SortBy.PICK)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun SavedScreen(
-    title: String, posts: List<Post>, empty: String, feed: Feed?, favIds: Set<String>,
-    onOpen: (Post) -> Unit, onLongPress: (Post) -> Unit, action: Pair<String, () -> Unit>? = null,
-) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-            if (action != null && posts.isNotEmpty()) TextButton(onClick = action.second) { Text(action.first) }
-        }
-        LazyColumn(contentPadding = PaddingValues(bottom = 12.dp)) {
-            if (posts.isEmpty()) item { EmptyText(empty) }
-            items(posts, key = { it.id }) { p ->
-                PostCard(p, feed?.sourceById?.get(p.source), p.id in favIds, { onOpen(p) }, { onLongPress(p) })
             }
         }
     }

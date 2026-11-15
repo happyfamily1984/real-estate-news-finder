@@ -85,4 +85,18 @@ class AndroidTest {
         // 요약이 없으면 표지 한 장
         assertEquals(1, CardMaker.render("제목만 있는 글", null, meta).size)
     }
+
+    @Test
+    fun statCardsAndScreen() {
+        val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
+        File("build/screens").mkdirs()
+        stats.series.take(3).forEachIndexed { i, s ->
+            StatCards.render(s, stats.sido, "@my_threads").forEachIndexed { j, b ->
+                File("build/screens/stat-${i + 1}-${j + 1}.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }
+        assertEquals(2, StatCards.render(stats.series[0], stats.sido).size)
+        compose.setContent { AppTheme(dark = false) { StatsScreen(stats, null, false, {}, {}) } }
+        compose.onRoot().captureRoboImage("build/screens/stats.png")
+    }
 }

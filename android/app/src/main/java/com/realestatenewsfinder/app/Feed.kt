@@ -124,24 +124,13 @@ object FeedRepository {
             val text = conn.inputStream.bufferedReader().use { it.readText() }
             val feed = Feed.parse(text)
             cacheFile(ctx).writeText(text)
-            withLocal(ctx, feed, network = true)
+            feed
         } finally {
             conn.disconnect()
         }
     }
 
-    /** 화면을 처음 열 때: 저장해 둔 결과만 즉시 표시 */
-    fun cached(ctx: Context): Feed? = runCatching { Feed.parse(cacheFile(ctx).readText()) }.getOrNull()?.let { withLocal(ctx, it, network = false) }
-
-    /** 클라우드에서 막힌 소스(뽐뿌 부동산포럼)를 휴대폰에서 직접 받아 합침 */
-    private fun withLocal(ctx: Context, feed: Feed, network: Boolean): Feed {
-        val (src, posts) = runCatching { PpomppuLocal.load(ctx, network) }.getOrNull() ?: return feed
-        return feed.copy(
-            sources = feed.sources.filter { it.id != src.id } + src,
-            posts = feed.posts.filter { it.source != src.id } + posts,
-            topics = feed.topics.ifEmpty { Topics.names },
-        )
-    }
+    fun cached(ctx: Context): Feed? = runCatching { Feed.parse(cacheFile(ctx).readText()) }.getOrNull()
 }
 
 /** 알림 조건: 선택한 소스의 새 글 중 (중요도 >= 기준) 또는 (제목에 키워드 포함) */

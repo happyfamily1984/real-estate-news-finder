@@ -75,7 +75,9 @@ export async function fetchFeed(source) {
       try {
         const xml = await fetchHtml(url, { ...(userAgent ? { userAgent } : {}), cookies: !!source.cookies });
         if (!/<(rss|feed|rdf:RDF)[\s>]/i.test(xml.slice(0, 3000))) throw new Error('피드 형식이 아님');
-        return parseFeed(xml, source);
+        const posts = parseFeed(xml, source);
+        if (posts.length === 0) console.log(`[feed] ${source.id}: 0개. item ${(xml.match(/<item[\s>]/g) || []).length}개, 첫 날짜 ${(xml.match(/<pubDate>([^<]*)/) || [])[1] ?? '없음'}`);
+        return posts;
       } catch (e) {
         errors.push(`${new URL(url).hostname} ${e.message}`);
       }

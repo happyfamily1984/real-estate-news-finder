@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 
 /** 설정 화면 (카드형 섹션) */
 @Composable
-fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Unit)? = null) {
+fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Unit)? = null, onNaverLogin: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
     var enabled by remember { mutableStateOf(prefs.notifyEnabled && HotPostWorker.canNotify(ctx)) }
@@ -280,6 +280,24 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     Text("카드 이미지에 넣을 내 계정 이름 (비워두면 표시 안 함)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     OutlinedPillField(handle, { handle = it; prefs.cardHandle = it }, "예: @my_threads", 50.dp, 15.sp)
+                }
+
+                // 네이버 로그인 (카페 글 본문 보기용)
+                if (onNaverLogin != null) SettingsCard {
+                    AccentTitle("네이버 로그인 (부동산스터디 글 보기)")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "부동산스터디 카페 글 목록은 로그인 없이 받아오지만, 글 내용은 카페 회원만 볼 수 있는 경우가 많아요. 여기서 네이버에 로그인해 두면 앱 안 미리보기와 요약에서 글 내용을 읽을 수 있어요.\n아이디·비밀번호는 네이버 페이지에 직접 입력하고, 앱은 저장하지 않아요.",
+                        fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(shape = CircleShape, onClick = onNaverLogin) { Text("네이버 로그인", fontWeight = FontWeight.Bold) }
+                        OutlinedButton(shape = CircleShape, onClick = {
+                            android.webkit.CookieManager.getInstance().apply { removeAllCookies(null); flush() }
+                            message = "네이버 로그인 정보를 지웠어요."
+                        }) { Text("로그아웃", fontWeight = FontWeight.Bold) }
+                    }
                 }
 
                 // 확인 주기
