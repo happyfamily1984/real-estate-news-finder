@@ -26,7 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -193,6 +193,17 @@ fun App() {
         )
     }
 
+    // 머리의 계정 전환 버튼: 스레드를 열어 올릴 계정인지 확인하고, 아니면 전환
+    val switchAccount: () -> Unit = {
+        val account = Prefs(ctx).threadsAccount
+        val problem = when {
+            account.isBlank() -> "설정에서 올릴 스레드 계정을 먼저 적어주세요."
+            !ThreadsAuto.isEnabled(ctx) -> "접근성에서 '부동산뉴스파인더 · 스레드 자동 입력'을 먼저 켜주세요."
+            !ThreadsAuto.startSwitch(ctx, account) -> "스레드 앱을 열 수 없어요."
+            else -> null
+        }
+        if (problem != null) Toast.makeText(ctx, problem, Toast.LENGTH_LONG).show()
+    }
     val feedNews = remember(feed) { feed?.only("news") }
     val feedGov = remember(feed) { feed?.only("gov") }
     val feedCommunity = remember(feed) { feed?.only("community") }
@@ -233,9 +244,9 @@ fun App() {
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                Tab.HOME -> HomeScreen(feedNews, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS })
-                Tab.GOV -> HomeScreen(feedGov, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS })
-                Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = { tab = Tab.SETTINGS }, community = true)
+                Tab.HOME -> HomeScreen(feedNews, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount)
+                Tab.GOV -> HomeScreen(feedGov, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount)
+                Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount, community = true)
                 Tab.STATS -> StatsScreen(stats, statsError, statsLoading, ::refreshStats) { statShare = it }
                 Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true }, onNaverLogin = { naverLogin = true })
             }
@@ -294,7 +305,7 @@ fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
     }
 }
 
-/** 상단: 하늘색 배경 + 아파트 단지 그림 + 로고 · 앱 이름 · 알림 버튼 */
+/** 상단: 하늘색 배경 + 아파트 단지 그림 + 로고 · 앱 이름 · 계정 전환 버튼 */
 @Composable
 fun Header(showDot: Boolean, onBell: () -> Unit) {
     val bg = MaterialTheme.colorScheme.background
@@ -313,11 +324,9 @@ fun Header(showDot: Boolean, onBell: () -> Unit) {
                 Spacer(Modifier.height(3.dp))
                 Text("실시간 부동산 뉴스를 한눈에", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
             }
-            Box(Modifier.align(Alignment.Top).padding(top = 14.dp)) {
-                Surface(onClick = onBell, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 4.dp, modifier = Modifier.size(44.dp)) {
-                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Filled.Notifications, "알림 설정", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f), modifier = Modifier.size(24.dp)) }
-                }
-                if (showDot) Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp).size(9.dp).background(HotRed, CircleShape))
+            // 오른쪽 위: 스레드 계정 전환 (올릴 계정이 아니면 그 계정으로 바꿈)
+            Surface(onClick = onBell, shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 4.dp, modifier = Modifier.align(Alignment.Top).padding(top = 14.dp).size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Filled.SwitchAccount, "스레드 계정 전환", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) }
             }
         }
     }

@@ -25,6 +25,8 @@ object ThreadsAuto {
         var lastOkAt: Long = 0,
         /** 로그아웃 확인을 누른 뒤 계정 목록 화면이 뜨기를 기다리는 중 */
         var loggingOut: Boolean = false,
+        /** 직전 확인 때 누르려던 대상과 그 위치 (화면이 움직이는 중인지 판단) */
+        var steadySig: String = "",
         /** 빈 화면이거나 '…하는 중' 화면 (스레드가 다시 켜지는 중) */
         var loading: Boolean = false,
         /** 탭이 없는 화면에서 뒤로 나간 횟수 */
@@ -196,6 +198,20 @@ class ThreadsAutoService : AccessibilityService() {
         }
     }.getOrDefault(0)
 
+    /**
+     * 누를 대상이 화면 안에 있고, 직전 확인 때와 같은 자리에 그대로 있을 때만 true.
+     * 목록이 넘어가는 중이거나 창이 뜨는 중에 누르면 엉뚱한 곳이 눌리기 때문에, 자리가 멈춘 뒤에 누름.
+     */
+    private fun steady(job: ThreadsAuto.Switch, key: String, n: AccessibilityNodeInfo?, win: android.graphics.Rect): Boolean {
+        if (n == null) { job.steadySig = ""; return false }
+        val b = bounds(n)
+        val sig = "$key:${b.flattenToString()}"
+        val inside = b.width() > 0 && b.height() > 0 && b.top >= win.top && b.bottom <= win.bottom && b.left >= win.left && b.right <= win.right
+        val ok = inside && job.steadySig == sig
+        job.steadySig = sig
+        return ok
+    }
+
     /** 화면의 한 점을 손가락으로 누르듯 누름 (버튼이 접근성 누르기를 받지 않을 때) */
     private fun tapAt(x: Float, y: Float): Boolean = runCatching {
         val path = android.graphics.Path().apply { moveTo(x, y) }
@@ -221,7 +237,7 @@ class ThreadsAutoService : AccessibilityService() {
      * 스레드 탭 줄(시스템 내비게이션 바 바로 위, 화면 높이의 약 7.5%) 안에서만 찾음.
      * 탭이 접근성 정보에 안 나오면 탭 줄의 맨 오른쪽 자리(가로 87%)를 직접 누름.
      */
-    private fun pressProfileTab(nodes: List<AccessibilityNodeInfo>, win: android.graphics.Rect): Boolean {
+    private fun findProfileTab(nodes: List<AccessibilityNodeInfo>, win: android.graphics.Rect): AccessibilityNodeInfo? {
         val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(win.bottom)
         val barBottom = minOf(win.bottom, screenH - navInset()).toFloat()
         val barTop = barBottom - screenH * 0.075f
@@ -233,11 +249,9 @@ class ThreadsAutoService : AccessibilityService() {
         // 하단 탭이 있는 화면인지 확인: 탭 이름(피드·메시지·만들기·활동·프로필) 중 둘 이상이 탭 줄에 보여야 함.
         // 탭이 없는 화면(설정 하위 화면, 글쓰기 등)에서는 아무 데나 누르지 않음
         val tabNames = listOf("피드", "홈", "메시지", "검색", "만들기", "활동", "프로필", "Home", "Search", "Create", "Activity", "Profile")
-        if (zone.count { n -> tabNames.any { label(n).contains(it, true) } } < 2) return false
-        val tab = zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
+        if (zone.count { n -> tabNames.any { label(n).contains(it, true) } } < 2) return null
+        return zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
             ?: zone.filter { bounds(it).centerX() > win.left + win.width() * 0.75f }.maxByOrNull { bounds(it).centerX() }
-            ?: return false
-        return clickSmall(tab, win) || bounds(tab).let { tapAt(it.exactCenterX(), it.exactCenterY()) }
     }
 
     /** node 또는 그 위의 누를 수 있는 요소를 누름. 단, 너무 큰 요소(화면 일부가 아니라 목록 전체 등)는 누르지 않음 */
@@ -256,14 +270,14 @@ class ThreadsAutoService : AccessibilityService() {
      */
     private fun runSwitch(job: ThreadsAuto.Switch) {
         val now = System.currentTimeMillis()
-        if (now - job.startedAt > 60_000 || job.steps > 30) { endSwitch("계정 전환을 끝내지 못했어요. 스레드에서 직접 전환해 주세요."); return }
-        // 멈춤 규칙: 앞 동작 뒤 1초 안에 다음 동작이 이어지지 않으면 중단.
-        // 예외(화면이 뜨기를 기다리는 시간): 스레드가 처음 열릴 때 8초, 로그아웃·로그인 처리 중이거나 빈 화면(불러오는 중)일 때 20초
+        if (now - job.startedAt > 120_000 || job.steps > 30) { endSwitch("계정 전환을 끝내지 못했어요. 스레드에서 직접 전환해 주세요."); return }
+        // 멈춤 규칙: 앞 동작 뒤 4초 안에 다음 동작이 이어지지 않으면 중단.
+        // 예외(화면이 뜨기를 기다리는 시간): 스레드가 처음 열릴 때 12초, 로그아웃·로그인 처리 중이거나 빈 화면(불러오는 중)일 때 45초
         val waiting = job.loggingOut || job.loginClicked || job.loading
         val idle = now - (if (job.lastOkAt > 0) job.lastOkAt else job.startedAt)
-        val limit = when { job.lastOkAt == 0L -> 8000L; waiting -> 20_000L; else -> 1000L }
+        val limit = when { job.lastOkAt == 0L -> 12_000L; waiting -> 45_000L; else -> 4000L }
         if (idle > limit) {
-            endSwitch(if (job.lastOkAt == 0L) "스레드 화면을 찾지 못해 멈췄어요." else "다음 동작이 1초 안에 이어지지 않아 멈췄어요. 설정의 '전환 기록'을 확인해 주세요.")
+            endSwitch(if (job.lastOkAt == 0L) "스레드 화면을 찾지 못해 멈췄어요." else "다음 동작이 이어지지 않아 멈췄어요. 설정의 '전환 기록'을 확인해 주세요.")
             return
         }
         if (now - job.lastActionAt < 450) return
@@ -285,6 +299,7 @@ class ThreadsAutoService : AccessibilityService() {
                 val account = nodes.firstOrNull { ThreadsAuto.isAccount(label(it), job.target) }
                 if (account == null) { endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요."); return }
                 job.loggingOut = false
+                if (!steady(job, "account", account, win)) return
                 val ok = press(account)
                 if (ok) job.loginClicked = true
                 acted("계정 ${job.target}", ok)
@@ -293,7 +308,9 @@ class ThreadsAutoService : AccessibilityService() {
                 // 확인 창의 '로그아웃' 버튼: 뒤에 깔린 설정 목록의 '로그아웃' 줄(화면 맨 아래)이 아니라 더 위에 있는 것
                 val buttons = nodes.filter { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
                 ThreadsAuto.note("  로그아웃 버튼: " + buttons.joinToString(" | ") { "y${bounds(it).centerY() * 100 / win.height().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
-                val ok = press(buttons.minByOrNull { bounds(it).centerY() })
+                val confirm = buttons.minByOrNull { bounds(it).centerY() }
+                if (!steady(job, "confirm", confirm, win)) return // 확인 창이 다 뜰 때까지 기다림
+                val ok = press(confirm)
                 if (ok) job.loggingOut = true
                 acted("로그아웃 확인", ok)
             }
@@ -307,6 +324,7 @@ class ThreadsAutoService : AccessibilityService() {
                 ThreadsAuto.note("  상단 후보: " + top.take(10).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
                 val gear = top.firstOrNull { n -> label(n).let { it.contains("설정") || it.contains("Settings", true) } }
                     ?: top.filter { bounds(it).centerX() > win.left + win.width() * 0.8f }.maxByOrNull { bounds(it).centerX() }
+                if (!steady(job, "gear", gear, win)) return
                 acted("설정 버튼", clickSmall(gear, win))
             }
             ThreadsAuto.Screen.SETTINGS -> {
@@ -315,8 +333,10 @@ class ThreadsAutoService : AccessibilityService() {
                 }
                 if (job.loggingOut) return // 로그아웃 확인을 이미 눌렀음: 처리될 때까지 기다림
                 val logout = nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
-                if (logout != null && bounds(logout).bottom <= win.bottom) acted("로그아웃", press(logout))
-                else acted("아래로 넘기기", nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
+                if (logout != null && bounds(logout).bottom <= win.bottom) {
+                    // 목록이 넘어가는 중에 누르면 다른 줄이 눌림 → '로그아웃' 줄이 멈춘 뒤에 누름
+                    if (steady(job, "logout", logout, win)) acted("로그아웃", press(logout))
+                } else if (now - job.lastOkAt > 700) acted("아래로 넘기기", nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
             }
             ThreadsAuto.Screen.OTHER -> {
                 if (job.loginClicked) {
@@ -332,8 +352,10 @@ class ThreadsAutoService : AccessibilityService() {
                     ThreadsAuto.note("  홈 계정: " + mine.joinToString(",") { label(it).take(20) })
                     if (mine.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
                 }
-                if (pressProfileTab(nodes, win)) acted("프로필 탭", true)
-                else if (job.loggingOut || labels.isEmpty() || labels.any { it.contains("하는 중") || it.contains("불러오는") || it.contains("Loading", true) }) {
+                val tab = findProfileTab(nodes, win)
+                if (tab != null) {
+                    if (steady(job, "tab", tab, win)) acted("프로필 탭", clickSmall(tab, win) || bounds(tab).let { tapAt(it.exactCenterX(), it.exactCenterY()) })
+                } else if (job.loggingOut || labels.isEmpty() || labels.any { it.contains("하는 중") || it.contains("불러오는") || it.contains("Loading", true) }) {
                     // 로그아웃 처리 중이거나 스레드가 다시 켜지는 중(빈 화면): 아무것도 누르지 않고 기다림
                     if (!job.loading) ThreadsAuto.note("  화면이 뜨기를 기다리는 중: " + labels.take(3).joinToString(" | ") { it.take(14) })
                     job.loading = true
