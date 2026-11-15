@@ -70,9 +70,9 @@ class Prefs(ctx: Context) {
     fun aiCooldown(id: String): Long = sp.getLong("ai.$id.cooldown", 0)
     fun setAiCooldown(id: String, v: Long) = sp.edit().putLong("ai.$id.cooldown", v).apply()
 
-    /** 스레드 글 말투: true = 반말, false = 존댓말(해요체) */
+    /** 스레드 글 말투: true = 반말(기본, 스레드에서 흔한 말투), false = 존댓말 */
     var casualTone: Boolean
-        get() = sp.getBoolean("casualTone", false)
+        get() = sp.getBoolean("casualTone", true)
         set(v) = sp.edit().putBoolean("casualTone", v).apply()
 
     /** 카드 이미지 아래에 넣을 내 계정 이름 (예: @myhome). 비어 있으면 표시 안 함 */

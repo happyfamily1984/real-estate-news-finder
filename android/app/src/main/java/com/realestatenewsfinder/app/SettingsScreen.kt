@@ -273,8 +273,8 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     AccentTitle("스레드 글 스타일")
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IntervalPill("존댓말", !casual) { casual = false; prefs.casualTone = false }
                         IntervalPill("반말", casual) { casual = true; prefs.casualTone = true }
+                        IntervalPill("존댓말", !casual) { casual = false; prefs.casualTone = false }
                     }
                     Spacer(Modifier.height(14.dp))
                     Text("카드 이미지에 넣을 내 계정 이름 (비워두면 표시 안 함)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

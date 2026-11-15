@@ -236,7 +236,11 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                                 Spacer(Modifier.width(8.dp)); Text("원문을 읽고 요약하는 중…", fontSize = 13.sp)
                             }
                             "" -> {}
-                            "done" -> Text("숫자·날짜는 올리기 전에 원문과 한 번 대조해 주세요.", fontSize = 12.sp, color = muted)
+                            "done" -> Text(
+                                if (Summarizer.lastDropped.isEmpty()) "숫자·날짜는 올리기 전에 원문과 한 번 대조해 주세요."
+                                else "원문에 없는 숫자(${Summarizer.lastDropped.joinToString(", ")})가 들어간 줄은 뺐어요. 원문과 대조해 주세요.",
+                                fontSize = 12.sp, color = muted,
+                            )
                             else -> Text(summaryState, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.error)
                         }
                         Spacer(Modifier.height(6.dp))

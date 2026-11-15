@@ -51,12 +51,32 @@ class SummarizerTest {
     }
 
     @Test
-    fun promptForbidsInventedNumbersAndAdvice() {
-        val p = Summarizer.system("news", listOf("금리·대출"), casual = false)
-        assertTrue(p.contains("본문에 없는 숫자는 절대 만들지 않는다"))
-        assertTrue(p.contains("투자 조언"))
+    fun promptKeepsFactsAndThreadsTone() {
+        val p = Summarizer.system("news", listOf("금리·대출"), casual = true, today = "2026년 11월 15일")
+        assertTrue(p.contains("본문에 있는 것만"))
+        assertTrue(p.contains("본문에 없는 연도·날짜를 쓰지 않는다"))
+        assertTrue(p.contains("권유"))
+        assertTrue(p.contains("오늘은 2026년 11월 15일"))
         assertTrue(p.contains("금리나 한도가 얼마나 바뀌는지"))
-        assertTrue(Summarizer.system("community", emptyList(), casual = true).contains("개인의 경험·의견"))
+        assertTrue(p.contains("~했대"))
+        // 화살표는 '쓰지 않는 것' 안내에만 나옴 (형식으로 오해하지 않게)
+        assertEquals(1, Regex("→").findAll(p).count())
+        assertTrue(Summarizer.system("community", emptyList(), casual = false).contains("개인의 경험·의견"))
+    }
+
+    @Test
+    fun findsAndDropsInventedNumbers() {
+        val source = "제목: 서울 1순위 청약자, 4년 만에 최저\n본문: 일반공급은 21% 늘었지만 1순위 청약신청자는 48% 감소했다. 강남3구 일반분양은 73가구로 전년 대비 88% 급감했다. 경쟁률은 870대 1이다."
+        val s = Summary(
+            "강남3구 일반분양 73가구, 경쟁률 870대1\n\n강남3구 일반분양 73가구 2024년 현재\n\n오티에르 반포 43가구\n\n신청자는 48% 줄었음",
+            "강남3구 분양 73가구", listOf("일반분양: 73가구", "기준: 2024년", "경쟁률: 870대 1"),
+        )
+        val bad = Summarizer.unsupportedNumbers(s.thread + s.points.joinToString("\n"), source)
+        assertEquals(listOf("2024", "43"), bad)
+        val cleaned = Summarizer.dropLinesWith(s, bad)
+        assertEquals("강남3구 일반분양 73가구, 경쟁률 870대1\n\n신청자는 48% 줄었음", cleaned.thread)
+        assertEquals(listOf("일반분양: 73가구", "경쟁률: 870대 1"), cleaned.points)
+        assertEquals(emptyList<String>(), Summarizer.unsupportedNumbers("일반공급 21% 증가, 1순위는 48% 감소", source))
     }
 
     @Test

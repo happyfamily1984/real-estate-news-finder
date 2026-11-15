@@ -24,34 +24,68 @@ object Summarizer {
         "세금" to "누가 내는지(또는 줄어드는지), 금액·세율, 적용 시점과 요건",
     )
 
-    fun system(kind: String, tags: List<String>, casual: Boolean): String {
+    fun system(kind: String, tags: List<String>, casual: Boolean, today: String = ""): String {
         val what = when (kind) {
             "gov" -> "정부·공공기관 보도자료"
             "community" -> "부동산 커뮤니티 게시글"
             else -> "부동산 뉴스 기사"
         }
         val angle = tags.mapNotNull { ANGLES[it] }.take(2).joinToString(" / ").ifEmpty { "누구에게 해당되는지, 언제부터인지, 금액·비율이 얼마인지" }
-        val tone = if (casual) "친구에게 알려주듯 자연스러운 반말(~함, ~임, ~했어)" else "친절하고 간결한 존댓말 해요체(~예요, ~해요)"
+        val tone = if (casual)
+            "스레드에서 흔히 쓰는 편한 반말. 친구한테 방금 본 뉴스를 말해주듯 쓴다. 문장 끝은 '~했대', '~래', '~임', '~함', '~더라', '~인 듯'처럼. "
+        else
+            "스레드에 맞는 가벼운 존댓말. 아는 사람에게 방금 본 뉴스를 알려주듯 쓴다. 문장 끝은 '~했대요', '~래요', '~예요', '~더라고요'처럼. "
+        val ex = if (casual) listOf(
+            "OO 대출 한도, 다음 달부터 확 줄어든대", "OO 지역에서 집 살 때 적용되는 규제가 바뀜", "연소득 N원 기준으로 한도가 N원 정도 줄어든다고 함",
+            "N월 N일 신청분부터 적용이래", "그 전에 계약한 사람은 예전 기준 그대로임", "대출 끼고 집 보던 사람들은 계산 다시 해봐야 할 듯",
+        ) else listOf(
+            "OO 대출 한도, 다음 달부터 확 줄어든대요", "OO 지역에서 집 살 때 적용되는 규제가 바뀌어요", "연소득 N원 기준으로 한도가 N원 정도 줄어든대요",
+            "N월 N일 신청분부터 적용이래요", "그 전에 계약한 분들은 예전 기준 그대로예요", "대출 끼고 집 보던 분들은 계산 다시 해보셔야겠어요",
+        )
         val community = if (kind == "community")
-            "이 글은 개인의 경험·의견이다. 사실처럼 단정하지 말고 '~라는 글', '~라는 의견'으로 전해라. 작성자 닉네임은 쓰지 않는다. " else ""
-        return "너는 $what 을(를) 스레드(Threads)에 올릴 글로 바꾸는 부동산 정보 에디터다. 읽는 사람은 내 집 마련·전월세·대출·세금이 걱정인 일반인이다. " +
-            "그들이 궁금한 것은 '나한테 해당되나, 언제부터인가, 얼마인가, 지금 뭘 해야 하나'다. 이 글에서는 특히 다음에 답해라: $angle.\n" +
-            "입력은 제목과 본문이며, 본문에는 메뉴·광고·다른 기사 제목이 섞여 있을 수 있으니 제목과 관련된 내용만 써라.\n\n" +
-            "가장 중요한 규칙:\n" +
-            "- 숫자(금액, 금리, 비율, 날짜, 지역·단지 이름, 가구 수)는 본문에 있는 그대로 정확히 옮긴다. 본문에 없는 숫자는 절대 만들지 않는다. 단위(억·만원·%·%p)를 바꾸거나 계산하지 않는다.\n" +
-            "- 본문에 없는 전망, 추측, 투자 조언(사라, 팔아라, 오른다, 내린다)은 쓰지 않는다. 본문에 전망이 있으면 누가 말했는지 함께 쓴다.\n" +
-            "- 본문에 답이 없는 항목(예: 시행일)은 지어내지 말고 빼라.\n" +
+            "- 이 글은 개인의 경험·의견이다. 사실처럼 단정하지 말고 '~라는 글', '~라는 의견'으로 전한다. 작성자 닉네임은 쓰지 않는다.\n" else ""
+        return "너는 $what 을(를) 읽고 스레드(Threads)에 올릴 짧은 글로 바꿔 쓰는 사람이다. 읽는 사람은 내 집 마련·전월세·대출·세금이 걱정인 일반인이다.\n" +
+            "입력은 제목과 본문이다. 본문에는 메뉴·광고·다른 기사 제목이 섞여 있을 수 있으니, 제목과 관련된 내용만 쓴다.\n" +
+            (if (today.isNotEmpty()) "오늘은 $today 이다.\n" else "") + "\n" +
+            "[가장 먼저 할 일] 이 글이 실제로 말하는 핵심(무슨 일이 있었고, 왜 그렇고, 숫자가 얼마인지)을 본문에서 찾는다. 글의 내용은 본문에 있는 것으로만 채운다.\n" +
+            "이 글에서 특히 살릴 것: $angle. 본문에 없으면 억지로 넣지 않는다.\n\n" +
+            "[사실 규칙 — 어기면 안 됨]\n" +
+            "- 숫자(금액, 비율, 경쟁률, 가구 수, 날짜, 연도)는 본문에 있는 것만, 본문에 적힌 그대로 쓴다. 계산하거나 단위를 바꾸지 않는다.\n" +
+            "- 본문에 없는 연도·날짜를 쓰지 않는다. '올해', '지난해', '현재' 같은 표현을 특정 연도로 바꾸지 않는다.\n" +
+            "- 숫자가 무엇에 대한 것인지(어느 지역, 어느 기간, 무엇과 비교)를 본문과 똑같이 연결한다. 서로 다른 숫자를 섞지 않는다.\n" +
+            "- 본문에 없는 전망, 추측, 권유(사라, 팔아라, 넣어라, 미리 확인해라)를 쓰지 않는다. 본문에 전망이 있으면 누가 말했는지 함께 쓴다.\n" +
             community + "\n" +
-            "출력 형식 (이 두 구역만, 머리말·설명 없이):\n" +
-            "[스레드]\n" +
-            "첫 줄: 읽는 사람이 '내 얘기네' 하고 멈추게 하는 한 문장(30자 안팎). 핵심 숫자나 달라지는 점을 넣는다. 낚시성 과장 금지.\n" +
-            "(빈 줄)\n" +
-            "그 아래 3~5줄: 한 줄에 짧은 문장 하나. 줄 사이에 빈 줄 하나씩. 대상 → 내용(숫자) → 시점 순서로.\n" +
-            "마지막 줄: 읽는 사람이 확인하거나 챙길 것 한 가지(본문에 근거가 있을 때만), 없으면 핵심 한 줄 정리.\n" +
-            "말투는 $tone. 한 줄 45자 이내. 전체 380자 이내. 해시태그·이모지·따옴표·번호·글머리 기호·'출처' 표기 없음.\n" +
+            "[스레드 글 쓰는 법]\n" +
+            "- 말투: ${tone}기사체('~했다', '~로 나타났다', '~것으로 집계됐다')와 보고서체는 쓰지 않는다.\n" +
+            "- 첫 줄: 이 글에서 가장 눈에 띄는 사실 하나를 한 문장으로. 읽는 사람이 멈추게. 과장·낚시 금지.\n" +
+            "- 이어서 3~5줄: 한 줄에 완결된 짧은 문장 하나. 줄마다 핵심 사실 하나(숫자 포함). 대비되는 내용은 한 줄에 같이 쓴다(예: 'A는 늘었는데 B는 줄었음'). 이유·배경이 본문에 있으면 한 줄 넣는다.\n" +
+            "- 마지막 줄: 본문 내용에서 나온 한 줄 정리. 권유나 조언으로 끝내지 않는다.\n" +
+            "- 줄 사이에는 빈 줄 하나. 한 줄 45자 이내, 전체 380자 이내.\n" +
+            "- 쓰지 않는 것: 화살표(→), 콜론(:)으로 나열, 표·목록 형식, 해시태그, 이모지, 따옴표, 번호, 글머리 기호, '출처' 표기, 같은 말 반복.\n\n" +
+            "[출력 형식] 아래 두 구역만 출력한다. 머리말·설명 없이.\n" +
+            "[스레드]\n(위 방법대로 쓴 글)\n" +
             "[카드]\n" +
             "제목: 카드 이미지에 크게 들어갈 한 줄(22자 이내, 핵심 숫자 포함)\n" +
-            "- 항목: 내용  ← 이런 줄 3~5개. 항목은 '대상', '시행일', '한도', '금리', '분양가', '일정', '지역', '변동', '신청', '주의' 같은 2~5자 낱말, 내용은 28자 이내. 본문에 있는 것만."
+            "- 항목: 내용  (이런 줄 3~5개. 항목은 무엇에 대한 숫자인지 알 수 있는 2~8자 낱말, 내용은 28자 이내. 본문에 있는 것만)\n\n" +
+            "[형식 예시 — 형식과 말투만 참고. OO, N은 자리 표시이며 예시의 내용은 절대 가져오지 않는다]\n" +
+            "[스레드]\n" + ex.joinToString("\n\n") + "\n" +
+            "[카드]\n제목: OO 대출 한도 N원 축소\n- 적용 지역: OO\n- 한도 변화: 연소득 N원 기준 N원 감소\n- 시행일: N월 N일 신청분부터\n- 예외: 그 전 계약분은 종전 기준"
+    }
+
+    private val NUMBER = Regex("\\d[\\d,]*(?:\\.\\d+)?")
+    private fun numbers(text: String): List<String> = NUMBER.findAll(text).map { it.value.replace(",", "").trimEnd('.') }.toList()
+
+    /** 요약에 나온 숫자 중 원문(제목·본문)에 없는 것 → 지어낸 숫자 */
+    fun unsupportedNumbers(summaryText: String, source: String): List<String> {
+        val known = numbers(source).toSet()
+        return numbers(summaryText).filter { it !in known }.distinct()
+    }
+
+    /** 원문에 없는 숫자가 들어간 줄을 뺌 */
+    fun dropLinesWith(s: Summary, bad: List<String>): Summary {
+        fun ok(line: String) = numbers(line).none { it in bad }
+        val thread = s.thread.lines().filter { ok(it) }.joinToString("\n").replace(Regex("\n{3,}"), "\n\n").trim()
+        return Summary(thread, if (ok(s.headline)) s.headline else "", s.points.filter { ok(it) })
     }
 
     fun hasKey(ctx: Context) = Prefs(ctx).let { p -> p.geminiKey.isNotBlank() || p.groqKey.isNotBlank() || ExtraAi.ALL.any { p.aiKey(it.id).isNotBlank() } }
@@ -109,11 +143,33 @@ object Summarizer {
         return Summary((listOf(post.title, "") + sentences).joinToString("\n").trim(), post.title, sentences)
     }
 
+    /** 마지막 요약에서 원문에 없는 숫자 때문에 뺀 줄이 있으면 그 숫자들 (화면 안내용) */
+    @Volatile var lastDropped: List<String> = emptyList()
+
     suspend fun summarize(ctx: Context, post: Post, kind: String, sourceName: String, body: String): Summary? {
         if (!hasKey(ctx)) return null
-        val system = system(kind, post.tags, Prefs(ctx).casualTone)
+        lastDropped = emptyList()
+        val today = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date())
+        val system = system(kind, post.tags, Prefs(ctx).casualTone, today)
         val input = buildInput(post, sourceName, body)
-        val raw = ask(ctx, system, input) ?: return null
-        return parse(raw, post.title)
+        fun all(s: Summary) = s.thread + "\n" + s.headline + "\n" + s.points.joinToString("\n")
+        var sum = parse(ask(ctx, system, input) ?: return null, post.title) ?: return null
+        var bad = unsupportedNumbers(all(sum), input)
+        if (bad.isNotEmpty()) {
+            // 지어낸 숫자가 있으면 한 번 더 요청
+            val retry = ask(ctx, system, "$input\n\n[다시 쓰기] 방금 쓴 글에 본문에 없는 숫자(${bad.joinToString(", ")})가 있었다. 본문에 있는 숫자만 써서 처음부터 다시 써라.")
+                ?.let { parse(it, post.title) }
+            if (retry != null) {
+                val bad2 = unsupportedNumbers(all(retry), input)
+                if (bad2.size <= bad.size) { sum = retry; bad = bad2 }
+            }
+        }
+        if (bad.isNotEmpty()) {
+            val cleaned = dropLinesWith(sum, bad)
+            if (cleaned.thread.isBlank()) return null
+            lastDropped = bad
+            sum = cleaned.copy(headline = cleaned.headline.ifBlank { post.title })
+        }
+        return sum
     }
 }
