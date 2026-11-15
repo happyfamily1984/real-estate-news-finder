@@ -157,18 +157,52 @@ class ThreadsAutoService : AccessibilityService() {
         }
     }
 
+    /** 화면 아래 시스템 내비게이션 바(뒤로·홈·최근 앱 버튼) 높이. 이 영역은 건드리지 않음 */
+    private fun navInset(): Int = runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            getSystemService(android.view.WindowManager::class.java).currentWindowMetrics.windowInsets
+                .getInsetsIgnoringVisibility(android.view.WindowInsets.Type.navigationBars()).bottom
+        } else {
+            val id = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+            if (id > 0) resources.getDimensionPixelSize(id) else 0
+        }
+    }.getOrDefault(0)
+
+    /** 화면의 한 점을 손가락으로 누르듯 누름 (버튼이 접근성 누르기를 받지 않을 때) */
+    private fun tapAt(x: Float, y: Float): Boolean = runCatching {
+        val path = android.graphics.Path().apply { moveTo(x, y) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 70)).build()
+        dispatchGesture(gesture, null, null)
+    }.getOrDefault(false)
+
+    /** 접근성 누르기를 먼저 해보고, 안 되면 그 요소의 가운데를 직접 누름 */
+    private fun press(n: AccessibilityNodeInfo?): Boolean {
+        if (n == null) return false
+        if (click(n)) return true
+        val b = bounds(n)
+        return b.width() > 0 && b.height() > 0 && tapAt(b.exactCenterX(), b.exactCenterY())
+    }
+
     /**
-     * 하단 탭의 프로필 버튼 찾기. 피드 글의 버튼(답글·공유 등)을 잘못 누르지 않도록
-     * 화면 맨 아래 탭 줄(아래 6.5%) 안에서, 오른쪽 끝(가로 75% 이후)에 있는 작은 것만 후보로 삼음.
+     * 하단 탭의 프로필 버튼 누르기. 피드 글의 버튼(답글·공유 등)이나 시스템 버튼을 잘못 누르지 않도록
+     * 스레드 탭 줄(시스템 내비게이션 바 바로 위, 화면 높이의 약 7.5%) 안에서만 찾음.
+     * 탭이 접근성 정보에 안 나오면 탭 줄의 맨 오른쪽 자리(가로 87%)를 직접 누름.
      */
-    private fun profileTab(nodes: List<AccessibilityNodeInfo>, win: android.graphics.Rect): AccessibilityNodeInfo? {
+    private fun pressProfileTab(nodes: List<AccessibilityNodeInfo>, win: android.graphics.Rect): Boolean {
+        val screenH = resources.displayMetrics.heightPixels.coerceAtLeast(win.bottom)
+        val barBottom = minOf(win.bottom, screenH - navInset()).toFloat()
+        val barTop = barBottom - screenH * 0.075f
         val zone = nodes.filter { n ->
             val b = bounds(n)
-            b.width() > 0 && b.height() > 0 && b.centerY() > win.top + win.height() * 0.935f && b.height() < win.height() * 0.12f && b.width() < win.width() * 0.4f
+            b.width() > 0 && b.height() > 0 && b.centerY() > barTop && b.centerY() < barBottom && b.width() < win.width() * 0.4f && b.height() < screenH * 0.12f
         }
-        ThreadsAuto.note("  하단 후보: " + zone.take(12).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
-        return zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
+        ThreadsAuto.note("  탭 줄 ${barTop.toInt()}~${barBottom.toInt()}/${screenH} 후보: " + zone.take(12).joinToString(" | ") { "${label(it).take(12)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
+        val tab = zone.firstOrNull { n -> label(n).let { it.contains("프로필") || it.contains("Profile", true) } }
             ?: zone.filter { bounds(it).centerX() > win.left + win.width() * 0.75f }.maxByOrNull { bounds(it).centerX() }
+        if (tab != null && (clickSmall(tab, win) || bounds(tab).let { tapAt(it.exactCenterX(), it.exactCenterY()) })) return true
+        // 탭 정보가 없을 때: 탭 줄 가운데 높이, 다섯 칸 중 맨 오른쪽 칸
+        return tapAt(win.left + win.width() * 0.867f, barBottom - screenH * 0.036f)
     }
 
     /** node 또는 그 위의 누를 수 있는 요소를 누름. 단, 너무 큰 요소(화면 일부가 아니라 목록 전체 등)는 누르지 않음 */
@@ -207,11 +241,16 @@ class ThreadsAutoService : AccessibilityService() {
             ThreadsAuto.Screen.LOGIN -> {
                 val account = nodes.firstOrNull { ThreadsAuto.isAccount(label(it), job.target) }
                 if (account == null) { endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요."); return }
-                val ok = click(account)
+                val ok = press(account)
                 if (ok) job.loginClicked = true
                 acted("계정 ${job.target}", ok)
             }
-            ThreadsAuto.Screen.LOGOUT_DIALOG -> acted("로그아웃 확인", click(nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }))
+            ThreadsAuto.Screen.LOGOUT_DIALOG -> {
+                // 확인 창의 '로그아웃' 버튼: 뒤에 깔린 설정 목록의 '로그아웃' 줄(화면 맨 아래)이 아니라 더 위에 있는 것
+                val buttons = nodes.filter { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
+                ThreadsAuto.note("  로그아웃 버튼: " + buttons.joinToString(" | ") { "y${bounds(it).centerY() * 100 / win.height().coerceAtLeast(1)}%${if (it.isClickable) "c" else ""}" })
+                acted("로그아웃 확인", press(buttons.minByOrNull { bounds(it).centerY() }))
+            }
             ThreadsAuto.Screen.COMPOSE -> acted("글쓰기 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK))
             ThreadsAuto.Screen.PROFILE -> {
                 if (job.loginClicked) { switchDone(job, "@${job.target} 계정으로 전환했어요."); return }
@@ -229,7 +268,7 @@ class ThreadsAutoService : AccessibilityService() {
                     acted("설정 화면에서 뒤로", performGlobalAction(GLOBAL_ACTION_BACK)); return
                 }
                 val logout = nodes.firstOrNull { label(it).trim().let { l -> l == "로그아웃" || l.equals("Log out", true) } }
-                if (logout != null && bounds(logout).bottom <= win.bottom) acted("로그아웃", click(logout))
+                if (logout != null && bounds(logout).bottom <= win.bottom) acted("로그아웃", press(logout))
                 else acted("아래로 넘기기", nodes.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true)
             }
             ThreadsAuto.Screen.OTHER -> {
@@ -246,7 +285,7 @@ class ThreadsAutoService : AccessibilityService() {
                     ThreadsAuto.note("  홈 계정: " + mine.joinToString(",") { label(it).take(20) })
                     if (mine.any { ThreadsAuto.isAccount(label(it), job.target) }) { switchDone(job, "이미 @${job.target} 계정이에요."); return }
                 }
-                acted("프로필 탭", clickSmall(profileTab(nodes, win), win))
+                acted("프로필 탭", pressProfileTab(nodes, win))
             }
         }
     }
