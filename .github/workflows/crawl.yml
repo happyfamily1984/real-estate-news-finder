@@ -8,6 +8,11 @@ on:
     # 정각을 피해서 15분마다 (정각은 GitHub 예약 실행이 몰려 밀리기 쉬움)
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
+    inputs:
+      diag:
+        description: '진단만 실행 (후보 주소 접속 확인)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,6 +34,10 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: 진단
+        if: github.event_name == 'workflow_dispatch' && inputs.diag
+        run: node src/diag.js
 
       - name: 이전 상태 불러오기 (새 글 판별·급상승 계산용)
         run: |
