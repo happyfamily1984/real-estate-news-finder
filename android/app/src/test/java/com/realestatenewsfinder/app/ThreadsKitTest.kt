@@ -54,3 +54,20 @@ class ThreadsKitTest {
         assertEquals(listOf(0, 200, 400, 600), cuts)
     }
 }
+
+class CardWrapTest {
+    // 글자 하나의 폭을 10으로 가정
+    private fun wrap(text: String, width: Float) = CardMaker.wrapWords(text, width) { it.length * 10f }
+
+    @org.junit.Test
+    fun breaksOnlyAtSpaces() {
+        org.junit.Assert.assertEquals("7월부터 수도권 주담대\n한도 최대 5000만원\n축소", wrap("7월부터 수도권 주담대 한도 최대 5000만원 축소", 130f))
+        org.junit.Assert.assertEquals("가산금리: 1.5%p\n(지방은 0.75%p\n유지)", wrap("가산금리: 1.5%p (지방은 0.75%p 유지)", 130f))
+    }
+
+    @org.junit.Test
+    fun splitsOnlyVeryLongWords() {
+        org.junit.Assert.assertEquals("가나다라마\n바사 아", wrap("가나다라마바사 아", 50f))
+        org.junit.Assert.assertEquals("첫 줄\n둘째", wrap("첫 줄\n둘째", 200f))
+    }
+}

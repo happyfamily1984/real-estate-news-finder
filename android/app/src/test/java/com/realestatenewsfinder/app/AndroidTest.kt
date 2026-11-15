@@ -76,7 +76,7 @@ class AndroidTest {
             listOf("시행일: 7월 1일부터", "대상: 수도권 주택담보대출 신규 신청", "가산금리: 1.5%p (지방은 0.75%p 유지)", "한도: 연소득 1억원 기준 약 5000만원 감소", "예외: 6월 30일까지 계약·신청 완료분", "주의: 잔금대출도 같은 규정 적용"),
         )
         val cards = CardMaker.render("스트레스 DSR 3단계 7월 시행… 수도권 주담대 한도 얼마나 줄어드나", summary, meta)
-        assertEquals(3, cards.size)
+        assertEquals(2, cards.size) // 표지 + 핵심 정리 한 장(6줄까지)
         File("build/screens").mkdirs()
         cards.forEachIndexed { i, b ->
             assertEquals(CardMaker.W, b.width); assertEquals(CardMaker.H, b.height)

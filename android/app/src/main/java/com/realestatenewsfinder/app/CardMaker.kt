@@ -26,7 +26,7 @@ object CardMaker {
     const val W = 1080
     const val H = 1350
     private const val PAD = 84f
-    private const val MAX_POINTS_PER_CARD = 5
+    private const val MAX_POINTS_PER_CARD = 6
 
     private const val NAVY = 0xFF0F1B3D.toInt()
     private const val BLUE = 0xFF2563EB.toInt()
@@ -42,9 +42,43 @@ object CardMaker {
         typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
     }
 
-    private fun layout(text: CharSequence, p: TextPaint, width: Int, spacing: Float = 1.22f): StaticLayout =
-        StaticLayout.Builder.obtain(text, 0, text.length, p, width)
+    /**
+     * 낱말 단위 줄바꿈: 한글은 그냥 두면 낱말 중간에서 끊기므로("축/소") 띄어쓰기에서만 줄을 바꿈.
+     * 한 낱말이 한 줄보다 길 때만 글자 단위로 나눔. measure는 글자 폭을 재는 함수 (테스트용으로 분리)
+     */
+    fun wrapWords(text: String, width: Float, measure: (String) -> Float): String {
+        val out = StringBuilder()
+        for ((n, para) in text.split('\n').withIndex()) {
+            if (n > 0) out.append('\n')
+            var line = ""
+            for (word in para.split(' ').filter { it.isNotEmpty() }) {
+                val candidate = if (line.isEmpty()) word else "$line $word"
+                if (measure(candidate) <= width) { line = candidate; continue }
+                if (line.isNotEmpty()) { out.append(line).append('\n'); line = "" }
+                var rest = word
+                while (measure(rest) > width && rest.length > 1) { // 아주 긴 낱말
+                    var cut = rest.length - 1
+                    while (cut > 1 && measure(rest.substring(0, cut)) > width) cut--
+                    out.append(rest, 0, cut).append('\n'); rest = rest.substring(cut)
+                }
+                line = rest
+            }
+            out.append(line)
+        }
+        return out.toString()
+    }
+
+    private fun layout(text: CharSequence, p: TextPaint, width: Int, spacing: Float = 1.22f): StaticLayout {
+        val wrapped = wrapWords(text.toString(), width.toFloat()) { p.measureText(it) }
+        // 강조색(항목 이름)은 맨 앞 구간이라 줄바꿈 뒤에도 위치가 같음
+        val styled: CharSequence = if (text is Spanned) SpannableString(wrapped).also { s ->
+            text.getSpans(0, text.length, ForegroundColorSpan::class.java).forEach { sp ->
+                s.setSpan(ForegroundColorSpan(sp.foregroundColor), text.getSpanStart(sp), minOf(text.getSpanEnd(sp), s.length), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        } else wrapped
+        return StaticLayout.Builder.obtain(styled, 0, styled.length, p, width + 4)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(0f, spacing).setIncludePad(false).build()
+    }
 
     /** 높이(maxH)와 줄 수(maxLines) 안에 들어갈 때까지 글자 크기를 줄임 */
     private fun fit(text: CharSequence, p: TextPaint, width: Int, maxH: Float, maxLines: Int, minSize: Float): StaticLayout {

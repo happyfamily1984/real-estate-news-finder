@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -317,7 +318,7 @@ private fun DrawScope.drawSkyline(dark: Boolean, bg: Color) {
     val w = size.width; val h = size.height
     val sky = if (dark) Color(0xFF16243F) else Color(0xFFD6E8FF)
     drawRect(Brush.verticalGradient(listOf(sky, bg)))
-    val base = h // 건물은 헤더 바닥에 붙임
+    val base = h * 0.94f
     // (왼쪽 x, 폭, 높이) — 폭은 화면 폭, 높이는 헤더 높이 기준 비율. 뒤쪽 동부터
     val towers = listOf(
         listOf(0.62f, 0.060f, 0.34f), listOf(0.945f, 0.07f, 0.40f), listOf(0.69f, 0.065f, 0.46f),
@@ -326,7 +327,7 @@ private fun DrawScope.drawSkyline(dark: Boolean, bg: Color) {
     towers.forEachIndexed { i, (x, tw, th) ->
         val left = x * w; val width = tw * w; val top = base - th * h
         val front = i >= 3
-        val wall = if (dark) Color(if (front) 0xFF33466C else 0xFF283756) else Color(if (front) 0xFFF4F8FF else 0xFFE3EEFC)
+        val wall = (if (dark) Color(if (front) 0xFF33466C else 0xFF283756) else Color(if (front) 0xFFF4F8FF else 0xFFE3EEFC)).copy(alpha = if (front) 0.95f else 0.7f)
         val side = if (dark) Color(0xFF223050) else Color(0xFFC6DAF5)
         drawRect(side, Offset(left + width * 0.72f, top + width * 0.10f), Size(width * 0.28f, base - top))
         drawRect(wall, Offset(left, top), Size(width * 0.74f, base - top))
@@ -348,13 +349,8 @@ private fun DrawScope.drawSkyline(dark: Boolean, bg: Color) {
         drawCircle(if (k % 3 == 0) tree2 else tree, r, Offset(x * w, base - r * 0.2f))
         x += 0.036f; k++
     }
-    // 왼쪽(글자 쪽)으로 갈수록 배경에 녹아들게
-    drawRect(
-        Brush.horizontalGradient(0.55f to bg.copy(alpha = 0.95f), 0.75f to bg.copy(alpha = 0f), startX = 0f, endX = w),
-        topLeft = Offset(w * 0.5f, h * 0.2f), size = Size(w * 0.3f, h * 0.8f),
-    )
-    // 바닥선이 뚝 끊기지 않게 아래를 살짝 흐림
-    drawRect(Brush.verticalGradient(listOf(Color.Transparent, bg.copy(alpha = 0.85f)), startY = h * 0.86f, endY = h))
+    // 바닥: 나무 아래를 배경색 띠로 덮어 건물이 바닥에서 자연스럽게 올라오게
+    drawRect(bg, Offset(0f, base), Size(w, h - base))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -619,10 +615,12 @@ fun PostCard(p: Post, src: Source?, favorite: Boolean, onClick: () -> Unit, onLo
             Text(
                 p.title, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
+                // 한글이 낱말 중간에서 끊기지 않게 (지원하는 기기에서)
+                style = LocalTextStyle.current.copy(lineBreak = LineBreak(LineBreak.Strategy.HighQuality, LineBreak.Strictness.Normal, LineBreak.WordBreak.Phrase)),
             )
             Spacer(Modifier.height(7.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Tag(p.outlet ?: src?.name ?: p.source, primary, Modifier.weight(1f, fill = false))
+                Tag(p.outlet ?: src?.name ?: p.source, primary, Modifier.widthIn(max = 120.dp))
                 if (isNew(p)) Text("  NEW", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = HotRed, maxLines = 1)
                 if (!showPick && p.pick >= 70) {
                     Spacer(Modifier.width(6.dp))
