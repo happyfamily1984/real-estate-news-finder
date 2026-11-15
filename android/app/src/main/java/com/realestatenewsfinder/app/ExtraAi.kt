@@ -10,7 +10,8 @@ import java.net.URL
 
 /**
  * 예비 요약 AI (무료 키). Gemini → Groq 다음에 순서대로 시도.
- * 둘 다 Groq과 같은 호출 방식(OpenAI 호환)이라 주소만 다름. 모델 이름은 자주 바뀌므로 목록에서 골라 씀.
+ * Groq과 같은 호출 방식(OpenAI 호환)이라 주소만 다름. 모델 이름은 자주 바뀌므로 목록에서 골라 씀.
+ * (Cerebras는 유료라 뺐음)
  */
 class ExtraAi(val id: String, val label: String, private val base: String, val keyUrl: String, val keyHint: String, private val rank: (JSONArray) -> List<String>) {
     @Volatile var lastError: String? = null
@@ -94,14 +95,8 @@ class ExtraAi(val id: String, val label: String, private val base: String, val k
             .sortedWith(compareBy<JSONObject> { family(it.optString("id")) }.thenByDescending { paramB(it.optString("id")) }.thenByDescending { it.optInt("context_length") })
             .map { it.getString("id") }
 
-        /** Cerebras: 큰 범용 모델 우선 */
-        fun rankCerebras(data: JSONArray): List<String> = ids(data).map { it.optString("id") }
-            .filter { it.isNotBlank() && !SKIP.containsMatchIn(it) }
-            .sortedWith(compareBy<String> { family(it) }.thenByDescending { paramB(it) })
-
-        val CEREBRAS = ExtraAi("cerebras", "Cerebras", "https://api.cerebras.ai/v1", "https://cloud.cerebras.ai/", "API 키 붙여넣기 (csk-…)", ::rankCerebras)
         val OPENROUTER = ExtraAi("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "https://openrouter.ai/keys", "API 키 붙여넣기 (sk-or-…)", ::rankOpenRouter)
         /** 시도 순서 (Gemini → Groq 다음) */
-        val ALL = listOf(CEREBRAS, OPENROUTER)
+        val ALL = listOf(OPENROUTER)
     }
 }

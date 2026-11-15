@@ -53,6 +53,15 @@ class FeedTest {
     }
 
     @Test
+    fun articleLinkPrefersResolvedUrlAndDropsTracking() {
+        val g = "https://news.google.com/rss/articles/CBMiAAA"
+        assertEquals("https://biz.newdaily.co.kr/site/data/html/2026/11/15/1.html", articleLink("https://biz.newdaily.co.kr/site/data/html/2026/11/15/1.html?utm_source=google&fbclid=x#top", g))
+        assertEquals("https://www.mk.co.kr/news/view?idx=7&page=2", articleLink("https://www.mk.co.kr/news/view?idx=7&utm_medium=rss&page=2", g))
+        assertEquals(g, articleLink("https://news.google.com/rss/articles/CBMiAAA?oc=5", g))
+        assertEquals(g, articleLink(null, g))
+    }
+
+    @Test
     fun mobileUrls() {
         fun post(source: String, url: String) = Post("x", source, "t", url)
         assertEquals("https://m.dcinside.com/board/immovables/5", mobileUrl(post("dcinside", "https://gall.dcinside.com/board/view/?id=immovables&no=5")))

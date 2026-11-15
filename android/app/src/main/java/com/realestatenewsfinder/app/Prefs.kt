@@ -60,7 +60,7 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("groqCooldown", 0)
         set(v) = sp.edit().putLong("groqCooldown", v).apply()
 
-    // 예비 요약 AI (ExtraAi: cerebras, openrouter) — 키를 바꾸면 모델·쉬는 시간 초기화
+    // 예비 요약 AI (ExtraAi: openrouter) — 키를 바꾸면 모델·쉬는 시간 초기화
     fun aiKey(id: String): String = sp.getString("ai.$id.key", "") ?: ""
     fun setAiKey(id: String, v: String) = sp.edit().putString("ai.$id.key", v.trim()).putString("ai.$id.model", "").putString("ai.$id.models", "").putLong("ai.$id.cooldown", 0).apply()
     fun aiModel(id: String): String = sp.getString("ai.$id.model", "") ?: ""
@@ -79,6 +79,11 @@ class Prefs(ctx: Context) {
     var cardHandle: String
         get() = sp.getString("cardHandle", "") ?: ""
         set(v) = sp.edit().putString("cardHandle", v.trim()).apply()
+
+    /** 뉴스·정부 글을 스레드로 보낼 때 본문 끝에 원문 링크를 넣을지 */
+    var includeLink: Boolean
+        get() = sp.getBoolean("includeLink", true)
+        set(v) = sp.edit().putBoolean("includeLink", v).apply()
 
     var onboardingDone: Boolean
         get() = sp.getBoolean("onboardingDone", false)

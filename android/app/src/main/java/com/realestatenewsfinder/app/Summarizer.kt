@@ -8,7 +8,7 @@ data class Summary(val thread: String, val headline: String, val points: List<St
 /**
  * 스레드용 요약: 기사·보도자료·커뮤니티 글 본문을 읽고, 사람들이 부동산 글에서 궁금해하는 것
  * (나한테 해당되나 · 언제부터 · 얼마 · 뭘 해야 하나)에 답하는 글과 카드 내용을 만듦.
- * Gemini → Groq → Cerebras → OpenRouter 순서. 키가 없거나 모두 실패하면 null.
+ * Gemini → Groq → OpenRouter 순서. 키가 없거나 모두 실패하면 null.
  */
 object Summarizer {
     const val MAX_THREAD_CHARS = 480 // 스레드 글자 수 제한(500자) 안쪽
@@ -47,7 +47,8 @@ object Summarizer {
         return "너는 $what 을(를) 읽고 스레드(Threads)에 올릴 짧은 글로 바꿔 쓰는 사람이다. 읽는 사람은 내 집 마련·전월세·대출·세금이 걱정인 일반인이다.\n" +
             "입력은 제목과 본문이다. 본문에는 메뉴·광고·다른 기사 제목이 섞여 있을 수 있으니, 제목과 관련된 내용만 쓴다.\n" +
             (if (today.isNotEmpty()) "오늘은 $today 이다.\n" else "") + "\n" +
-            "[가장 먼저 할 일] 이 글이 실제로 말하는 핵심(무슨 일이 있었고, 왜 그렇고, 숫자가 얼마인지)을 본문에서 찾는다. 글의 내용은 본문에 있는 것으로만 채운다.\n" +
+            "[주제] 글의 주제는 입력의 '제목'이 말하는 바로 그것이다. 주제를 바꾸지 않는다. 본문에 나오는 다른 숫자나 곁가지 내용을 주제로 삼지 않는다.\n" +
+            "[가장 먼저 할 일] 제목이 말하는 사실(무슨 일이 있었나)을 본문에서 확인하고, 그 이유와 뒷받침하는 숫자를 본문에서 찾는다. 글의 내용은 본문에 있는 것으로만 채운다.\n" +
             "이 글에서 특히 살릴 것: $angle. 본문에 없으면 억지로 넣지 않는다.\n\n" +
             "[사실 규칙 — 어기면 안 됨]\n" +
             "- 숫자(금액, 비율, 경쟁률, 가구 수, 날짜, 연도)는 본문에 있는 것만, 본문에 적힌 그대로 쓴다. 계산하거나 단위를 바꾸지 않는다.\n" +
@@ -57,19 +58,18 @@ object Summarizer {
             community + "\n" +
             "[스레드 글 쓰는 법]\n" +
             "- 말투: ${tone}기사체('~했다', '~로 나타났다', '~것으로 집계됐다')와 보고서체는 쓰지 않는다.\n" +
-            "- 첫 줄: 이 글에서 가장 눈에 띄는 사실 하나를 한 문장으로. 읽는 사람이 멈추게. 과장·낚시 금지.\n" +
-            "- 이어서 3~5줄: 한 줄에 완결된 짧은 문장 하나. 줄마다 핵심 사실 하나(숫자 포함). 대비되는 내용은 한 줄에 같이 쓴다(예: 'A는 늘었는데 B는 줄었음'). 이유·배경이 본문에 있으면 한 줄 넣는다.\n" +
+            "- 첫 줄: 제목이 말하는 핵심 사실을 말투만 바꿔 한 문장으로. 제목과 다른 얘기로 시작하지 않는다. 과장·낚시 금지.\n" +
+            "- 이어서 3~5줄: 한 줄에 완결된 짧은 문장 하나. 줄마다 제목의 사실을 뒷받침하거나 이유를 설명하는 사실 하나(숫자 포함). 대비되는 내용은 한 줄에 같이 쓴다(예: 'A는 늘었는데 B는 줄었음'). 이유·배경이 본문에 있으면 한 줄 넣는다.\n" +
             "- 마지막 줄: 본문 내용에서 나온 한 줄 정리. 권유나 조언으로 끝내지 않는다.\n" +
             "- 줄 사이에는 빈 줄 하나. 한 줄 45자 이내, 전체 380자 이내.\n" +
             "- 쓰지 않는 것: 화살표(→), 콜론(:)으로 나열, 표·목록 형식, 해시태그, 이모지, 따옴표, 번호, 글머리 기호, '출처' 표기, 같은 말 반복.\n\n" +
             "[출력 형식] 아래 두 구역만 출력한다. 머리말·설명 없이.\n" +
             "[스레드]\n(위 방법대로 쓴 글)\n" +
             "[카드]\n" +
-            "제목: 카드 이미지에 크게 들어갈 한 줄(22자 이내, 핵심 숫자 포함)\n" +
-            "- 항목: 내용  (이런 줄 3~5개. 항목은 무엇에 대한 숫자인지 알 수 있는 2~8자 낱말, 내용은 28자 이내. 본문에 있는 것만)\n\n" +
+            "- 항목: 내용  (이런 줄 3~5개. 첫 줄은 제목이 말하는 핵심 사실. 항목에는 어느 지역·무엇에 대한 숫자인지 드러나게 쓴다(예: '강남 일반분양', '서울 1순위 신청자'). 항목 10자 이내, 내용 28자 이내. 본문에 있는 것만)\n\n" +
             "[형식 예시 — 형식과 말투만 참고. OO, N은 자리 표시이며 예시의 내용은 절대 가져오지 않는다]\n" +
             "[스레드]\n" + ex.joinToString("\n\n") + "\n" +
-            "[카드]\n제목: OO 대출 한도 N원 축소\n- 적용 지역: OO\n- 한도 변화: 연소득 N원 기준 N원 감소\n- 시행일: N월 N일 신청분부터\n- 예외: 그 전 계약분은 종전 기준"
+            "[카드]\n- 적용 지역: OO\n- 한도 변화: 연소득 N원 기준 N원 감소\n- 시행일: N월 N일 신청분부터\n- 예외: 그 전 계약분은 종전 기준"
     }
 
     private val NUMBER = Regex("\\d[\\d,]*(?:\\.\\d+)?")
@@ -93,7 +93,7 @@ object Summarizer {
     /** 마지막 실패 사유 (키를 넣은 AI 중 맨 앞 것) */
     fun lastError(): String? = Gemini.lastError ?: Groq.lastError ?: ExtraAi.ALL.firstNotNullOfOrNull { it.lastError }
 
-    /** Gemini → Groq → Cerebras → OpenRouter 순서로, 답이 나올 때까지 */
+    /** Gemini → Groq → OpenRouter 순서로, 답이 나올 때까지 */
     suspend fun ask(ctx: Context, system: String, input: String): String? {
         Gemini.ask(ctx, system, input)?.let { return it }
         Groq.ask(ctx, system, input)?.let { return it }
@@ -133,7 +133,7 @@ object Summarizer {
         }
         // 카드 구역이 없으면 스레드 글의 줄을 카드 내용으로 사용
         if (points.isEmpty()) points += thread.lines().filter { it.isNotBlank() }.drop(1).take(5)
-        if (headline.isEmpty()) headline = thread.lines().first().take(40).ifBlank { fallbackTitle }
+        if (headline.isEmpty()) headline = fallbackTitle // 표지 제목은 기사 제목 그대로
         return Summary(thread, headline, points.take(6))
     }
 

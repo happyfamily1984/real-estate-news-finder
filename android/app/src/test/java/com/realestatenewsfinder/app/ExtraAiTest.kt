@@ -15,10 +15,4 @@ class ExtraAiTest {
             {"id":"meta-llama/llama-3.2-3b-instruct:free","context_length":20000}]}""").getJSONArray("data")
         assertEquals(listOf("google/gemma-3-27b-it:free", "meta-llama/llama-3.3-70b-instruct:free"), ExtraAi.rankOpenRouter(data))
     }
-
-    @Test
-    fun cerebrasPrefersLargeGeneralModel() {
-        val data = JSONObject("""{"data":[{"id":"llama3.1-8b"},{"id":"llama-3.3-70b"},{"id":"qwen-3-32b"}]}""").getJSONArray("data")
-        assertEquals("llama-3.3-70b", ExtraAi.rankCerebras(data).first())
-    }
 }

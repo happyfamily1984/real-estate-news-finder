@@ -41,7 +41,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private data class ExportResult(val pieces: List<Bitmap>, val files: List<File>)
+/** header: 첫 이미지가 기사 머리 부분 캡처인지 (아니면 직접 그린 표지) */
+private data class ExportResult(val pieces: List<Bitmap>, val files: List<File>, val header: Boolean = false)
 
 /**
  * 스레드용 내보내기.
@@ -76,9 +77,15 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     var summaryRun by remember { mutableIntStateOf(0) }
     var zoomIndex by remember { mutableStateOf<Int?>(null) }
     var showAutoHelp by remember { mutableStateOf(false) }
+    // 뉴스·정부 글: 본문 끝에 원문 기사 링크 (켜고 끌 수 있음)
+    var includeLink by remember { mutableStateOf(prefs.includeLink) }
+    val scanned = (scan as? ScanState.Done)?.result
+    val link = remember(scanned?.finalUrl) { articleLink(scanned?.finalUrl, post.url) }
+    val linkOn = kind != "community" && includeLink
+    val outText = if (linkOn) thread.trimEnd() + "\n\n" + link else thread
 
     if (showAutoHelp) {
-        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.shareToThreads(ctx, it, thread) }; Unit }
+        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.shareToThreads(ctx, it, outText) }; Unit }
         AlertDialog(
             onDismissRequest = { showAutoHelp = false },
             title = { Text("자동 입력 켜기") },
@@ -103,7 +110,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val done = (scan as? ScanState.Done)?.result
     val scanEnded = scan !is ScanState.Loading
 
-    // 원문을 읽으면 자동으로 요약 (Gemini → Groq → Cerebras → OpenRouter). '다시 요약'을 누르면 재실행
+    // 원문을 읽으면 자동으로 요약 (Gemini → Groq → OpenRouter). '다시 요약'을 누르면 재실행
     LaunchedEffect(scanEnded, summaryRun) {
         if (!scanEnded) return@LaunchedEffect
         if (summaryRun == 0 && summaryState == "done") return@LaunchedEffect
@@ -113,7 +120,8 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         summaryState = "working"
         val sum = Summarizer.summarize(ctx, post, kind, sourceName, body)
         if (sum != null) {
-            thread = sum.thread; headline = sum.headline; pointsText = sum.points.joinToString("\n"); summaryState = "done"
+            // 표지 제목은 기사 제목 그대로 둠 (AI가 주제를 바꾸지 못하게)
+            thread = sum.thread; pointsText = sum.points.joinToString("\n"); summaryState = "done"
         } else summaryState = "요약 실패: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
     }
 
@@ -122,15 +130,20 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         if (useCapture && done == null) return@LaunchedEffect
         if (!useCapture) delay(500)
         result = withContext(Dispatchers.Default) {
+            var header = false
             val pieces = if (useCapture && done != null) {
                 val c = ThreadsKit.cropRect(done.bitmap, done.contentRect)
                 val body = Bitmap.createBitmap(done.bitmap, c.left, c.top, c.width(), c.height())
                 ThreadsKit.split(body, done.imageRects.map { (it.top - c.top)..(it.bottom - c.top) })
             } else {
                 val meta = CardMaker.Meta(post.tags.firstOrNull() ?: kindLabel(kind), sourceName, post.time, prefs.cardHandle)
-                CardMaker.render(post.title, Summary(thread, headline, pointsText.lines().map { it.trim() }.filter { it.isNotEmpty() }), meta)
+                val points = pointsText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                // 뉴스·정부 글: 1번 이미지는 기사 머리 부분(매체명·제목·날짜·요약) 캡처, 그다음이 핵심 정리
+                val head = if (kind != "community" && done != null) runCatching { CardMaker.articleHeader(done.bitmap, done.titleRect, done.imageRects, meta) }.getOrNull() else null
+                if (head != null) { header = true; listOf(head) + CardMaker.pointCards(post.title, points, meta) }
+                else CardMaker.render(post.title, Summary(thread, headline, points), meta)
             }
-            ExportResult(pieces, ThreadsKit.writeCache(ctx, post.id, pieces))
+            ExportResult(pieces, ThreadsKit.writeCache(ctx, post.id, pieces), header)
         }
     }
 
@@ -205,7 +218,11 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             }
                         }
                         if (result == null) Text(if (useCapture) "원문 캡처를 기다리는 중…" else "이미지 만드는 중…", Modifier.padding(16.dp), color = muted)
-                        if (kind != "community") Text("기사 화면 대신 직접 만든 카드예요 (제목 · 핵심 · 매체명).", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), fontSize = 12.sp, color = muted)
+                        if (kind != "community") Text(
+                            if (result?.header == true) "1번은 기사 머리 부분(매체명 · 제목 · 날짜 · 요약) 캡처, 그다음은 핵심 정리 카드예요."
+                            else "기사 제목 위치를 찾지 못하면 직접 만든 표지 카드가 들어가요.",
+                            Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), fontSize = 12.sp, color = muted,
+                        )
                     }
                 }
 
@@ -214,8 +231,10 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
                         Text("카드 내용 (고치면 이미지에 반영)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(headline, { headline = it }, Modifier.fillMaxWidth(), label = { Text("표지 제목") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp))
-                        Spacer(Modifier.height(8.dp))
+                        if (result?.header != true) {
+                            OutlinedTextField(headline, { headline = it }, Modifier.fillMaxWidth(), label = { Text("표지 제목") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp))
+                            Spacer(Modifier.height(8.dp))
+                        }
                         OutlinedTextField(pointsText, { pointsText = it }, Modifier.fillMaxWidth(), label = { Text("핵심 정리 (한 줄에 하나 · 항목: 내용)") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
                     }
                 }
@@ -225,10 +244,19 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("스레드에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                            Text("${thread.length}/500", fontSize = 12.sp, color = if (thread.length > 500) MaterialTheme.colorScheme.error else muted)
+                            Text("${outText.length}/500", fontSize = 12.sp, color = if (outText.length > 500) MaterialTheme.colorScheme.error else muted)
                         }
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(thread, { thread = it }, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                        if (kind != "community") {
+                            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("기사 링크 넣기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (linkOn) link else "글 끝에 원문 링크를 붙이지 않아요", fontSize = 12.sp, color = muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
+                                Switch(checked = includeLink, onCheckedChange = { includeLink = it; prefs.includeLink = it })
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         when (summaryState) {
                             "working" -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,7 +276,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             OutlinedButton(enabled = scanEnded && summaryState != "working", onClick = { summaryRun++ }) {
                                 Icon(Icons.Filled.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("다시 요약")
                             }
-                            Button(onClick = { ThreadsKit.copy(ctx, "본문", thread) }) {
+                            Button(onClick = { ThreadsKit.copy(ctx, "본문", outText) }) {
                                 Icon(Icons.Filled.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("복사하기")
                             }
                         }
@@ -272,13 +300,26 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
             ) { Text("갤러리 저장") }
             GradientButton("스레드에 올리기", null, onClick = {
                 if (files != null) {
-                    ThreadsKit.copy(ctx, "본문", thread) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
-                    if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(thread) else showAutoHelp = true
-                    if (!showAutoHelp) { sent = true; ThreadsKit.shareToThreads(ctx, files, thread) }
+                    ThreadsKit.copy(ctx, "본문", outText) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
+                    if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(outText) else showAutoHelp = true
+                    if (!showAutoHelp) { sent = true; ThreadsKit.shareToThreads(ctx, files, outText) }
                 }
             }, modifier = Modifier.weight(1f))
         }
     }
+}
+
+/**
+ * 스레드 글에 넣을 원문 링크. 실제로 열린 주소(구글 뉴스 → 언론사 기사)를 우선 쓰고, 광고 추적용 꼬리표는 뗌.
+ * 아직 원문을 못 열었거나 구글 주소에 머물러 있으면 수집된 주소를 그대로 씀.
+ */
+fun articleLink(finalUrl: String?, postUrl: String): String {
+    val base = finalUrl?.takeIf { it.startsWith("http") && !it.contains("news.google.com") && !it.contains("consent.google") } ?: postUrl
+    val q = base.indexOf('?')
+    if (q < 0) return base.substringBefore('#')
+    val kept = base.substring(q + 1).substringBefore('#').split('&')
+        .filter { it.isNotEmpty() && !Regex("^(utm_[a-z]+|fbclid|gclid|ref|from|oc|ocid|cmpid|mibextid)=", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+    return base.substring(0, q) + if (kept.isEmpty()) "" else "?" + kept.joinToString("&")
 }
 
 fun kindLabel(kind: String) = when (kind) {

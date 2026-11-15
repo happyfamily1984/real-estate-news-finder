@@ -312,50 +312,49 @@ fun Header(showDot: Boolean, onBell: () -> Unit) {
     }
 }
 
-/** 헤더 배경 그림: 하늘 그라데이션, 구름, 오른쪽 아파트 단지, 나무. 아래·왼쪽은 배경색으로 자연스럽게 사라짐 */
+/** 헤더 배경 그림: 하늘 그라데이션, 오른쪽 아래 아파트 단지와 나무. 글자와 겹치지 않게 오른쪽 40%에만 옅게 그림 */
 private fun DrawScope.drawSkyline(dark: Boolean, bg: Color) {
     val w = size.width; val h = size.height
-    val sky = if (dark) Color(0xFF16243F) else Color(0xFFCFE4FF)
+    val sky = if (dark) Color(0xFF16243F) else Color(0xFFD6E8FF)
     drawRect(Brush.verticalGradient(listOf(sky, bg)))
-    val cloud = Color.White.copy(alpha = if (dark) 0.06f else 0.75f)
-    listOf(Triple(0.52f, 0.20f, 0.055f), Triple(0.58f, 0.17f, 0.07f), Triple(0.64f, 0.21f, 0.05f), Triple(0.30f, 0.10f, 0.04f), Triple(0.345f, 0.085f, 0.05f))
-        .forEach { (x, y, r) -> drawCircle(cloud, r * w, Offset(x * w, y * h * 2f)) }
-    // (왼쪽 x, 폭, 높이) — 화면 폭 기준 비율. 뒤쪽 동부터 그림
+    val base = h // 건물은 헤더 바닥에 붙임
+    // (왼쪽 x, 폭, 높이) — 폭은 화면 폭, 높이는 헤더 높이 기준 비율. 뒤쪽 동부터
     val towers = listOf(
-        listOf(0.50f, 0.07f, 0.42f), listOf(0.93f, 0.08f, 0.50f), listOf(0.58f, 0.075f, 0.58f),
-        listOf(0.84f, 0.085f, 0.66f), listOf(0.66f, 0.085f, 0.74f), listOf(0.745f, 0.095f, 0.92f),
+        listOf(0.62f, 0.060f, 0.34f), listOf(0.945f, 0.07f, 0.40f), listOf(0.69f, 0.065f, 0.46f),
+        listOf(0.875f, 0.07f, 0.52f), listOf(0.755f, 0.07f, 0.58f), listOf(0.815f, 0.075f, 0.68f),
     )
-    val base = h * 0.90f
     towers.forEachIndexed { i, (x, tw, th) ->
         val left = x * w; val width = tw * w; val top = base - th * h
         val front = i >= 3
-        val wall = if (dark) Color(if (front) 0xFF3A4E78 else 0xFF2A3A5C) else Color(if (front) 0xFFF7FAFF else 0xFFDCE9FB)
-        val side = if (dark) Color(0xFF24324F) else Color(0xFFB9D0F2)
-        drawRect(side, Offset(left + width * 0.72f, top + width * 0.08f), Size(width * 0.28f, base - top))
+        val wall = if (dark) Color(if (front) 0xFF33466C else 0xFF283756) else Color(if (front) 0xFFF4F8FF else 0xFFE3EEFC)
+        val side = if (dark) Color(0xFF223050) else Color(0xFFC6DAF5)
+        drawRect(side, Offset(left + width * 0.72f, top + width * 0.10f), Size(width * 0.28f, base - top))
         drawRect(wall, Offset(left, top), Size(width * 0.74f, base - top))
-        // 창문 줄
-        val win = if (dark) Color(0xFF8FB6FF).copy(alpha = 0.55f) else Color(0xFF6FA2EA).copy(alpha = 0.75f)
-        val rowH = width * 0.20f
+        val win = if (dark) Color(0xFF8FB6FF).copy(alpha = 0.40f) else Color(0xFF7FAEEE).copy(alpha = 0.55f)
+        val rowH = width * 0.22f
         var y = top + rowH * 0.7f
         while (y < base - rowH) {
-            for (c in 0..2) drawRect(win, Offset(left + width * (0.07f + c * 0.22f), y), Size(width * 0.15f, rowH * 0.5f))
+            for (c in 0..2) drawRect(win, Offset(left + width * (0.08f + c * 0.22f), y), Size(width * 0.14f, rowH * 0.45f))
             y += rowH
         }
     }
-    // 나무
-    val tree = if (dark) Color(0xFF1F5D3A) else Color(0xFF5DBB63)
-    val tree2 = if (dark) Color(0xFF184A2E) else Color(0xFF3F9E4D)
-    var x = 0.47f
+    // 나무: 건물 발치에 한 줄
+    val tree = if (dark) Color(0xFF1F5D3A) else Color(0xFF7CCB86)
+    val tree2 = if (dark) Color(0xFF184A2E) else Color(0xFF5DB96B)
+    var x = 0.60f
     var k = 0
-    while (x < 1.02f) {
-        val r = w * (if (k % 2 == 0) 0.028f else 0.022f)
-        drawCircle(if (k % 3 == 0) tree2 else tree, r, Offset(x * w, base - r * 0.35f))
-        x += 0.04f; k++
+    while (x < 1.03f) {
+        val r = w * (if (k % 2 == 0) 0.024f else 0.019f)
+        drawCircle(if (k % 3 == 0) tree2 else tree, r, Offset(x * w, base - r * 0.2f))
+        x += 0.036f; k++
     }
-    // 아래쪽과 왼쪽을 배경색으로 흐리게
-    drawRect(Brush.verticalGradient(listOf(Color.Transparent, bg), startY = h * 0.70f, endY = h))
-    drawRect(Brush.horizontalGradient(listOf(bg.copy(alpha = 0f), Color.Transparent), startX = w * 0.40f, endX = w * 0.62f))
-    drawRect(Brush.horizontalGradient(listOf(sky.copy(alpha = 0.9f), sky.copy(alpha = 0f)), startX = w * 0.38f, endX = w * 0.60f), size = Size(w, h * 0.55f))
+    // 왼쪽(글자 쪽)으로 갈수록 배경에 녹아들게
+    drawRect(
+        Brush.horizontalGradient(0.55f to bg.copy(alpha = 0.95f), 0.75f to bg.copy(alpha = 0f), startX = 0f, endX = w),
+        topLeft = Offset(w * 0.5f, h * 0.2f), size = Size(w * 0.3f, h * 0.8f),
+    )
+    // 바닥선이 뚝 끊기지 않게 아래를 살짝 흐림
+    drawRect(Brush.verticalGradient(listOf(Color.Transparent, bg.copy(alpha = 0.85f)), startY = h * 0.86f, endY = h))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -553,10 +552,12 @@ fun SearchPill(value: String, onChange: (String) -> Unit, modifier: Modifier = M
 @Composable
 fun StatusLine(feed: Feed?, error: String?) {
     // 실패한 곳은 이유도 같이 표시 (원인 파악용)
-    val failed = feed?.sources?.filter { !it.ok }?.map { s -> s.name + (s.error?.let { " ($it)" } ?: "") }.orEmpty()
+    // 실패한 곳은 이유별로 묶어서 짧게 (원인 파악용)
+    val failed = feed?.sources?.filter { !it.ok }.orEmpty().groupBy { it.error ?: "오류" }
+        .map { (reason, list) -> list.joinToString("·") { it.name } + " ($reason)" }
     val parts = buildList {
         if (feed != null) add("클라우드 수집 ${ago(feed.updatedAt)}")
-        if (failed.isNotEmpty()) add("수집 실패: ${failed.joinToString()}")
+        if (failed.isNotEmpty()) add("수집 실패: ${failed.joinToString(", ")}")
         if (error != null) add("⚠ $error")
     }
     if (parts.isEmpty()) return
@@ -564,7 +565,7 @@ fun StatusLine(feed: Feed?, error: String?) {
     Row(Modifier.padding(horizontal = 18.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.History, null, tint = color, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(5.dp))
-        Text(parts.joinToString(" · "), fontSize = 12.sp, color = color, maxLines = 4)
+        Text(parts.joinToString(" · "), fontSize = 12.sp, lineHeight = 16.sp, color = color, maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 

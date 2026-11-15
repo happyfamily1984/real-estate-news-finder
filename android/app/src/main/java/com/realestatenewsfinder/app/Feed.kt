@@ -133,14 +133,12 @@ object FeedRepository {
     /** 화면을 처음 열 때: 저장해 둔 결과만 즉시 표시 */
     fun cached(ctx: Context): Feed? = runCatching { Feed.parse(cacheFile(ctx).readText()) }.getOrNull()?.let { withLocal(ctx, it, network = false) }
 
-    /** 클라우드에서 막힌 정부 보도자료를 휴대폰에서 직접 받아 합침 */
+    /** 클라우드에서 막힌 소스(뽐뿌 부동산포럼)를 휴대폰에서 직접 받아 합침 */
     private fun withLocal(ctx: Context, feed: Feed, network: Boolean): Feed {
-        val (sources, posts) = runCatching { GovLocal.load(ctx, network) }.getOrDefault(emptyList<Source>() to emptyList())
-        if (sources.isEmpty()) return feed
-        val ids = sources.map { it.id }.toSet()
+        val (src, posts) = runCatching { PpomppuLocal.load(ctx, network) }.getOrNull() ?: return feed
         return feed.copy(
-            sources = feed.sources.filter { it.id !in ids } + sources,
-            posts = feed.posts.filter { it.source !in ids } + posts,
+            sources = feed.sources.filter { it.id != src.id } + src,
+            posts = feed.posts.filter { it.source != src.id } + posts,
             topics = feed.topics.ifEmpty { Topics.names },
         )
     }

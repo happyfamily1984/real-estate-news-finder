@@ -2,7 +2,7 @@ package com.realestatenewsfinder.app
 
 /**
  * 제목으로 주제 태그·관련성·스레드 추천 점수를 매김.
- * 클라우드 수집기(src/topics.js)와 같은 규칙. 휴대폰에서 직접 받아오는 글(정부 보도자료)에 사용.
+ * 클라우드 수집기(src/topics.js)와 같은 규칙. 휴대폰에서 직접 받아오는 글(뽐뿌 부동산포럼)에 사용.
  */
 object Topics {
     private val TOPICS = listOf(

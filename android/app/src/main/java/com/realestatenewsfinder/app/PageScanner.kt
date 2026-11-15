@@ -30,9 +30,13 @@ data class ScanResult(
     val bitmap: Bitmap,
     val truncated: Boolean,
     val contentRect: Rect?,
+    /** 기사 제목 위치 (스레드용 첫 이미지: 제목~요약 부분 캡처에 사용) */
+    val titleRect: Rect?,
     val imageRects: List<Rect>,
     /** 본문 글자 (요약 입력용) */
     val text: String,
+    /** 실제로 열린 주소 (구글 뉴스 주소는 언론사 기사 주소로 바뀜) */
+    val finalUrl: String? = null,
 )
 
 sealed interface ScanState {
@@ -57,6 +61,9 @@ private const val HIDE_ADS_JS = """
 (function(){try{
   document.querySelectorAll('ins.adsbygoogle,iframe:not([src*="youtube"]):not([src*="youtu.be"]),[id^="google_ads"],[id^="div-gpt-ad"],[class*="adsbygoogle"],[class*="coupang"],[id*="coupang"],a[href*="coupang.com"],a[href*="link.coupang"]').forEach(function(e){e.style.setProperty('display','none','important');});
   document.querySelectorAll('#comment,#comments,#cmtPosition,#cmt_list,.comment_wrap,.comment-wrap,.comment_box,.comment-box,.all-comment,.all-comment-lst,.view_comment,.comment_view,.post_comment,.comment_list,.comment-list,.cmt_list,.cmt_area,.reply_list,.reply-list,.reply-wrap,.replylist,.comment_container,.comments,[id^="comment_"],[class*="comment_list"],[class*="commentList"]').forEach(function(e){e.style.setProperty('display','none','important');});
+  // 공유·글자크기·구글 뉴스 구독 버튼 등 기사 머리 부분의 잡다한 버튼 숨김
+  document.querySelectorAll('[class*="share"],[class*="Share"],[class*="sns"],[class*="SNS"],[class*="font_size"],[class*="fontsize"],[class*="print"],[class*="scrap"],[class*="bookmark"],[class*="kakao"],[class*="google"],[class*="Google"],a[href*="news.google.com"],a[href*="google.com/preferences"],a[href*="profile.google.com"]').forEach(function(e){
+    var r=e.getBoundingClientRect(); if(r.height<140) e.style.setProperty('display','none','important');});
 }catch(x){}})()
 """
 
@@ -138,7 +145,7 @@ fun PageScanner(post: Post, attempt: Int, onState: (ScanState) -> Unit) {
             var content = rect(info?.optJSONArray("content"))
             val title = rect(info?.optJSONArray("title"))
             if (content != null && title != null && title.top < content.top) content = Rect(content.left, title.top, content.right, content.bottom)
-            onState(ScanState.Done(ScanResult(bmp, fullPx > MAX_SCAN_HEIGHT_PX, content, images, info?.optString("text").orEmpty())))
+            onState(ScanState.Done(ScanResult(bmp, fullPx > MAX_SCAN_HEIGHT_PX, content, title, images, info?.optString("text").orEmpty(), wv.url)))
         } catch (e: OutOfMemoryError) {
             onState(ScanState.Failed("글이 너무 길어서 캡처하지 못했어요"))
         } catch (e: Exception) {

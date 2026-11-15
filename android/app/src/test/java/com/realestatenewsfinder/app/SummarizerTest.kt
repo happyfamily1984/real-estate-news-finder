@@ -31,13 +31,15 @@ class SummarizerTest {
         assertTrue(s.thread.contains("수도권 주담대에 가산금리 1.5%p가 적용돼요."))
         assertTrue(!s.thread.contains("[") && !s.thread.contains("*") && !s.thread.contains("- "))
         assertEquals("7월부터 주담대 한도 축소", s.headline)
+        // 카드 구역에 '제목:'이 없으면 기사 제목을 그대로 씀
+        assertEquals("원래 제목", Summarizer.parse(raw.replace("제목: 7월부터 주담대 한도 축소\n", ""), "원래 제목")!!.headline)
         assertEquals(listOf("시행일: 7월 1일", "대상: 수도권 주택담보대출", "가산금리: 1.5%p", "예외: 6월 30일까지 계약분"), s.points)
     }
 
     @Test
     fun fallsBackWhenCardSectionMissing() {
         val s = Summarizer.parse("첫 줄 요약\n\n둘째 줄\n\n셋째 줄", "원래 제목")!!
-        assertEquals("첫 줄 요약", s.headline)
+        assertEquals("원래 제목", s.headline)
         assertEquals(listOf("둘째 줄", "셋째 줄"), s.points)
         assertNull(Summarizer.parse("  ", "원래 제목"))
     }
@@ -54,6 +56,7 @@ class SummarizerTest {
     fun promptKeepsFactsAndThreadsTone() {
         val p = Summarizer.system("news", listOf("금리·대출"), casual = true, today = "2026년 11월 15일")
         assertTrue(p.contains("본문에 있는 것만"))
+        assertTrue(p.contains("주제를 바꾸지 않는다"))
         assertTrue(p.contains("본문에 없는 연도·날짜를 쓰지 않는다"))
         assertTrue(p.contains("권유"))
         assertTrue(p.contains("오늘은 2026년 11월 15일"))

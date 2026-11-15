@@ -145,6 +145,49 @@ object CardMaker {
         return bmp
     }
 
+    /**
+     * 뉴스 기사용 첫 이미지: 페이지 캡처에서 제목 ~ 날짜 ~ 요약(부제) 부분만 잘라, 위에 매체명을 붙임.
+     * 첫 사진이 나오기 전까지만 자르고, 사진이 멀리 있으면 가로의 1.35배에서 가장 가까운 여백에서 자름.
+     * 제목 위치를 못 찾았거나 잘라낸 부분이 너무 짧으면 null (→ 직접 그린 표지 카드 사용)
+     */
+    fun articleHeader(src: Bitmap, title: android.graphics.Rect?, images: List<android.graphics.Rect>, meta: Meta): Bitmap? {
+        if (title == null || title.height() <= 0 || title.top >= src.height) return null
+        val w = src.width
+        val row = IntArray(w)
+        fun blank(y: Int): Boolean { src.getPixels(row, 0, w, 0, y, w, 1); return ThreadsKit.isBlankRow(row) }
+        val top = (title.top - w * 3 / 100).coerceAtLeast(0)
+        val limit = minOf(src.height, top + w * 135 / 100)
+        val firstImage = images.filter { it.top >= title.bottom - 4 && it.height() > w / 5 }.minOfOrNull { it.top }
+        var bottom = limit
+        if (firstImage != null && firstImage <= limit) bottom = firstImage
+        else while (bottom > title.bottom + w / 5 && !blank(bottom - 1)) bottom-- // 글 중간이면 위쪽 가장 가까운 여백까지
+        while (bottom > title.bottom && blank(bottom - 1)) bottom-- // 아래 빈 공간 제거
+        bottom = minOf(src.height, bottom + w * 4 / 100)
+        if (bottom - top < w / 4) return null
+
+        val scale = W.toFloat() / w
+        val bodyH = ((bottom - top) * scale).toInt()
+        val headH = 150
+        val out = Bitmap.createBitmap(W, headH + bodyH + 40, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        c.drawColor(0xFFFFFFFF.toInt())
+        c.drawRect(0f, 0f, W.toFloat(), 18f, Paint().apply { color = BLUE })
+        val side = (title.left * scale).coerceIn(36f, PAD) // 기사 글과 왼쪽 줄 맞춤
+        c.drawText(meta.sourceName, side, 104f, paint(46f, BLUE))
+        val dp = paint(32f, GRAY, bold = false)
+        val right = if (meta.handle.isNotBlank()) meta.handle else meta.tag
+        c.drawText(right, W - side - dp.measureText(right), 100f, dp)
+        c.drawRect(side, headH - 4f, W - side, headH - 1f, Paint().apply { color = 0xFFDDE3EE.toInt() })
+        c.drawBitmap(src, android.graphics.Rect(0, top, w, bottom), android.graphics.Rect(0, headH, W, headH + bodyH), Paint(Paint.FILTER_BITMAP_FLAG))
+        return out
+    }
+
+    /** 핵심 정리 카드들만 (첫 이미지를 기사 캡처로 쓸 때) */
+    fun pointCards(title: String, points: List<String>, meta: Meta): List<Bitmap> {
+        val chunks = points.filter { it.isNotBlank() }.chunked(MAX_POINTS_PER_CARD)
+        return chunks.mapIndexed { i, ps -> points(title, ps, meta, i + 1, chunks.size) }
+    }
+
     /** 표지 + 핵심 정리 카드들 */
     fun render(title: String, summary: Summary?, meta: Meta): List<Bitmap> {
         val headline = summary?.headline?.takeIf { it.isNotBlank() } ?: title

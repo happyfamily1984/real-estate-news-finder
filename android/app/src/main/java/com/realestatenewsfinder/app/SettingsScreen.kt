@@ -237,7 +237,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     groqStatus?.let { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 13.sp, lineHeight = 18.sp) }
                 }
 
-                // 요약 AI 3·4순위 (Cerebras, OpenRouter)
+                // 요약 AI 3순위 (OpenRouter 무료 모델)
                 ExtraAi.ALL.forEachIndexed { i, ai ->
                     var key by remember { mutableStateOf(prefs.aiKey(ai.id)) }
                     var status by remember { mutableStateOf<String?>(null) }
@@ -245,7 +245,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                         AccentTitle("예비 요약 ${i + 2} (${ai.label} 무료 키)")
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "앞 순서 AI가 모두 한도를 다 썼을 때 써요. 넣어두면 요약이 멈추는 일이 줄어요. 순서: Gemini → Groq → Cerebras → OpenRouter",
+                            "앞 순서 AI가 모두 한도를 다 썼을 때 써요. 넣어두면 요약이 멈추는 일이 줄어요. 순서: Gemini → Groq → OpenRouter",
                             fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(10.dp))
