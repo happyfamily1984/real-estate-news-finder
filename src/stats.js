@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetchJson } from './fetcher.js';
+import { collectJjajang } from './prices.js';
 
 const KB = 'https://data-api.kbland.kr/bfmstat/weekMnthlyHuseTrnd';
 const REFRESH_MS = 3 * 3600_000;
@@ -217,7 +218,17 @@ export async function runStats(outDir) {
   try { prev = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* 처음 */ }
   try {
     const next = await collectStats(prev);
-    if (next) fs.writeFileSync(file, JSON.stringify(next));
+    if (!next) return;
+    // 물가 비교용 짜장면 값 (참가격). 실패하면 이전 값을 그대로 둠
+    let jjajang = prev?.jjajang ?? null;
+    try {
+      const got = await collectJjajang(jjajang);
+      if (got !== jjajang) console.log(`[prices] 서울 짜장면 ${got.latest}: ${JSON.stringify(got.seoul)}`);
+      jjajang = got;
+    } catch (e) {
+      console.log('[prices] 짜장면 값 수집 실패:', e.message);
+    }
+    fs.writeFileSync(file, JSON.stringify(jjajang ? { ...next, jjajang } : next));
   } catch (e) {
     console.log('[stats] 수집 실패:', e.message);
   }
