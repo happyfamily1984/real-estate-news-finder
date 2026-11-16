@@ -225,7 +225,11 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
         }
         points = out
         // 물가와 견줄 품목 하나 (열 때마다 바뀜). 외식비 자료는 통계 자료에 같이 들어 있음
-        val dine = (StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() } ?: runCatching { StatsRepository.fetch(ctx).dineout }.getOrNull()).orEmpty()
+        // (클라우드 수집분이 있으면 그걸, 없으면 휴대폰에서 참가격을 직접 받음. 못 받으면 물가 줄 없이 집값만)
+        val dine = StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() } ?: run {
+            progress = "물가 자료 받는 중…"
+            withContext(Dispatchers.IO) { runCatching { DineOut.load(ctx, today.year, out.filter { it.ok && it.yearsAgo > 0 }.map { today.year - it.yearsAgo }) }.getOrDefault(emptyMap()) }
+        }
         compare = DealTools.priceCompare(out, dine, today.year, seed + key)
         text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, compare)
     }

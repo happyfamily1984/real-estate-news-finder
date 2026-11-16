@@ -212,4 +212,19 @@ class DealsTest {
         assertTrue(text[0] != DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, m, casual = true, seed = 1).split("\n\n")[0])
         assertTrue(DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, emptyList(), true).contains("견줄 단지가 없음"))
     }
+
+    @Test fun dineOutPage() {
+        val html = """<form id="searchForm"><select name="searchYear"><option value="2015">2015</option><option value="2016" selected="selected">2016</option></select>
+          <select id="m" name="searchMonth"><option selected value="10">10</option><option value="11">11</option></select></form>
+          <table><thead><tr><th scope="col">지역</th><th>냉면</th><th>비빔밥</th><th>김치찌개백반</th><th>삼겹살</th><th>자장면</th><th>삼계탕</th><th>칼국수</th><th>김밥</th></tr></thead>
+          <tbody><tr><th>부산광역시</th><td>7,000</td><td>6,500</td><td>5,900</td><td>12,000</td><td>4,300</td><td>12,000</td><td>5,500</td><td>2,000</td></tr>
+          <tr><th>서울특별시</th><td><span>8,154</span></td><td>7,846</td><td>5,769</td><td>14,539</td><td>4,769</td><td>13,654</td><td>6,538</td><td>2,115</td></tr></tbody></table>"""
+        assertEquals("2016" to "10", DineOut.selected(html))
+        val row = DineOut.parse(html)
+        assertEquals(4769, row["자장면"])
+        assertEquals(2115, row["김밥"])
+        assertEquals(8, row.size)
+        assertEquals(null, DineOut.selected("<html></html>"))
+        assertTrue(DineOut.parse("<table><tr><td>없음</td></tr></table>").isEmpty())
+    }
 }
