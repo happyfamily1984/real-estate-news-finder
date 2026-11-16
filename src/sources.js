@@ -11,7 +11,7 @@
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
 import { fetchKorea } from './korea.js';
 import { fetchNaverCafe } from './navercafe.js';
-import { fetchLh, fetchApplyhome, enrichApplyhome, enrichLh } from './apply.js';
+import { fetchLh, fetchApplyhome, enrichApplyhome, enrichLh, fetchSh, fetchGh } from './apply.js';
 
 export const SOURCES = [
   // ---- 언론 ----
@@ -36,6 +36,10 @@ export const SOURCES = [
   { id: 'applyhome-remain', name: '청약홈 무순위', board: '무순위·잔여세대', kind: 'gov', color: '#c2410c', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTRemndrLttotPblancListView.do', list: 'selectAPTRemndrLttotPblancListView.do', detail: 'selectAPTRemndrLttotPblancDetailView.do', label: '무순위', fetch: fetchApplyhome, enrich: enrichApplyhome, detailV: 2, replace: true, allowEmpty: true, maxAgeH: 24 * 45, boostHours: 4 },
   { id: 'lh-sale', name: 'LH 분양', board: '분양주택 공고', kind: 'gov', color: '#0e7490', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1027', mi: 1027, fetch: fetchLh, enrich: enrichLh, detailV: 2, replace: true, maxAgeH: 24 * 60, boostHours: 4 },
   { id: 'lh', name: 'LH 임대', board: '임대주택 공고', kind: 'gov', color: '#155e75', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1026', mi: 1026, types: /임대|행복|전세|든든/, fetch: fetchLh, enrich: enrichLh, detailV: 2, replace: true, maxAgeH: 24 * 60 },
+  // SH(서울)·GH(경기) 공고 게시판: 마감일이 목록에 없어서 모집 공고만 골라 3주치를 보여줌. 조회수 있음
+  { id: 'sh-sale', name: 'SH 분양', board: '주택분양 공고', kind: 'gov', color: '#1d4ed8', url: 'https://www.i-sh.co.kr/main/lay2/program/S1T294C296/www/brd/m_244/list.do?multi_itm_seq=1', base: 'https://www.i-sh.co.kr/main/lay2/program/S1T294C296/www/brd/m_244/', itm: 1, label: 'SH 분양', fetch: fetchSh, allowEmpty: true, maxAgeH: 24 * 21, boostHours: 4 },
+  { id: 'sh', name: 'SH 임대', board: '주택임대 공고', kind: 'gov', color: '#1e40af', url: 'https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/list.do?multi_itm_seq=2', base: 'https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/', itm: 2, label: 'SH 임대', fetch: fetchSh, allowEmpty: true, maxAgeH: 24 * 21 },
+  { id: 'gh', name: 'GH 경기주택도시공사', board: '분양·임대 공고', kind: 'gov', color: '#047857', url: 'https://www.gh.or.kr/gh/announcement-of-salerental001.do', label: 'GH', fetch: fetchGh, allowEmpty: true, maxAgeH: 24 * 21 },
 
   // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
   { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },
