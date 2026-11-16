@@ -36,7 +36,7 @@ export function parseDineOut(html, region = '서울') {
 
 async function fetchMonth(year, month) {
   const body = `searchOrExcel=&searchYear=${year}&searchMonth=${month}&searchArea=`;
-  const res = await fetch(URL_, { method: 'POST', headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', 'Content-Type': 'application/x-www-form-urlencoded', Referer: URL_ }, body, signal: AbortSignal.timeout(25000) });
+  const res = await fetch(URL_, { method: 'POST', headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', 'Content-Type': 'application/x-www-form-urlencoded', Referer: URL_ }, body, signal: AbortSignal.timeout(12000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parseDineOut(await res.text());
 }
@@ -53,7 +53,8 @@ export async function collectDineOut(prev, { now = Date.now(), fetchOne = fetchM
   let latest = null;
   for (let i = 0; i < 5 && latest == null; i++) {
     const mm = String(m).padStart(2, '0');
-    const v = await fetchOne(y, mm).catch(() => null);
+    // 접속 자체가 안 되면(해외에서 자주 막힘) 바로 그만둠 → 수집 전체가 느려지지 않게. 앱이 휴대폰에서 직접 받는 길이 따로 있음
+    const v = await fetchOne(y, mm);
     if (v) latest = { y, mm, v };
     else { m--; if (m === 0) { m = 12; y--; } }
     await sleep(150);
