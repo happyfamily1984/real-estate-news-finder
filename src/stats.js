@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetchJson } from './fetcher.js';
-import { collectJjajang } from './prices.js';
+import { collectDineOut } from './prices.js';
 
 const KB = 'https://data-api.kbland.kr/bfmstat/weekMnthlyHuseTrnd';
 const REFRESH_MS = 3 * 3600_000;
@@ -219,16 +219,16 @@ export async function runStats(outDir) {
   try {
     const next = await collectStats(prev);
     if (!next) return;
-    // 물가 비교용 짜장면 값 (참가격). 실패하면 이전 값을 그대로 둠
-    let jjajang = prev?.jjajang ?? null;
+    // 물가 비교용 외식비 (참가격: 짜장면·김밥 등). 실패하면 이전 값을 그대로 둠
+    let dineout = prev?.dineout ?? null;
     try {
-      const got = await collectJjajang(jjajang);
-      if (got !== jjajang) console.log(`[prices] 서울 짜장면 ${got.latest}: ${JSON.stringify(got.seoul)}`);
-      jjajang = got;
+      const got = await collectDineOut(dineout);
+      if (got !== dineout) console.log(`[prices] 서울 외식비 ${got.latest}: ${JSON.stringify(got.items)}`);
+      dineout = got;
     } catch (e) {
-      console.log('[prices] 짜장면 값 수집 실패:', e.message);
+      console.log('[prices] 외식비 수집 실패:', e.message);
     }
-    fs.writeFileSync(file, JSON.stringify(jjajang ? { ...next, jjajang } : next));
+    fs.writeFileSync(file, JSON.stringify(dineout ? { ...next, dineout } : next));
   } catch (e) {
     console.log('[stats] 수집 실패:', e.message);
   }
