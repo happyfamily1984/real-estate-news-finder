@@ -8,7 +8,7 @@ const clean = (t) => String(t ?? '').replace(/\s+/g, ' ').trim();
 async function tryOne(label, url, body) {
   const t0 = Date.now();
   try {
-    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}), Referer: U }, body, signal: AbortSignal.timeout(20000) });
+    const res = await fetch(url, { method: body ? 'POST' : 'GET', headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}), Referer: U }, body, signal: AbortSignal.timeout(45000) });
     const text = await res.text();
     const $ = cheerio.load(text);
     const table = $('table').filter((_, t) => /자장면/.test($(t).text())).last();
@@ -18,8 +18,11 @@ async function tryOne(label, url, body) {
     rows.slice(0, 5).forEach((r) => console.log('   ', r.slice(0, 200)));
   } catch (e) { console.log(`\n## ${label} 실패 ${Date.now() - t0}ms ${e.message} ${e.cause?.code ?? ''}`); }
 }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 await tryOne('GET 기본', U);
+await wait(4000);
 await tryOne('GET 2016-10', `${U}?searchYear=2016&searchMonth=10&searchArea=`);
-await tryOne('GET 2026-09', `${U}?searchYear=2026&searchMonth=09&searchArea=`);
+await wait(4000);
 await tryOne('POST 2016-10', U, 'searchOrExcel=&searchYear=2016&searchMonth=10&searchArea=');
-await tryOne('POST 2016-10 search', U, 'searchOrExcel=search&searchYear=2016&searchMonth=10&searchArea=&pageNo=1');
+await wait(4000);
+await tryOne('GET 2012-06 서울', `${U}?searchYear=2012&searchMonth=06&searchArea=020100000`);
