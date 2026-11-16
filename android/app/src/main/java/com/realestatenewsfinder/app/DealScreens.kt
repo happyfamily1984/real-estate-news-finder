@@ -83,7 +83,7 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
             Text("실거래로 만들기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    Triple("budget", "내 돈으로 살 수 있는 집", "예산·평형·지역을 고르면 살 수 있는 단지 목록"),
+                    Triple("budget", "내 돈으로 살 수 있는 아파트", "예산·평형·지역을 고르면 살 수 있는 아파트 목록"),
                     Triple("history", "10·20·30년 전 가격 비교", "단지와 평형을 고르면 그때와 지금 실거래가"),
                     Triple("presale", "분양가 vs 실거래가", "10년 이내 단지의 분양가와 최근 실거래가"),
                 ).forEach { (id, title, sub) ->

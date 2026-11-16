@@ -7,7 +7,7 @@ import kotlin.math.roundToLong
 
 /**
  * 실거래 활용 기능의 계산과 글 (화면·안드로이드와 무관 → 단위 테스트 가능).
- *  - 내 돈으로 살 수 있는 집: 예산·평형·지역·기간 → 실거래 평균이 예산 이하인 단지
+ *  - 내 돈으로 살 수 있는 아파트: 예산·평형·지역·기간 → 실거래 평균이 예산 이하인 단지
  *  - 과거 가격 비교: 단지·평형 → 지금과 10·20·30년 전 실거래 평균
  * 금액 단위는 만원.
  */
@@ -21,7 +21,7 @@ object DealTools {
     private fun avg(l: List<Long>): Long = if (l.isEmpty()) 0 else l.average().roundToLong()
     private fun won(v: Long) = DealText.won(v)
 
-    // ---------- 내 돈으로 살 수 있는 집 ----------
+    // ---------- 내 돈으로 살 수 있는 아파트 ----------
     data class BudgetItem(val complexId: String, val aptNm: String, val umdNm: String, val buildYear: Int?, val count: Int, val avg: Long, val min: Long, val max: Long, val last: Deal)
 
     data class BudgetResult(
@@ -29,18 +29,45 @@ object DealTools {
         val items: List<BudgetItem>,
         /** 예산을 넘는 단지 (평균가 낮은 순 = 조금만 더 있으면 되는 순) */
         val over: List<BudgetItem>,
+        /** 아파트로 보기 어려워 뺀 곳 수 (빌라형 이름, 4층 이하, 거래가 거의 없는 소규모) */
+        val excluded: Int = 0,
     ) {
         val total: Int get() = items.size + over.size
     }
 
-    /** deals: 그 지역의 기간 안 매매 거래. 단지별 평균가가 budget(만원) 이하면 살 수 있는 집 */
-    fun budget(deals: List<Deal>, band: Int, budget: Long): BudgetResult {
+    /** 이름만 봐도 아파트 단지가 아닌 곳 (국토부 아파트 자료에 섞여 있는 빌라형·도시형생활주택 등) */
+    private val NOT_APT = Regex("빌라|연립|다세대|도시형|주택$|타운하우스|오피스텔|원룸|레지던스|생활주택")
+
+    /** '○○빌'로 끝나는 이름: 소규모 빌라형이 많지만 큰 주상복합(쉐르빌·아크로빌 등)도 있어서 거래가 적을 때만 뺌 */
+    private val MAYBE_NOT_APT = Regex("빌$|빌[0-9]{1,2}차?$|빌[가-힣A-Za-z]$")
+
+    /**
+     * 아파트 단지로 볼 만한지. 국토부 자료에는 세대수가 없어서 거래 기록으로 추정함:
+     *  - 이름이 빌라형이면 제외 ('○○빌'은 거래가 10건 미만일 때만)
+     *  - 거래된 층이 모두 4층 이하면 제외 (아파트는 5층 이상)
+     *  - 알려진 거래(매매·전월세)가 3건 미만이면 소규모로 보고 제외
+     * known: 그 단지의 알려진 모든 거래 (기간 안 매매 + 최근 6개월 매매·전월세)
+     */
+    fun looksLikeApartment(aptNm: String, known: List<Deal>): Boolean {
+        if (NOT_APT.containsMatchIn(aptNm.replace(" ", ""))) return false
+        if (known.size < 3) return false
+        if (known.size < 10 && MAYBE_NOT_APT.containsMatchIn(aptNm.replace(" ", ""))) return false
+        return known.maxOf { it.floor } >= 5
+    }
+
+    /**
+     * deals: 그 지역의 기간 안 매매 거래. 단지별 평균가가 budget(만원) 이하면 살 수 있는 아파트.
+     * aptOnly면 아파트로 보기 어려운 곳을 뺌 (extra: 판단에 보탤 최근 6개월 매매·전월세 거래)
+     */
+    fun budget(deals: List<Deal>, band: Int, budget: Long, aptOnly: Boolean = false, extra: List<Deal> = emptyList()): BudgetResult {
+        val known = (deals + extra).filter { !it.canceled }.distinctBy { it.key }.groupBy { it.complexId }
+        var excluded = 0
         val all = deals.filter { it.type == "trade" && !it.canceled && inBand(it.area, band) }.groupBy { it.complexId }.map { (id, ds) ->
             val sorted = ds.sortedByDescending { it.date }
             val prices = ds.map { it.price }
             BudgetItem(id, sorted.first().aptNm, sorted.first().umdNm, ds.firstNotNullOfOrNull { it.buildYear }, ds.size, avg(prices), prices.min(), prices.max(), sorted.first())
-        }
-        return BudgetResult(all.filter { it.avg <= budget }.sortedByDescending { it.avg }, all.filter { it.avg > budget }.sortedBy { it.avg })
+        }.filter { i -> (!aptOnly || looksLikeApartment(i.aptNm, known[i.complexId].orEmpty())).also { ok -> if (!ok) excluded++ } }
+        return BudgetResult(all.filter { it.avg <= budget }.sortedByDescending { it.avg }, all.filter { it.avg > budget }.sortedBy { it.avg }, excluded)
     }
 
     private fun itemLine(i: BudgetItem) = "${i.aptNm} (${listOfNotNull(i.umdNm.takeIf { it.isNotBlank() }, i.buildYear?.let { "${it % 100}년".padStart(3, '0') }).joinToString("·")}) ${won(i.avg)} · ${i.count}건"
@@ -70,7 +97,7 @@ object DealTools {
             r.over.firstOrNull()?.let { notes += "조금 모자란 곳: ${it.aptNm} ${won(it.avg)} (${won(it.avg - budget)} 부족)" }
             if (notes.isNotEmpty()) lines += notes.joinToString("\n")
         }
-        lines += "자료: 국토교통부 실거래가 (단지별 평균. 층·동에 따라 다름)"
+        lines += "자료: 국토교통부 실거래가 (단지별 평균. 층·동에 따라 다름" + (if (r.excluded > 0) ", 빌라형·소규모 ${r.excluded}곳 제외" else "") + ")"
         return lines.joinToString("\n\n")
     }
 

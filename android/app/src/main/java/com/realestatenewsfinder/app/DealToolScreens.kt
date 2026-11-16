@@ -61,7 +61,7 @@ private fun rememberTrades(lawd: String, period: DealPeriod): Pair<List<Deal>?, 
 }
 
 /**
- * 내 돈으로 살 수 있는 집: 예산(1억~200억)·평형(59·84)·지역·기간(1개월~1년)을 고르면
+ * 내 돈으로 살 수 있는 아파트: 예산(1억~200억)·평형(59·84)·지역·기간(1개월~1년)을 고르면
  * 그 지역 실거래 평균이 예산 이하인 단지 목록을 스레드용 이미지와 글로 만듦
  */
 @Composable
@@ -77,11 +77,18 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
     // 1억~200억 (소수 한 자리까지)
     val budget = ((eok.toDoubleOrNull() ?: 0.0).coerceIn(1.0, 200.0) * 10000).toLong()
     val regionName = core.regions.get(lawd)?.optString("fullName").orEmpty()
-    val result = remember(deals, band, budget) { deals?.let { DealTools.budget(it, band, budget) } }
+    // 아파트만 보기: 빌라형·소규모를 거르려고 최근 6개월 매매·전월세 거래도 받아서 단지 규모를 짐작함
+    var aptOnly by remember { mutableStateOf(true) }
+    var extra by remember { mutableStateOf<List<Deal>>(emptyList()) }
+    LaunchedEffect(lawd) {
+        extra = emptyList()
+        if (lawd.isNotBlank()) extra = withContext(Dispatchers.IO) { runCatching { core.molit.fetchMonths("trade", lawd, 6) + core.molit.fetchMonths("rent", lawd, 6) }.getOrDefault(emptyList()) }
+    }
+    val result = remember(deals, band, budget, aptOnly, extra) { deals?.let { DealTools.budget(it, band, budget, aptOnly, extra) } }
     var text by remember { mutableStateOf("") }
     LaunchedEffect(result, regionName, period) { text = result?.let { DealTools.budgetText(regionName, band, budget, period, it, prefs.casualTone) } ?: "" }
     ThreadShareScreen(
-        title = "내 돈으로 살 수 있는 집", cacheId = "budget", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(result, band, budget),
         render = result?.let { r -> { DealCards.budget(ctx, regionName.substringAfter(' ', regionName), band, budget, period, r, core.molit.today()) } },
@@ -106,6 +113,16 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
         RegionSelect(lawd) { lawd = it }
         Label("실거래 기간")
         PillRow { TOOL_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("아파트만 보기", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "빌라형 이름, 4층 이하, 거래가 거의 없는 소규모는 뺌" + (result?.excluded?.takeIf { it > 0 }?.let { " · 지금 ${it}곳 제외" } ?: ""),
+                    fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(aptOnly, { aptOnly = it })
+        }
     }
 }
 
