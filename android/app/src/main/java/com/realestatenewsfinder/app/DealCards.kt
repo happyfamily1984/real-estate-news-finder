@@ -223,17 +223,17 @@ object DealCards {
         return listOfNotNull(fresh(ctx, i, compares, mark), trend(ctx, i, mark, title2 = "새 실거래와 추이"), list(ctx, i, mark))
     }
 
-    // ---------- 내 돈으로 살 수 있는 집 ----------
+    // ---------- 내 돈으로 살 수 있는 아파트 ----------
     fun budget(ctx: Context, place: String, band: Int, budget: Long, period: DealPeriod, r: DealTools.BudgetResult, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
         if (r.total == 0) return emptyList()
         val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val tiles = if (r.items.isEmpty()) listOf(StatCards.Tile("가능한 단지", "0곳", StatCards.INK), StatCards.Tile("가장 싼 곳", short(r.over.first().avg), RED))
         else listOf(StatCards.Tile("가능한 단지", "${r.items.size}곳", StatCards.INK), StatCards.Tile("가장 비싼 곳", short(r.items.first().avg), RED), StatCards.Tile("가장 싼 곳", short(r.items.last().avg), BLUE))
-        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 최근 ${period.label} 실거래", place, "${short(budget)}으로 살 수 있는 집", "거래된 ${r.total}개 단지 중 ${r.items.size}곳 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 최근 ${period.label} 실거래", place, "${short(budget)}으로 살 수 있는 아파트", "거래된 ${r.total}개 단지 중 ${r.items.size}곳 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val rows = r.items.ifEmpty { r.over }.take(11)
-        val inner = StatCards.panel(c, area, if (r.items.isEmpty()) "예산을 넘는 가장 싼 단지" else "살 수 있는 단지")
+        val inner = StatCards.panel(c, area, if (r.items.isEmpty()) "예산을 넘는 가장 싼 단지" else "살 수 있는 아파트")
         val rowH = inner.height() / rows.size.coerceAtLeast(8)
         val size = (rowH * 0.44f).coerceIn(24f, 36f)
         rows.forEachIndexed { k, it ->
@@ -253,7 +253,7 @@ object DealCards {
             if (k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
         }
         val p = StatCards.text(29f * F, StatCards.GRAY, bold = false)
-        c.drawText("자료 : 국토교통부 실거래가 (단지별 평균. 층·동에 따라 다름)" + (if (r.items.size > rows.size) " · 외 ${r.items.size - rows.size}곳" else ""), StatCards.PAD + 18f * F, area.bottom + 48f * F, p)
+        c.drawText("자료 : 국토교통부 실거래가 (단지별 평균" + (if (r.excluded > 0) ", 빌라형·소규모 제외" else "") + ")" + (if (r.items.size > rows.size) " · 외 ${r.items.size - rows.size}곳" else ""), StatCards.PAD + 18f * F, area.bottom + 48f * F, p)
         return listOf(bmp)
     }
 

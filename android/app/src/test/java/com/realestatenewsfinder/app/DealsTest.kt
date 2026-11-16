@@ -139,6 +139,20 @@ class DealsTest {
         assertTrue(text, text.contains("조금 모자란 곳: 나 12억원 (2억원 부족)"))
         val none = DealTools.budgetText("경기도 과천시", 84, 50000, DealPeriod.M6, DealTools.budget(deals, 84, 50000), casual = true)
         assertTrue(none, none.contains("이 예산으로 살 수 있는 곳이 없음") && none.contains("2억원 더 필요"))
+        // 아파트만 보기: 빌라형 이름, 4층 이하, 거래가 거의 없는 곳은 뺌
+        fun many(apt: String, floor: Int, n: Int = 4) = (1..n).map { t(apt, 80000L + it, date = "2026-10-%02d".format(it)).copy(floor = floor + it) }
+        val mixed = many("진짜아파트", 5) + many("행복빌", 8) + many("낮은단지", 0) + listOf(t("거래드문곳", 80000)) + many("그린빌라", 9)
+        val strict = DealTools.budget(mixed, 84, 100000, aptOnly = true)
+        assertEquals(listOf("진짜아파트"), strict.items.map { it.aptNm })
+        assertEquals(4, strict.excluded)
+        assertEquals(5, DealTools.budget(mixed, 84, 100000).items.size)
+        // 기간 안 매매는 1건뿐이어도 최근 전월세 거래가 있으면 아파트로 봄
+        val rents = (1..3).map { Deal("jeonse", "거래드문곳", "거래드문곳", "원문동", "1", 2015, 84.9, 10 + it, "2026-09-0$it", deposit = 50000, key = "r$it") }
+        assertTrue("거래드문곳" in DealTools.budget(mixed, 84, 100000, aptOnly = true, extra = rents).items.map { it.aptNm })
+        assertTrue(DealTools.looksLikeApartment("삼성쉐르빌", many("삼성쉐르빌", 5, 12)) && !DealTools.looksLikeApartment("삼성쉐르빌", many("삼성쉐르빌", 5, 4))) // 큰 주상복합은 남김
+        assertTrue(DealTools.looksLikeApartment("래미안빌리지", many("래미안빌리지", 5)))
+        assertTrue(DealTools.looksLikeApartment("현대홈타운", many("현대홈타운", 5)) && !DealTools.looksLikeApartment("한빛 빌 2차", many("x", 5)))
+        assertTrue(DealTools.budgetText("경기도 과천시", 84, 100000, DealPeriod.M6, strict, true).contains("빌라형·소규모 4곳 제외"))
         assertTrue(DealTools.inBand(58.0, 59) && DealTools.inBand(60.9, 59) && !DealTools.inBand(61.0, 59) && DealTools.inBand(84.99, 84))
     }
 
