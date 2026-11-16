@@ -27,6 +27,8 @@ object ThreadsAuto {
         var loggingOut: Boolean = false,
         /** 직전 확인 때 누르려던 대상과 그 위치 (화면이 움직이는 중인지 판단) */
         var steadySig: String = "",
+        /** 지금 누르려는 대상 / 마지막으로 누른 대상 (같은 것을 연달아 누르지 않게) */
+        var curKey: String = "", var lastKey: String = "",
         /** 빈 화면이거나 '…하는 중' 화면 (스레드가 다시 켜지는 중) */
         var loading: Boolean = false,
         /** 탭이 없는 화면에서 뒤로 나간 횟수 */
@@ -75,7 +77,12 @@ object ThreadsAuto {
 
     /** 마지막 계정 전환 과정 기록 (안 될 때 원인을 찾기 위한 것. 설정 화면에서 볼 수 있음) */
     @Volatile var log: String = ""
-    fun note(line: String) { log = (log + line + "\n").takeLast(2500) }
+    private var lastNote = ""
+    fun note(line: String) {
+        if (line == lastNote) return // 같은 줄이 반복되면 한 번만 남김
+        lastNote = line
+        log = (log + line + "\n").takeLast(3000)
+    }
 }
 
 /**
@@ -204,6 +211,9 @@ class ThreadsAutoService : AccessibilityService() {
      */
     private fun steady(job: ThreadsAuto.Switch, key: String, n: AccessibilityNodeInfo?, win: android.graphics.Rect): Boolean {
         if (n == null) { job.steadySig = ""; return false }
+        job.curKey = key
+        // 방금 누른 것과 같은 대상은 화면이 바뀔 시간을 주고(2.5초) 그래도 그대로일 때만 다시 누름
+        if (key == job.lastKey && System.currentTimeMillis() - job.lastOkAt < 2500) return false
         val b = bounds(n)
         val sig = "$key:${b.flattenToString()}"
         val inside = b.width() > 0 && b.height() > 0 && b.top >= win.top && b.bottom <= win.bottom && b.left >= win.left && b.right <= win.right
@@ -281,6 +291,7 @@ class ThreadsAutoService : AccessibilityService() {
             return
         }
         if (now - job.lastActionAt < 450) return
+        if (job.lastOkAt > 0 && now - job.lastOkAt < 1100) return // 누른 뒤에는 화면이 바뀔 시간을 줌
         val root = rootInActiveWindow ?: return
         if (root.packageName != ThreadsKit.THREADS_PACKAGE) return
         val nodes = all(root)
@@ -289,7 +300,8 @@ class ThreadsAutoService : AccessibilityService() {
         val screen = ThreadsAuto.screenOf(labels, hasEditable = nodes.any { it.isEditable })
         fun acted(what: String, ok: Boolean) {
             ThreadsAuto.note("$screen: $what → ${if (ok) "누름" else "실패"}")
-            if (ok) { job.steps++; job.lastOkAt = now; job.loading = false }
+            if (ok) { job.steps++; job.lastOkAt = now; job.loading = false; job.lastKey = job.curKey }
+            job.curKey = ""
             job.lastActionAt = now // 실패해도 잠깐 쉬었다가 다시 봄 (기록이 넘치지 않게)
             if (!ok) job.misses++
         }
