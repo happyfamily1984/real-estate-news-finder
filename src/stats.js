@@ -66,7 +66,7 @@ const SERIES = [
   { meta: { id: 'kb-buyer-wk', title: '매수우위지수', short: '매수우위', unit: '', digits: 1, cycle: '주간', kind: 'level', base: 100, desc: '100보다 크면 사려는 사람이, 작으면 팔려는 사람이 많음 (0~200)' }, path: 'maktTrnd', params: { ...WEEK, 메뉴코드: '01' }, field: '매수우위지수' },
   { meta: { id: 'kb-jeonse-supply-wk', title: '전세수급지수', short: '전세수급', unit: '', digits: 1, cycle: '주간', kind: 'level', base: 100, desc: '100보다 클수록 전세 물량이 부족함 (0~200)' }, path: 'maktTrnd', params: { ...WEEK, 메뉴코드: '03' }, field: '전세수급지수' },
   { meta: { id: 'kb-outlook-mm', title: '매매가격 전망지수', short: '매매 전망', unit: '', digits: 1, cycle: '월간', kind: 'level', base: 100, desc: '중개업소 설문. 100보다 크면 상승 전망이 우세 (0~200)' }, path: 'maktTrnd', params: { 월간주간구분코드: '01', 메뉴코드: '05' }, field: '매매상승하락전망지수' },
-  { meta: { id: 'kb-pir', title: 'PIR (소득 대비 집값)', short: 'PIR', unit: '배', digits: 1, cycle: '분기', kind: 'level', desc: '중간 가격 주택을 사려면 중간 소득 가구가 연소득을 몇 년 모아야 하는지' }, path: 'pir', params: { 메뉴코드: '01' }, pir: true },
+  { meta: { id: 'kb-pir', title: 'PIR (소득 대비 집값)', short: 'PIR', unit: '배', digits: 1, cycle: '분기', kind: 'level', desc: '중간 소득 가구가 연소득을 한 푼도 안 쓰고 모아야 중간 가격 집을 살 수 있는 햇수' }, path: 'pir', params: { 메뉴코드: '01' }, pir: true },
 ];
 
 // ---------- 한국부동산원 R-ONE (주간 아파트가격 동향) ----------
@@ -186,7 +186,8 @@ export async function collectStats(prev, now = Date.now(), key = process.env.REB
       return s.pir ? kbPir(s.meta, data) : kbSeries(s.meta, data, s.field);
     } })),
   ];
-  if (prev?.version === 2 && prev?.updatedAt && now - prev.updatedAt < REFRESH_MS && prev.series?.length === jobs.length) return prev;
+  if (prev?.version === 2 && prev?.updatedAt && now - prev.updatedAt < REFRESH_MS && prev.series?.length === jobs.length
+    && jobs.every((j) => prev.series.find((x) => x.id === j.meta.id)?.desc === j.meta.desc)) return prev; // 설명 문구가 바뀌면 바로 다시 받음
   const old = new Map((prev?.series ?? []).map((s) => [s.id, s]));
   const series = [];
   const errors = {};
