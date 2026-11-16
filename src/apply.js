@@ -136,9 +136,13 @@ export function parseApplyhomeDetail(html) {
   $('script,style,noscript').remove();
   const text = clean($('body').text());
   const details = [];
+  // "항목 | 값" 줄에서 값 찾기 (항목 칸이 th일 수도 td일 수도 있음)
   const pair = (label) => {
     let v = '';
-    $('th').each((_, th) => { if (!v && clean($(th).text()) === label) v = clean($(th).nextAll('td').first().text()); });
+    $('tr').each((_, tr) => {
+      const c = $(tr).children('th,td').map((__, x) => clean($(x).text())).get();
+      if (!v && c[0] === label && c[1]) v = c[1];
+    });
     return v;
   };
   const loc = pair('공급위치');
@@ -194,26 +198,27 @@ export function parseLhDetail(html) {
   const details = [];
   const loc = text.match(/소재지\s*:\s*(.+?)\s*(?:전용면적|총\s?세대수|난방방식)/)?.[1];
   if (loc) details.push(`소재지: ${clean(loc).slice(0, 50)}`);
-  const complexes = (text.match(/소재지\s*:/g) || []).length;
+  const complexes = new Set([...text.matchAll(/소재지\s*:\s*(.+?)\s*(?:전용면적|총\s?세대수|난방방식)/g)].map((m) => clean(m[1]))).size;
   if (complexes > 1) details.push(`대상 단지: ${complexes}곳`);
 
   // 주택형 표: 분양은 평균분양가격, 임대는 임대보증금·월임대료
   let supply = 0;
   const types = [];
   $('table').filter((_, t) => /주택형 안내/.test($(t).find('caption').text())).each((_, t) => {
-    const head = $(t).find('thead th, tr').first().parent().find('th').map((__, th) => clean($(th).text())).get();
+    const head = $(t).find('tr').first().children('th,td').map((__, th) => clean($(th).text())).get();
     const col = (re) => head.findIndex((h) => re.test(h));
     const iArea = col(/전용면적/); const iNow = col(/금회공급/); const iPrice = col(/평균분양가격/); const iDep = col(/임대보증금/); const iRent = col(/월임대료/);
     $(t).find('tbody tr').each((__, tr) => {
-      const c = $(tr).find('td').map((___, td) => clean($(td).text())).get();
-      if (c.length < 3) return;
+      // 줄 맨 앞의 주택형 칸이 th인 표가 있어서 th·td를 모두 셈 (머리글과 칸 수가 맞아야 함)
+      const c = $(tr).children('th,td').map((___, td) => clean($(td).text())).get();
+      if (c.length < 3 || c.length !== head.length) return;
       const now = num(c[iNow]);
-      if (now) supply += now;
+      if (now && now < 100000) supply += now;
       const area = num(c[iArea]);
       const price = iPrice >= 0 ? num(c[iPrice]) : null;
       const dep = iDep >= 0 ? num(c[iDep]) : null;
       const rent = iRent >= 0 ? num(c[iRent]) : null;
-      if (area) types.push({ area, now, price, dep, rent });
+      if (area && area > 10 && area < 300) types.push({ area, now, price, dep, rent });
     });
   });
   if (supply) details.push(`금회 공급: ${supply.toLocaleString('ko-KR')}세대`);

@@ -57,6 +57,9 @@ export class Crawler {
   /** 상세 정보가 없는 글(청약·LH 공고)의 상세 페이지를 받아 details를 채움. 사이트 부담을 줄이려고 소스당 한 번에 12개까지 */
   async enrich() {
     for (const src of this.sources.filter((s) => s.enrich && this.status[s.id]?.ok)) {
+      const v = src.detailV ?? 1;
+      // 뽑는 방식이 바뀌었으면(detailV) 예전 상세 정보는 버리고 다시 받음
+      for (const p of this.posts.values()) if (p.source === src.id && (p.detailV ?? 1) !== v) { delete p.details; delete p.note; p.detailTries = 0; p.detailV = v; }
       const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && (p.detailTries ?? 0) < 3).slice(0, 12);
       let done = 0;
       for (const p of todo) {
@@ -84,6 +87,7 @@ export class Crawler {
       items.forEach((item, rank) => {
         const prev = this.posts.get(item.id);
         const p = { ...prev, ...item, rank: rank + 1, lastSeenAt: now, onBoard: true, tags: tagsOf(item.title) };
+        if (!prev && src.detailV) p.detailV = src.detailV;
         if (!prev) {
           p.firstSeenAt = now;
           p.viewsPerMin = 0;
