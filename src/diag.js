@@ -1,33 +1,31 @@
-// 진단: 청약홈·LH 공고 상세 페이지에 어떤 항목이 있는지 확인. Actions > crawl > Run workflow 에서 diag를 켜면 실행됨
-import fs from 'node:fs';
-import * as cheerio from 'cheerio';
+// 진단: 청약홈 무순위·잔여세대 상세 페이지 주소 찾기. Actions > crawl > Run workflow 에서 diag를 켜면 실행됨
 import { fetchHtml } from './fetcher.js';
-import { fetchApplyhome, fetchLh } from './apply.js';
-import { sourceById } from './sources.js';
 
-async function show(name, url) {
-  console.log(`\n### ${name}\n${url}`);
-  try {
-    const html = await fetchHtml(url, { cookies: true, timeoutMs: 25000 });
-    const $ = cheerio.load(html);
-    $('script,style,noscript,header,footer,nav').remove();
-    console.log('len', html.length, '| tables', $('table').length, '| captions:', $('caption').map((_, e) => $(e).text().replace(/\s+/g, ' ').trim().slice(0, 40)).get().join(' / ').slice(0, 600));
-    // 표마다: 머리글 + 첫 두 줄
-    $('table').slice(0, 14).each((i, t) => {
-      const rows = $(t).find('tr').slice(0, 5).map((_, tr) => $(tr).find('th,td').map((__, c) => $(c).text().replace(/\s+/g, ' ').trim().slice(0, 30)).get().join(' | ')).get();
-      console.log(`[표${i}] ${$(t).attr('class') || ''} :: ${rows.join(' // ').slice(0, 520)}`);
-    });
-    const text = $('body').text().replace(/\s+/g, ' ');
-    const i = Math.max(0, text.search(/공급위치|공고일|공급규모|접수기간/));
-    console.log('본문:', text.slice(i, i + 1500));
-  } catch (e) { console.log('ERROR', e.message, e.cause?.code || ''); }
+const BASE = 'https://www.applyhome.co.kr/ai/aia/';
+for (const list of ['selectAPTRemndrLttotPblancListView.do', 'selectAPTLttotPblancListView.do']) {
+  console.log(`\n### ${list}`);
+  const html = await fetchHtml(BASE + list, { cookies: true });
+  const names = [...new Set(html.match(/[A-Za-z/]*[Dd]etail[A-Za-z]*\.do/g) || [])];
+  console.log('상세 주소 후보:', names.join(', '));
+  for (const m of html.matchAll(/.{260}[Dd]etail[A-Za-z]*\.do.{200}/gs)) console.log('  …', m[0].replace(/\s+/g, ' '));
+  const row = html.match(/<tr[^>]*data-pbno[^>]*>/);
+  console.log('첫 줄 속성:', row?.[0]);
+  const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map((m) => m[1]).filter((s) => /ai|aia|pblanc|lttot/i.test(s));
+  console.log('스크립트:', scripts.join(', '));
+  for (const src of scripts.slice(0, 4)) {
+    try {
+      const js = await fetchHtml(new URL(src, BASE).toString(), { cookies: true });
+      for (const m of js.matchAll(/.{200}[Dd]etail[A-Za-z]*\.do.{160}/gs)) console.log(`  [${src.split('/').pop()}] …`, m[0].replace(/\s+/g, ' '));
+    } catch (e) { console.log('  script ERROR', src, e.message); }
+  }
+  if (list.includes('Remndr') && row) {
+    const pb = row[0].match(/data-pbno="(\d+)"/)?.[1]; const hm = row[0].match(/data-hmno="(\d+)"/)?.[1] || pb;
+    for (const d of [...names, 'selectAPTRemndrLttotPblancDetail.do', 'selectAPTRemndrLttotPblancDetailView.do']) {
+      const name = d.split('/').pop();
+      for (const qs of [`houseManageNo=${hm}&pblancNo=${pb}`, `houseManageNo=${hm}&pblancNo=${pb}&gvPgmId=AIA02001`]) {
+        try { const h = await fetchHtml(`${BASE}${name}?${qs}`, { cookies: true }); console.log(`  시도 ${name}?${qs} → 200 len ${h.length} 공급위치 ${h.includes('공급위치')}`); }
+        catch (e) { console.log(`  시도 ${name}?${qs} → ${e.message}`); }
+      }
+    }
+  }
 }
-
-const a = (await fetchApplyhome(sourceById.applyhome).catch(() => []))[0];
-const r = (await fetchApplyhome(sourceById['applyhome-remain']).catch(() => []))[0];
-const l = (await fetchLh(sourceById['lh-sale']).catch(() => []))[0];
-const m = (await fetchLh(sourceById.lh).catch(() => []))[0];
-if (a) await show('청약홈 APT 상세', a.url);
-if (r) await show('청약홈 무순위 상세', r.url);
-if (l) await show('LH 분양 상세', l.url);
-if (m) await show('LH 임대 상세', m.url);
