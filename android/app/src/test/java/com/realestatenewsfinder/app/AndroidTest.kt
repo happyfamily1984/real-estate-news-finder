@@ -140,7 +140,7 @@ class AndroidTest {
         if (url.contains("/molit/trade")) {
             for ((n, area) in listOf(84.93, 59.97, 84.99).withIndex()) {
                 if ((k + n) % 3 == 0 && n == 2) continue
-                val price = ((if (area > 80) 150000 else 118000) + k * 1100 + n * 900) / 100 * 100
+                val price = (((if (area > 80) 150000 else 118000) + k * 1100 + n * 900) / 100 * 100).coerceAtLeast(30000)
                 items.append("<item><aptNm>래미안슈르</aptNm><umdNm>원문동</umdNm><jibun>4</jibun><buildYear>2008</buildYear><dealYear>$y</dealYear><dealMonth>$m</dealMonth><dealDay>${3 + n * 9}</dealDay><dealAmount>$price</dealAmount><excluUseAr>$area</excluUseAr><floor>${5 + (k + n) % 14}</floor><dealingGbn>중개거래</dealingGbn><cdealType> </cdealType></item>")
             }
             items.append("<item><aptNm>과천자이</aptNm><umdNm>별양동</umdNm><jibun>52</jibun><buildYear>2021</buildYear><dealYear>$y</dealYear><dealMonth>$m</dealMonth><dealDay>12</dealDay><dealAmount>${205000 + k * 500}</dealAmount><excluUseAr>84.9</excluUseAr><floor>9</floor><cdealType> </cdealType></item>")
@@ -191,8 +191,10 @@ class AndroidTest {
                 AppTheme(dark = false) {
                     when (screen) {
                         0 -> StatsScreen(null, null, false, {}, {}, mode = 2)
-                        1 -> ComplexListScreen("41290", {}, {})
+                        1 -> ComplexListScreen("41290", {}) { _, _, _ -> }
                         2 -> ComplexDetailScreen(target, {}) { _, _, _, _, _ -> }
+                        4 -> BudgetScreen({}, {})
+                        5 -> HistoryScreen(target, "래미안슈르", "원문동", {}, {})
                         else -> DealShareScreen("41290", id, "래미안슈르", "원문동", "trade", DealPeriod.Y1, core.notificationDeals(note.getString("id")), {}, {})
                     }
                 }
@@ -201,10 +203,29 @@ class AndroidTest {
                 compose.waitUntil(15000) { compose.onAllNodes(androidx.compose.ui.test.hasText(wait, substring = true)).fetchSemanticsNodes().isNotEmpty() }
                 compose.onRoot().captureRoboImage("build/screens/$name.png")
             }
+            // 실거래 활용 카드: 내 돈으로 살 수 있는 집, 과거 가격 비교, 분양가 vs 실거래
+            val half = core.molit.fetchMonths("trade", "41290", 7)
+            val budget = DealTools.budget(half, 84, 200000)
+            DealCards.budget(app, "과천시", 84, 200000, DealPeriod.M6, budget, today, mark).forEachIndexed { i, b -> save("tool-budget-${i + 1}", b) }
+            assertEquals(1, budget.items.size)
+            val pts = listOf(0, 10, 20, 30).map { n ->
+                val yms = DealTools.historyYms(today, n)
+                DealTools.historyPoint(today, n, if (yms.isEmpty()) null else core.molit.fetchYms("trade", "41290", yms), id, "래미안슈르", "원문동", 84, 2008)
+            }
+            assertEquals(listOf(true, true, false, false), pts.map { it.ok })
+            DealCards.history(app, "래미안슈르", "과천시 원문동", 84, pts, today, mark).forEachIndexed { i, b -> save("tool-history-${i + 1}", b) }
+            val items = DealTools.parsePresale("""{"items":[{"id":"1","name":"과천 자이","date":"2021-12-01","lawd":["41290"],"addr":"","prices":{"84":[150000,160000]}}]}""")
+            val matches = DealTools.presaleCompare(items, "41290", year + core.service.getDeals("41290", complexes[0].getString("id"), "trade", 13), 84, today.year)
+            assertEquals(listOf("과천자이"), matches.map { it.aptNm })
+            DealCards.presale(app, "과천시", 84, DealPeriod.Y1, matches, today, mark).forEachIndexed { i, b -> save("tool-presale-${i + 1}", b) }
+
             shot("deal-home", "알림 받는 단지")
             screen = 1; shot("deal-complexes", "과천자이")
             screen = 2; shot("deal-detail", "최근 1년 매매 실거래")
-            screen = 3; shot("deal-share", "최근 래미안슈르 실거래 발생")
+            screen = 6; shot("deal-share", "최근 래미안슈르 실거래 발생")
+            Prefs(app).dealRecent = listOf("41290")
+            screen = 4; shot("tool-budget-screen", "거래된")
+            screen = 5; shot("tool-history-screen", "지금: 평균")
         } finally {
             DealCore.replace(null)
         }

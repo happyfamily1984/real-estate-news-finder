@@ -59,6 +59,7 @@ private fun valueColor(s: StatSeries, v: Double?): Color = when {
 fun StatsScreen(
     stats: Stats?, error: String?, loading: Boolean, onRefresh: () -> Unit, onOpen: (StatSeries) -> Unit,
     onRegion: (String) -> Unit = {}, onDealRegion: (String) -> Unit = {}, onDealOpen: (DealTarget) -> Unit = {},
+    onDealTool: (String) -> Unit = {},
     mode: Int = 0, onMode: (Int) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -75,7 +76,7 @@ fun StatsScreen(
         }
         when (mode) {
             1 -> RegionPicker(stats, error, onRegion)
-            2 -> DealHome(onDealRegion, onDealOpen)
+            2 -> DealHome(onDealRegion, onDealOpen, onDealTool)
             else -> PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
                     if (error != null) item { Text("⚠ $error", Modifier.padding(horizontal = 20.dp, vertical = 6.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }

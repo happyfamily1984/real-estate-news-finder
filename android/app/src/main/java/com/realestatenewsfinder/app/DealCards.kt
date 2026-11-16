@@ -222,4 +222,113 @@ object DealCards {
         val compares = i.valid.filter { it.key in i.newKeys }.map { DealText.compare(it, i.deals, i.newKeys) }
         return listOfNotNull(fresh(ctx, i, compares, mark), trend(ctx, i, mark, title2 = "새 실거래와 추이"), list(ctx, i, mark))
     }
+
+    // ---------- 내 돈으로 살 수 있는 집 ----------
+    fun budget(ctx: Context, place: String, band: Int, budget: Long, period: DealPeriod, r: DealTools.BudgetResult, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        if (r.total == 0) return emptyList()
+        val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val tiles = if (r.items.isEmpty()) listOf(StatCards.Tile("가능한 단지", "0곳", StatCards.INK), StatCards.Tile("가장 싼 곳", short(r.over.first().avg), RED))
+        else listOf(StatCards.Tile("가능한 단지", "${r.items.size}곳", StatCards.INK), StatCards.Tile("가장 비싼 곳", short(r.items.first().avg), RED), StatCards.Tile("가장 싼 곳", short(r.items.last().avg), BLUE))
+        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 최근 ${period.label} 실거래", place, "${short(budget)}으로 살 수 있는 집", "거래된 ${r.total}개 단지 중 ${r.items.size}곳 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
+        val rows = r.items.ifEmpty { r.over }.take(11)
+        val inner = StatCards.panel(c, area, if (r.items.isEmpty()) "예산을 넘는 가장 싼 단지" else "살 수 있는 단지")
+        val rowH = inner.height() / rows.size.coerceAtLeast(8)
+        val size = (rowH * 0.44f).coerceIn(24f, 36f)
+        rows.forEachIndexed { k, it ->
+            val cy = inner.top + rowH * k + rowH / 2
+            val num = "${k + 1}"
+            c.drawCircle(inner.left + 22f * F, cy, 20f * F, StatCards.fill(if (k < 3) StatCards.NAVY else 0xFFB8C4DA.toInt()))
+            val np = StatCards.text(24f * F, 0xFFFFFFFF.toInt())
+            c.drawText(num, inner.left + 22f * F - np.measureText(num) / 2, cy + 9f * F, np)
+            val pv = short(it.avg)
+            val pp = StatCards.text(size * 1.1f, if (r.items.isEmpty()) RED else StatCards.NAVY)
+            val priceW = pp.measureText(pv)
+            c.drawText(pv, inner.right - priceW, cy + size * 0.1f, pp)
+            val nameMax = inner.width() - 70f * F - priceW - 24f * F
+            c.drawText(it.aptNm, inner.left + 58f * F, cy - size * 0.08f, StatCards.fit(it.aptNm, StatCards.text(size, StatCards.INK), nameMax, 18f))
+            val sub = listOfNotNull(it.umdNm.takeIf { u -> u.isNotBlank() }, it.buildYear?.let { y -> "${y}년" }, "${it.count}건", "최근 ${DealText.md(it.last.date)} ${short(it.last.price)}").joinToString(" · ")
+            c.drawText(sub, inner.left + 58f * F, cy + size * 0.82f, StatCards.fit(sub, StatCards.text(size * 0.66f, StatCards.GRAY, bold = false), inner.width() - 70f * F, 14f))
+            if (k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
+        }
+        val p = StatCards.text(29f * F, StatCards.GRAY, bold = false)
+        c.drawText("자료 : 국토교통부 실거래가 (단지별 평균. 층·동에 따라 다름)" + (if (r.items.size > rows.size) " · 외 ${r.items.size - rows.size}곳" else ""), StatCards.PAD + 18f * F, area.bottom + 48f * F, p)
+        return listOf(bmp)
+    }
+
+    // ---------- 과거 가격 비교 ----------
+    fun history(ctx: Context, aptNm: String, place: String, areaKey: Int, points: List<DealTools.HistoryPoint>, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        val now = points.firstOrNull { it.yearsAgo == 0 && it.ok } ?: return emptyList()
+        val order = points.sortedByDescending { it.yearsAgo } // 오래된 것부터
+        val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val oldest = order.firstOrNull { it.ok && it.yearsAgo > 0 }
+        val tiles = mutableListOf(StatCards.Tile("지금", short(now.avg), RED))
+        order.filter { it.ok && it.yearsAgo > 0 }.sortedBy { it.yearsAgo }.take(2).forEach { tiles += StatCards.Tile(it.label, short(it.avg), BLUE) }
+        val area = StatCards.frameCustom(ctx, c, "매매 실거래 · ${areaKey}㎡", aptNm, "그때와 지금", "$place · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val inner = StatCards.panel(c, area, "실거래 평균가 변화")
+        val rowH = inner.height() / order.size
+        val maxV = order.maxOf { it.avg }.coerceAtLeast(1)
+        val labelW = 150f * F
+        val barL = inner.left + labelW; val barMax = inner.width() - labelW - 20f * F
+        order.forEachIndexed { k, p ->
+            val y0 = inner.top + rowH * k
+            val cy = y0 + rowH * 0.42f
+            c.drawText(p.label, inner.left, cy + 6f * F, StatCards.text(38f * F, StatCards.INK))
+            c.drawText(p.whenLabel, inner.left, cy + 46f * F, StatCards.text(24f * F, StatCards.GRAY, bold = false))
+            if (!p.ok) {
+                c.drawText(p.reason ?: "자료 없음", barL, cy + 10f * F, StatCards.fit(p.reason ?: "", StatCards.text(30f * F, StatCards.GRAY, bold = false), barMax, 18f))
+            } else {
+                val w = (barMax * 0.62f * p.avg / maxV).coerceAtLeast(8f)
+                val bh = (rowH * 0.34f).coerceAtMost(54f * F)
+                c.drawRoundRect(RectF(barL, cy - bh / 2, barL + w, cy + bh / 2), 8f, 8f, StatCards.fill(if (p.yearsAgo == 0) RED else BLUE))
+                c.drawText(short(p.avg), barL + w + 14f * F, cy + 14f * F, StatCards.text(42f * F, if (p.yearsAgo == 0) RED else StatCards.NAVY))
+                val sub = if (p.yearsAgo == 0) "${p.count}건 평균" else {
+                    val times = String.format("%.1f", now.avg.toDouble() / p.avg)
+                    val rate = DealTools.cagr(now.avg, p.avg, p.yearsAgo)?.let { String.format(" · 연평균 %+.1f%%", it) } ?: ""
+                    "${p.count}건 평균 → 지금까지 ${times}배$rate"
+                }
+                c.drawText(sub, barL, cy + bh / 2 + 36f * F, StatCards.fit(sub, StatCards.text(27f * F, StatCards.GRAY, bold = false), barMax, 16f))
+            }
+            if (k < order.size - 1) c.drawRect(inner.left, y0 + rowH - 1f, inner.right, y0 + rowH, StatCards.fill(StatCards.LINE))
+        }
+        val p = StatCards.text(29f * F, StatCards.GRAY, bold = false)
+        oldest?.let { c.drawText("${it.label}보다 ${short(kotlin.math.abs(now.avg - it.avg))} ${if (now.avg >= it.avg) "오름" else "내림"} (물가 반영 안 함)", StatCards.PAD + 18f * F, area.bottom + 52f * F, p) }
+        c.drawText("자료 : 국토교통부 실거래가 (각 시점 앞뒤 1년 평균)", StatCards.PAD + 18f * F, area.bottom + 96f * F, p)
+        return listOf(bmp)
+    }
+
+    // ---------- 분양가 vs 실거래 ----------
+    fun presale(ctx: Context, place: String, band: Int, period: DealPeriod, matches: List<DealTools.PresaleMatch>, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        if (matches.isEmpty()) return emptyList()
+        val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val mean = matches.map { it.pct }.average()
+        val top = matches.first()
+        fun pctText(p: Double) = String.format("%+.0f%%", p)
+        fun pctColor(p: Double) = if (p > 0) RED else if (p < 0) BLUE else StatCards.INK
+        val tiles = listOf(StatCards.Tile("비교 단지", "${matches.size}곳", StatCards.INK), StatCards.Tile("평균", pctText(mean), pctColor(mean)), StatCards.Tile("가장 많이 오른 곳", pctText(top.pct), pctColor(top.pct)))
+        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 10년 이내 단지", place, "분양가 vs 실거래가", "실거래 최근 ${period.label} 평균 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
+        val inner = StatCards.panel(c, area, "분양가 대비 상승률 순")
+        val rows = matches.take(9)
+        val rowH = inner.height() / rows.size.coerceAtLeast(6)
+        val size = (rowH * 0.36f).coerceIn(24f, 36f)
+        rows.forEachIndexed { k, m ->
+            val cy = inner.top + rowH * k + rowH / 2
+            val pv = pctText(m.pct)
+            val pp = StatCards.text(size * 1.25f, pctColor(m.pct))
+            val pw = pp.measureText(pv)
+            c.drawText(pv, inner.right - pw, cy + size * 0.2f, pp)
+            val maxW = inner.width() - pw - 30f * F
+            val title = "${k + 1}. ${m.aptNm}"
+            c.drawText(title, inner.left, cy - size * 0.12f, StatCards.fit(title, StatCards.text(size, StatCards.INK), maxW, 18f))
+            val sub = "${m.item.date.take(4)}년 분양 ${short(m.presale)} → 실거래 ${short(m.avg)} (${m.count}건)"
+            c.drawText(sub, inner.left, cy + size * 0.86f, StatCards.fit(sub, StatCards.text(size * 0.72f, StatCards.GRAY, bold = false), maxW, 14f))
+            if (k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
+        }
+        c.drawText("자료 : 청약홈 분양가(최근 5년 공고), 국토교통부 실거래가", StatCards.PAD + 18f * F, area.bottom + 48f * F, StatCards.text(29f * F, StatCards.GRAY, bold = false))
+        return listOf(bmp)
+    }
 }

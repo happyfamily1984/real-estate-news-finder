@@ -65,7 +65,7 @@ private fun Label(text: String) = Text(text, fontSize = 13.sp, fontWeight = Font
  * 시군구를 고르면 그 지역의 단지 목록으로 넘어감.
  */
 @Composable
-fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit) {
+fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (String) -> Unit = {}) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
     val core = remember { DealCore.get(ctx) }
@@ -79,6 +79,26 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
 
     LazyColumn(contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
+        item {
+            Text("실거래로 만들기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("budget", "내 돈으로 살 수 있는 집", "예산·평형·지역을 고르면 살 수 있는 단지 목록"),
+                    Triple("history", "10·20·30년 전 가격 비교", "단지와 평형을 고르면 그때와 지금 실거래가"),
+                    Triple("presale", "분양가 vs 실거래가", "10년 이내 단지의 분양가와 최근 실거래가"),
+                ).forEach { (id, title, sub) ->
+                    SoftCard(onClick = { onTool(id) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(sub, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted)
+                        }
+                    }
+                }
+            }
+        }
         if (subs.isNotEmpty()) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, top = 4.dp)) {
@@ -163,7 +183,7 @@ fun shortSido(name: String): String = when {
 
 /** 시군구의 아파트 단지 목록 (최근 6개월 거래가 있는 단지). 누르면 단지 상세 */
 @Composable
-fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, onOpen: (DealTarget) -> Unit) {
+fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, onOpen: (DealTarget, String, String) -> Unit) {
     val ctx = LocalContext.current
     val core = remember { DealCore.get(ctx) }
     val region = remember(lawdCd) { core.regions.get(lawdCd) }
@@ -191,7 +211,7 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, onOpen: (DealTarget) -
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Column {
                 Text(region?.optString("fullName") ?: lawdCd, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                Text(list?.let { "최근 6개월 거래가 있는 단지 ${it.size}곳" } ?: "단지 목록 받는 중…", fontSize = 12.sp, color = muted)
+                Text(note ?: list?.let { "최근 6개월 거래가 있는 단지 ${it.size}곳" } ?: "단지 목록 받는 중…", fontSize = 12.sp, color = if (note != null) MaterialTheme.colorScheme.primary else muted)
             }
         }
         SearchPill(query, { query = it }, Modifier.padding(horizontal = 14.dp).fillMaxWidth())
@@ -209,7 +229,7 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, onOpen: (DealTarget) -
                 if (shown.isEmpty()) item { EmptyText("찾는 단지가 없어요") }
                 items(shown, key = { it.getString("id") }) { c ->
                     val counts = c.getJSONObject("counts")
-                    SoftCard(onClick = { onOpen(DealTarget(lawdCd, c.getString("id"), if (counts.optInt("trade") > 0) "trade" else if (counts.optInt("jeonse") > 0) "jeonse" else "monthly")) }) {
+                    SoftCard(onClick = { onOpen(DealTarget(lawdCd, c.getString("id"), if (counts.optInt("trade") > 0) "trade" else if (counts.optInt("jeonse") > 0) "jeonse" else "monthly"), c.getString("aptNm"), c.optString("umdNm")) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(c.getString("aptNm"), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -236,7 +256,7 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, onOpen: (DealTarget) -
  * 아래 버튼으로 실거래 알림 받기, 스레드 내보내기. 알림을 눌러 들어오면 새로 신고된 거래에 빨간 N.
  */
 @Composable
-fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onShare: (aptNm: String, umdNm: String, type: String, period: DealPeriod, fresh: List<Deal>) -> Unit) {
+fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptNm: String, umdNm: String) -> Unit = { _, _ -> }, onShare: (aptNm: String, umdNm: String, type: String, period: DealPeriod, fresh: List<Deal>) -> Unit) {
     val ctx = LocalContext.current
     val core = remember { DealCore.get(ctx) }
     val scope = rememberCoroutineScope()
@@ -348,6 +368,17 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onShare: (aptNm:
                             ChoicePill("전체", areaKey == null) { areaKey = null }
                             areas.forEach { (a, n) -> ChoicePill("${a}㎡ ($n)", areaKey == a) { areaKey = a } }
                         }
+                    }
+                }
+            }
+            if (name.isNotBlank()) item {
+                SoftCard(onClick = { onHistory(name, umd) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("10·20·30년 전 가격과 비교", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("그때와 지금 실거래가를 스레드용으로", fontSize = 12.sp, color = muted)
+                        }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted)
                     }
                 }
             }

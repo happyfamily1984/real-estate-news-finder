@@ -120,4 +120,76 @@ class DealsTest {
         assertFalse(alerts.poll().sent > 0) // 같은 거래를 두 번 알리지 않음
         assertNotNull(alerts.unsubscribe(store.subscriptions.objects().single().getString("id")))
     }
+
+    // ----- 내 돈으로 살 수 있는 집 -----
+    private fun t(apt: String, price: Long, area: Double = 84.9, date: String = "2026-10-01", year: Int? = 2015, umd: String = "원문동") =
+        Deal("trade", apt, apt, umd, "1", year, area, 10, date, price = price, key = "$apt/$date/$price/$area")
+
+    @Test fun budgetList() {
+        val deals = listOf(t("가", 90000), t("가", 100000, date = "2026-11-01"), t("나", 120000), t("다", 70000), t("라", 99000, area = 59.9), t("마", 60000).copy(canceled = true))
+        val r = DealTools.budget(deals, 84, 100000)
+        assertEquals(listOf("가" to 95000L, "다" to 70000L), r.items.map { it.aptNm to it.avg }) // 예산에 가까운 순, 해제 거래·다른 평형 제외
+        assertEquals(listOf("나"), r.over.map { it.aptNm })
+        assertEquals(100000L, r.items[0].last.price)
+        val text = DealTools.budgetText("경기도 과천시", 84, 100000, DealPeriod.M6, r, casual = true)
+        assertTrue(text, text.startsWith("과천시에서 10억원으로 살 수 있는 84㎡ 아파트 (최근 6개월 실거래 평균 기준)"))
+        assertTrue(text, text.contains("거래된 3개 단지 중 2곳 가능 (66%)"))
+        assertTrue(text, text.contains("1. 가 (원문동·15년) 9억 5,000만원 · 2건"))
+        assertTrue(text, text.contains("가장 싼 곳은 다 7억원 (3억원 남음)"))
+        assertTrue(text, text.contains("조금 모자란 곳: 나 12억원 (2억원 부족)"))
+        val none = DealTools.budgetText("경기도 과천시", 84, 50000, DealPeriod.M6, DealTools.budget(deals, 84, 50000), casual = true)
+        assertTrue(none, none.contains("이 예산으로 살 수 있는 곳이 없음") && none.contains("2억원 더 필요"))
+        assertTrue(DealTools.inBand(58.0, 59) && DealTools.inBand(60.9, 59) && !DealTools.inBand(61.0, 59) && DealTools.inBand(84.99, 84))
+    }
+
+    // ----- 과거 가격 비교 -----
+    @Test fun historyCompare() {
+        val today = LocalDate.of(2026, 11, 16)
+        assertEquals("202611", DealTools.historyYms(today, 0).first())
+        assertEquals(12, DealTools.historyYms(today, 0).size)
+        assertEquals("201704" to "201605", DealTools.historyYms(today, 10).let { it.first() to it.last() }) // 2016년 11월을 가운데 둔 12개월
+        assertEquals(listOf("200704", "200605"), DealTools.historyYms(today, 20).let { listOf(it.first(), it.last()) })
+        assertEquals(listOf("200608", "200601"), DealTools.historyYms(LocalDate.of(2026, 3, 1), 20).let { listOf(it.first(), it.last()) }) // 2006년 전은 뺌
+        assertTrue(DealTools.historyYms(today, 30).isEmpty())
+
+        val now = DealTools.historyPoint(today, 0, listOf(t("가", 180000), t("가", 200000), t("나", 50000)), "가", "가", "원문동", 84, 2005)
+        assertEquals(2 to 190000L, now.count to now.avg)
+        // 오래전 자료는 단지 번호가 달라도 동·이름이 같으면 같은 단지
+        val old = listOf(Deal("trade", "옛번호", "가", "원문동", "1-1", 2005, 84.9, 5, "2016-10-01", price = 76000, key = "o"))
+        val p10 = DealTools.historyPoint(today, 10, old, "가", "가", "원문동", 84, 2005)
+        assertEquals(76000L, p10.avg)
+        val p20 = DealTools.historyPoint(today, 20, emptyList(), "가", "가", "원문동", 84, 2005)
+        assertEquals("그 무렵 같은 평형 거래 기록 없음", p20.reason)
+        assertEquals("2010년 준공이라 그때는 없던 단지", DealTools.historyPoint(today, 20, emptyList(), "가", "가", "원문동", 84, 2010).reason)
+        val p30 = DealTools.historyPoint(today, 30, null, "가", "가", "원문동", 84, 1990)
+        assertEquals("실거래가 공개(2006년) 전이라 자료 없음", p30.reason)
+        assertEquals(9.6, DealTools.cagr(190000, 76000, 10)!!, 0.05)
+        val text = DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10, p20, p30), casual = true)
+        assertTrue(text, text.contains("지금: 평균 19억원 (최근 1년 2건)"))
+        assertTrue(text, text.contains("10년 전(2016년 무렵): 평균 7억 6,000만원 (1건)\n→ 지금까지 11억 4,000만원 올라 2.5배, 연평균 +9.6%"))
+        assertTrue(text, text.contains("30년 전: 실거래가 공개(2006년) 전이라 자료 없음"))
+        assertTrue(text, text.contains("정리: 10년 동안 2.5배가 됐음"))
+    }
+
+    // ----- 분양가 vs 실거래 -----
+    @Test fun presaleCompare() {
+        val items = DealTools.parsePresale("""{"items":[
+          {"id":"1","name":"과천 푸르지오 써밋","date":"2021-12-01","movein":"2024-09","lawd":["41290"],"addr":"경기도 과천시 부림동","prices":{"59":[80000,84000],"84":[100000,110000]}},
+          {"id":"2","name":"힐스테이트 과천(잔여세대)","date":"2023-03-01","lawd":["41290"],"addr":"","prices":{"84":[120000,120000]}},
+          {"id":"3","name":"다른 동네 단지","date":"2022-01-01","lawd":["11680"],"addr":"","prices":{"84":[90000,90000]}}]}""")
+        assertEquals(105000L, items[0].price(84))
+        assertEquals(null, items[1].price(59))
+        assertTrue(DealTools.sameName("과천 푸르지오 써밋", "과천푸르지오써밋"))
+        assertTrue(DealTools.sameName("힐스테이트 과천(잔여세대)", "힐스테이트과천"))
+        assertTrue(!DealTools.sameName("자이", "과천자이")) // 너무 짧은 이름은 정확히 같을 때만
+        val deals = listOf(t("과천푸르지오써밋", 150000, year = 2024), t("과천푸르지오써밋", 160000, year = 2024), t("힐스테이트과천", 114000, year = 2025), t("오래된단지", 90000, year = 2000), t("다른 동네 단지", 99000, year = 2023))
+        val m = DealTools.presaleCompare(items, "41290", deals, 84, 2026)
+        assertEquals(listOf("과천푸르지오써밋", "힐스테이트과천"), m.map { it.aptNm })
+        assertEquals(155000L to 50000L, m[0].avg to m[0].diff)
+        assertEquals(47.6, m[0].pct, 0.05)
+        val text = DealTools.presaleText("경기도 과천시", 84, DealPeriod.Y1, m, casual = true)
+        assertTrue(text, text.startsWith("과천시 새 아파트, 분양가와 지금 실거래가 (84㎡)"))
+        assertTrue(text, text.contains("1. 과천푸르지오써밋 (2021년 분양)\n분양가 10억 5,000만원 → 실거래 15억 5,000만원 (+48%, 5억원 올라)"))
+        assertTrue(text, text.contains("정리: 2곳 중 1곳이 분양가보다 비싸게 거래, 평균 +21%\n분양가 아래로 거래된 곳도 1곳"))
+    }
 }

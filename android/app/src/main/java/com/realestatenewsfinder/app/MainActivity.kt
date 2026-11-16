@@ -190,6 +190,10 @@ fun App() {
     var dealRegion by remember { mutableStateOf<String?>(null) }
     var dealComplex by remember { mutableStateOf<DealTarget?>(null) }
     var dealShare by remember { mutableStateOf<DealShareArgs?>(null) }
+    // 실거래 활용: 내 돈으로 살 수 있는 집, 과거 가격 비교(단지를 먼저 고름), 분양가 vs 실거래
+    var dealTool by remember { mutableStateOf<String?>(null) }
+    var pickForHistory by remember { mutableStateOf(false) }
+    var historyOf by remember { mutableStateOf<Triple<DealTarget, String, String>?>(null) }
     val dealFromNotification = MainActivity.pendingDeal.value
     LaunchedEffect(dealFromNotification) {
         if (dealFromNotification != null) {
@@ -275,7 +279,15 @@ fun App() {
                 Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount, community = true)
                 Tab.STATS -> StatsScreen(
                     stats, statsError, statsLoading, ::refreshStats, onOpen = { statShare = it },
-                    onRegion = { regionShare = it }, onDealRegion = { dealRegion = it }, onDealOpen = { dealComplex = it },
+                    onRegion = { regionShare = it }, onDealRegion = { pickForHistory = false; dealRegion = it }, onDealOpen = { dealComplex = it },
+                    onDealTool = { id ->
+                        if (id == "history") {
+                            // 단지를 먼저 골라야 함: 마지막으로 본 지역의 단지 목록을 열고, 없으면 아래에서 지역을 고르라고 알림
+                            pickForHistory = true
+                            val last = Prefs(ctx).dealRecent.firstOrNull()
+                            if (last != null) dealRegion = last else Toast.makeText(ctx, "아래 '단지 찾기'에서 시·군·구를 고르면 단지를 선택할 수 있어요.", Toast.LENGTH_LONG).show()
+                        } else dealTool = id
+                    },
                     mode = statsMode, onMode = { statsMode = it },
                 )
                 Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true }, onNaverLogin = { naverLogin = true })
@@ -306,10 +318,19 @@ fun App() {
     // 지역 지표 (통계 > 지역별에서 지역을 누르면)
     regionShare?.let { r -> stats?.let { st -> key("r$r") { RegionShareScreen(st, r, onBack = { regionShare = null }, onSent = { regionShare = null }) } } }
     // 실거래: 단지 목록 → 단지 상세 → 스레드 내보내기 (위에 겹쳐 띄워서 뒤로가기로 한 단계씩)
-    dealRegion?.let { code -> key("dr$code") { ComplexListScreen(code, onBack = { dealRegion = null }, onOpen = { dealComplex = it }) } }
-    dealComplex?.let { t -> key("dc" + t.toUri()) {
-        ComplexDetailScreen(t, onBack = { dealComplex = null }) { aptNm, umdNm, type, period, fresh -> dealShare = DealShareArgs(t, aptNm, umdNm, type, period, fresh) }
+    dealRegion?.let { code -> key("dr$code") {
+        ComplexListScreen(code, onBack = { dealRegion = null; pickForHistory = false }, note = if (pickForHistory) "과거 가격과 비교할 단지를 고르세요" else null) { t, aptNm, umdNm ->
+            if (pickForHistory) historyOf = Triple(t, aptNm, umdNm) else dealComplex = t
+        }
     } }
+    dealComplex?.let { t -> key("dc" + t.toUri()) {
+        ComplexDetailScreen(t, onBack = { dealComplex = null }, onHistory = { aptNm, umdNm -> historyOf = Triple(t, aptNm, umdNm) }) { aptNm, umdNm, type, period, fresh -> dealShare = DealShareArgs(t, aptNm, umdNm, type, period, fresh) }
+    } }
+    historyOf?.let { (t, aptNm, umdNm) -> key("dh" + t.complexId) { HistoryScreen(t, aptNm, umdNm, onBack = { historyOf = null }, onSent = { historyOf = null }) } }
+    when (dealTool) {
+        "budget" -> BudgetScreen(onBack = { dealTool = null }, onSent = { dealTool = null })
+        "presale" -> PresaleScreen(onBack = { dealTool = null }, onSent = { dealTool = null })
+    }
     dealShare?.let { a -> key("ds" + a.target.toUri()) {
         DealShareScreen(a.target.lawdCd, a.target.complexId, a.aptNm, a.umdNm, a.type, a.period, a.fresh, onBack = { dealShare = null }, onSent = { dealShare = null })
     } }
