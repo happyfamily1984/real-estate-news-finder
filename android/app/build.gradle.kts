@@ -24,6 +24,9 @@ android {
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "1.0.0"
         buildConfigField("String", "FEED_URL", "\"$feedUrl\"")
+        // 실거래 조회용 중계 서버 (apt-alert-app의 Cloudflare Worker. 국토부 API 키는 서버에만 있음). DEAL_PROXY_URL로 바꿀 수 있음
+        val dealProxy = System.getenv("DEAL_PROXY_URL") ?: "https://apt-alert.k-rebirth7-03a.workers.dev"
+        buildConfigField("String", "DEAL_PROXY_URL", "\"$dealProxy\"")
     }
 
     signingConfigs {

@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
         android.webkit.WebView.enableSlowWholeDocumentDraw()
         enableEdgeToEdge()
         HotPostWorker.schedule(this)
+        runCatching { DealPollWorker.schedule(this, replace = false) }
         handleIntent(intent)
         setContent { AppTheme { App() } }
     }
@@ -97,6 +98,11 @@ class MainActivity : ComponentActivity() {
 
     /** 알림에서 넘어온 글이 있으면 앱 안에서 열도록 전달 */
     private fun handleIntent(intent: Intent?) {
+        // 실거래 알림 → 그 단지 상세 화면
+        intent?.getStringExtra(EXTRA_DEAL)?.let { hash ->
+            intent.removeExtra(EXTRA_DEAL)
+            DealTarget.parse(hash)?.let { pendingDeal.value = it }
+        }
         val json = intent?.getStringExtra(EXTRA_POST) ?: return
         intent.removeExtra(EXTRA_POST)
         runCatching { PostStore.fromJson(org.json.JSONObject(json)) }.getOrNull()?.let { pendingPost.value = it }
@@ -104,6 +110,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_POST = "post"
+        const val EXTRA_DEAL = "deal"
+        /** 실거래 알림을 눌러 열어야 할 단지 */
+        val pendingDeal = mutableStateOf<DealTarget?>(null)
         /** 알림을 눌러 열어야 할 글 (App이 받아서 미리보기를 띄움) */
         val pendingPost = mutableStateOf<Post?>(null)
     }
@@ -124,6 +133,9 @@ fun AppTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> U
     }
     MaterialTheme(colorScheme = scheme, content = content)
 }
+
+/** 실거래 내보내기 화면에 넘기는 값 */
+data class DealShareArgs(val target: DealTarget, val aptNm: String, val umdNm: String, val type: String, val period: DealPeriod, val fresh: List<Deal>)
 
 enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
     HOME("뉴스", Icons.Filled.Home, Icons.Outlined.Home),
@@ -172,6 +184,20 @@ fun App() {
     var statsLoading by remember { mutableStateOf(false) }
     var statShare by remember { mutableStateOf<StatSeries?>(null) }
     var naverLogin by remember { mutableStateOf(false) }
+    // 통계 탭 안의 화면들: 지역 지표, 실거래(시군구 단지 목록 → 단지 상세 → 내보내기)
+    var statsMode by rememberSaveable { mutableIntStateOf(0) }
+    var regionShare by remember { mutableStateOf<String?>(null) }
+    var dealRegion by remember { mutableStateOf<String?>(null) }
+    var dealComplex by remember { mutableStateOf<DealTarget?>(null) }
+    var dealShare by remember { mutableStateOf<DealShareArgs?>(null) }
+    val dealFromNotification = MainActivity.pendingDeal.value
+    LaunchedEffect(dealFromNotification) {
+        if (dealFromNotification != null) {
+            dealShare = null
+            dealComplex = dealFromNotification
+            MainActivity.pendingDeal.value = null
+        }
+    }
     fun refreshStats() {
         scope.launch {
             statsLoading = true
@@ -247,7 +273,11 @@ fun App() {
                 Tab.HOME -> HomeScreen(feedNews, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount)
                 Tab.GOV -> HomeScreen(feedGov, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount)
                 Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount, community = true)
-                Tab.STATS -> StatsScreen(stats, statsError, statsLoading, ::refreshStats) { statShare = it }
+                Tab.STATS -> StatsScreen(
+                    stats, statsError, statsLoading, ::refreshStats, onOpen = { statShare = it },
+                    onRegion = { regionShare = it }, onDealRegion = { dealRegion = it }, onDealOpen = { dealComplex = it },
+                    mode = statsMode, onMode = { statsMode = it },
+                )
                 Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true }, onNaverLogin = { naverLogin = true })
             }
         }
@@ -273,6 +303,16 @@ fun App() {
     } }
     // 통계 지표를 스레드용으로 (통계 탭에서 지표를 누르면)
     statShare?.let { s -> key("s" + s.id) { StatShareScreen(s, stats?.sido.orEmpty(), onBack = { statShare = null }, onSent = { statShare = null }) } }
+    // 지역 지표 (통계 > 지역별에서 지역을 누르면)
+    regionShare?.let { r -> stats?.let { st -> key("r$r") { RegionShareScreen(st, r, onBack = { regionShare = null }, onSent = { regionShare = null }) } } }
+    // 실거래: 단지 목록 → 단지 상세 → 스레드 내보내기 (위에 겹쳐 띄워서 뒤로가기로 한 단계씩)
+    dealRegion?.let { code -> key("dr$code") { ComplexListScreen(code, onBack = { dealRegion = null }, onOpen = { dealComplex = it }) } }
+    dealComplex?.let { t -> key("dc" + t.toUri()) {
+        ComplexDetailScreen(t, onBack = { dealComplex = null }) { aptNm, umdNm, type, period, fresh -> dealShare = DealShareArgs(t, aptNm, umdNm, type, period, fresh) }
+    } }
+    dealShare?.let { a -> key("ds" + a.target.toUri()) {
+        DealShareScreen(a.target.lawdCd, a.target.complexId, a.aptNm, a.umdNm, a.type, a.period, a.fresh, onBack = { dealShare = null }, onSent = { dealShare = null })
+    } }
     if (naverLogin) NaverLoginScreen(onBack = { naverLogin = false })
     }
 }

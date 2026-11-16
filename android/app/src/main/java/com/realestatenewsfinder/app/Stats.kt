@@ -43,8 +43,38 @@ data class StatSeries(
     }
 }
 
-data class Stats(val updatedAt: Long, val sido: List<String>, val series: List<StatSeries>) {
+data class Stats(
+    val updatedAt: Long, val sido: List<String>, val series: List<StatSeries>,
+    /** 하위 지역 → 상위 지역들 (가까운 순). 예: "서울 강남구" → [서울 동남권, 서울 강남, 서울] */
+    val parents: Map<String, List<String>> = emptyMap(),
+) {
+    /** 시도 아래의 지역들: 시군구 먼저(가나다순), 권역은 뒤에 */
+    fun childrenOf(sido: String): List<String> =
+        parents.filter { it.value.lastOrNull() == sido }.keys.sortedWith(compareBy<String> { isZone(it) }.thenBy { it })
+
+    /** 지역 자신 → 상위 지역 순서 */
+    fun chain(region: String): List<String> = listOf(region) + parents[region].orEmpty()
+
+    /** 이 지역의 시도 (맨 위 단계 지역이면 자신) */
+    fun sidoOf(region: String): String = parents[region]?.lastOrNull() ?: region
+
+    /** 이 지역(없으면 가장 가까운 상위 지역)의 값이 있는 지표: (지표, 실제로 값이 있는 지역 이름) */
+    fun seriesFor(region: String): List<Pair<StatSeries, String>> =
+        series.mapNotNull { s -> chain(region).firstOrNull { s.region(it)?.latest != null }?.let { s to it } }
+
+    /** 순위 비교 대상: 같은 시도의 시군구(구가 딸린 시의 하위 구와 권역은 제외). 시도를 고르면 그 아래 시군구 */
+    fun siblings(region: String): List<String> {
+        val sd = sidoOf(region)
+        return childrenOf(sd).filter { !isZone(it) && it.removePrefix("$sd ").count { c -> c == ' ' } == 0 }
+    }
+
+    /** 화면·이미지에 쓰는 짧은 이름: "서울 강남구" → "강남구" (시도 이름과 같으면 그대로) */
+    fun shortName(region: String): String = region.removePrefix(sidoOf(region) + " ").ifBlank { region }
+
     companion object {
+        /** 권역(동남권·경부1권, 서울 강북·강남)인지 */
+        fun isZone(region: String) = region.endsWith("권") || region == "서울 강북" || region == "서울 강남"
+
         private fun strings(a: JSONArray?) = a?.let { (0 until it.length()).map { i -> it.getString(i) } }.orEmpty()
 
         fun parse(json: String): Stats {
@@ -65,7 +95,8 @@ data class Stats(val updatedAt: Long, val sido: List<String>, val series: List<S
                     },
                 )
             }
-            return Stats(o.optLong("checkedAt", o.optLong("updatedAt", 0)), strings(o.optJSONArray("sido")), series)
+            val parents = o.optJSONObject("parents")?.let { p -> p.keys().asSequence().associateWith { k -> strings(p.optJSONArray(k)) } }.orEmpty()
+            return Stats(o.optLong("checkedAt", o.optLong("updatedAt", 0)), strings(o.optJSONArray("sido")), series, parents)
         }
     }
 }
@@ -144,6 +175,51 @@ object StatText {
             }
         }
         if (s.kind != "change" && s.desc.isNotBlank()) lines += s.desc
+        return lines.joinToString("\n\n")
+    }
+}
+
+/** 한 지역의 지표들을 스레드 글로 (숫자를 그대로 끼워 넣음. AI 사용 안 함) */
+object RegionText {
+    /** 최근 n회 변동률을 복리로 합친 누적 변동률(%) */
+    fun cumulative(values: List<Double?>, n: Int): Double? {
+        val v = values.takeLast(n)
+        if (v.size < n || v.any { it == null }) return null
+        return (v.fold(1.0) { acc, x -> acc * (1 + x!! / 100) } - 1) * 100
+    }
+
+    fun thread(stats: Stats, region: String, picked: List<StatSeries>, casual: Boolean): String {
+        fun e(casualEnd: String, politeEnd: String) = if (casual) casualEnd else politeEnd
+        val lines = mutableListOf<String>()
+        val sido = stats.sidoOf(region)
+        val date = picked.firstOrNull()?.dateLabel
+        lines += "$region 부동산 지표 정리" + (date?.let { " ($it 기준)" } ?: "")
+        for (s in picked) {
+            val at = stats.chain(region).firstOrNull { s.region(it)?.latest != null } ?: continue
+            val r = s.region(at)!!
+            val who = if (at == region) "" else "($at 기준) "
+            val compare = listOf(sido, "전국").distinct().filter { it != at }.mapNotNull { n -> s.region(n)?.latest?.let { "$n ${s.fmt(it)}" } }
+            var line = "${s.source} ${s.short} $who${s.fmt(r.latest)}"
+            if (compare.isNotEmpty()) line += " (${compare.joinToString(", ")})"
+            if (s.kind == "change") {
+                val c4 = cumulative(r.values, 4)
+                val call = if (r.values.size >= 8) cumulative(r.values, r.values.size) else null
+                val extra = listOfNotNull(c4?.let { "최근 4주 ${s.fmt(it)}" }, call?.let { "${r.values.size}주 ${s.fmt(it)}" })
+                if (extra.isNotEmpty()) line += "\n누적 " + extra.joinToString(", ")
+            } else if (r.prev != null && r.latest != null) {
+                val d = r.latest!! - r.prev!!
+                if (abs(d) >= 0.5 / Math.pow(10.0, s.digits.toDouble())) line += "\n직전보다 ${s.fmt(abs(d), false)} " + (if (d > 0) "올랐" else "내렸") + e("음", "어요")
+            }
+            lines += line
+        }
+        // 같은 시도 안에서의 순위 (매매가 변동률 기준)
+        val sale = picked.firstOrNull { it.kind == "change" && it.region(region)?.latest != null }
+        if (sale != null) {
+            val sib = stats.siblings(region).mapNotNull { n -> sale.region(n)?.latest?.let { n to it } }.sortedByDescending { it.second }
+            val rank = sib.indexOfFirst { it.first == region }
+            if (rank >= 0 && sib.size >= 5) lines += "$sido ${sib.size}개 시군구 중 ${sale.short} 상승률 ${rank + 1}위" + e("", "예요")
+            else if (region == sido && sib.size >= 5) lines += "$sido 안에서는 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)})가 가장 높고 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})가 가장 낮" + e("음", "아요")
+        }
         return lines.joinToString("\n\n")
     }
 }

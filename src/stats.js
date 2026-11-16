@@ -93,7 +93,7 @@ async function roneRecent(statId, weeks, key) {
   let page = Math.max(1, Math.ceil(head.total / size));
   const rows = [];
   const times = new Set();
-  for (let i = 0; i < 8 && page >= 1 && times.size <= weeks + 1; i++, page--) {
+  for (let i = 0; i < 12 && page >= 1 && times.size <= weeks + 1; i++, page--) {
     const r = await roneCall('SttsApiTblData', { STATBL_ID: statId, DTACYCLE_CD: 'WK', pIndex: page, pSize: size }, key);
     for (const x of r.rows) { rows.push(x); times.add(x.WRTTIME_IDTFR_ID); }
   }
@@ -101,29 +101,56 @@ async function roneRecent(statId, weeks, key) {
 }
 
 /**
- * R-ONE 행 → 시리즈. change=true면 지수에서 전주 대비 변동률(%)을 계산.
- * itemRe: 여러 항목이 있는 표에서 쓸 항목 이름
+ * R-ONE 지역 경로 → 앱 이름과 상위 지역들.
+ *  "서울>강남지역>동남권>강남구" → { name: '서울 강남구', parents: ['서울 동남권', '서울 강남', '서울'] }
+ *  "경기>경부1권>성남시>분당구" → { name: '경기 성남시 분당구', parents: ['경기 성남시', '경기 경부1권', '경기'] }
+ * 맨 위 단계(전국·수도권·시도 등)는 예전 이름 그대로. 안 쓰는 묶음(4대광역시·8개도 등)은 null
  */
-export function roneSeries(meta, rows, { change = false, itemRe = /지수/ } = {}) {
+export function roneRegion(full) {
+  const parts = String(full ?? '').split('>').map((x) => x.trim()).filter(Boolean).filter((x) => x !== '전남광주' && x !== '광주전남');
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return RONE_REGION[parts[0]] ? { name: RONE_REGION[parts[0]], parents: [] } : null;
+  const sido = parts[0];
+  if (!SIDO.includes(sido)) return null;
+  const isZone = (x) => /권$|지역$/.test(x);
+  // 경로의 각 단계 이름: 권역은 "시도 권역", 시군구는 권역을 뺀 "시도 시 구"
+  const nameAt = (k) => {
+    const last = parts[k];
+    if (last === '강북지역' || last === '강남지역') return RONE_REGION[last];
+    if (isZone(last)) return `${sido} ${last}`;
+    return [sido, ...parts.slice(1, k + 1).filter((x) => !isZone(x))].join(' ');
+  };
+  const chain = [];
+  for (let k = parts.length - 1; k >= 1; k--) chain.push(nameAt(k));
+  chain.push(sido);
+  return { name: chain[0], parents: chain.slice(1) };
+}
+
+/**
+ * R-ONE 행 → 시리즈. change=true면 지수에서 전주 대비 변동률(%)을 계산.
+ * itemRe: 여러 항목이 있는 표에서 쓸 항목 이름. 시군구·권역까지 모두 담고, parents에 상위 지역을 적음
+ */
+export function roneSeries(meta, rows, { change = false, itemRe = /지수|동향/ } = {}) {
   const item = [...new Set(rows.map((r) => r.ITM_NM))].find((n) => itemRe.test(n ?? ''));
   const byTime = new Map(); // 시점 → (지역 → 값)
   const dateOf = new Map();
+  const parents = {};
   for (const r of rows) {
     if (item && r.ITM_NM !== item) continue;
-    const full = r.CLS_FULLNM || r.CLS_NM || '';
-    const depth = full.split('>').length;
-    const name = RONE_REGION[r.CLS_NM];
-    // 시도는 맨 위 단계만 (경기 광주시 같은 하위 지역과 헷갈리지 않게). 광주·전남은 묶음 아래에 있어서 2단계까지
-    if (!name || depth > 2 || (depth === 2 && !['강북지역', '강남지역', '광주', '전남'].includes(r.CLS_NM))) continue;
+    const reg = roneRegion(r.CLS_FULLNM || r.CLS_NM || '');
+    if (!reg) continue;
     if (typeof r.DTA_VAL !== 'number') continue;
+    if (reg.parents.length) parents[reg.name] = reg.parents;
     if (!byTime.has(r.WRTTIME_IDTFR_ID)) byTime.set(r.WRTTIME_IDTFR_ID, new Map());
-    byTime.get(r.WRTTIME_IDTFR_ID).set(name, r.DTA_VAL);
+    byTime.get(r.WRTTIME_IDTFR_ID).set(reg.name, r.DTA_VAL);
     if (r.WRTTIME_DESC) dateOf.set(r.WRTTIME_IDTFR_ID, r.WRTTIME_DESC);
   }
   const times = [...byTime.keys()].sort();
   const use = times.slice(change ? -(HISTORY + 1) : -HISTORY);
   const outTimes = change ? use.slice(1) : use;
   const names = [...byTime.get(times.at(-1) ?? '')?.keys() ?? []];
+  // 맨 위 단계 지역을 앞에, 그 뒤에 하위 지역 (예전 앱은 앞쪽 이름만 씀)
+  names.sort((a, b) => (parents[a] ? 1 : 0) - (parents[b] ? 1 : 0));
   const regions = names.map((name) => ({
     name,
     values: outTimes.map((t) => {
@@ -133,8 +160,12 @@ export function roneSeries(meta, rows, { change = false, itemRe = /지수/ } = {
       return typeof v === 'number' && typeof before === 'number' && before !== 0 ? round((v / before - 1) * 100, meta.digits) : null;
     }),
   })).filter((r) => r.values.at(-1) != null);
+  const kept = new Set(regions.map((r) => r.name));
   const d = (t) => dateOf.get(t) || t;
-  return { ...meta, source: '한국부동산원', note: '한국부동산원 R-ONE 주간아파트가격동향', date: d(outTimes.at(-1) ?? ''), dates: outTimes.map(d), regions };
+  return {
+    ...meta, source: '한국부동산원', note: '한국부동산원 R-ONE 주간아파트가격동향', date: d(outTimes.at(-1) ?? ''), dates: outTimes.map(d), regions,
+    parents: Object.fromEntries(Object.entries(parents).filter(([n]) => kept.has(n))),
+  };
 }
 
 const RONE_SERIES = [
@@ -155,7 +186,7 @@ export async function collectStats(prev, now = Date.now(), key = process.env.REB
       return s.pir ? kbPir(s.meta, data) : kbSeries(s.meta, data, s.field);
     } })),
   ];
-  if (prev?.updatedAt && now - prev.updatedAt < REFRESH_MS && prev.series?.length === jobs.length) return prev;
+  if (prev?.version === 2 && prev?.updatedAt && now - prev.updatedAt < REFRESH_MS && prev.series?.length === jobs.length) return prev;
   const old = new Map((prev?.series ?? []).map((s) => [s.id, s]));
   const series = [];
   const errors = {};
@@ -173,7 +204,10 @@ export async function collectStats(prev, now = Date.now(), key = process.env.REB
   }
   if (series.length === 0) return prev ?? null;
   // 하나라도 실패했으면 다음 실행 때 다시 시도하도록 시각을 갱신하지 않음
-  return { version: 1, updatedAt: Object.keys(errors).length ? (prev?.updatedAt ?? 0) : now, checkedAt: now, sido: SIDO, series, errors };
+  // 지역 선택 화면용: 하위 지역 → 상위 지역들 (지표마다 따로 온 것을 하나로)
+  const parents = {};
+  for (const s of series) { Object.assign(parents, s.parents ?? {}); }
+  return { version: 2, updatedAt: Object.keys(errors).length ? (prev?.updatedAt ?? 0) : now, checkedAt: now, sido: SIDO, parents, series: series.map(({ parents: _p, ...rest }) => rest), errors };
 }
 
 export async function runStats(outDir) {

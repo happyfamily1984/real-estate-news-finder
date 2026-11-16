@@ -343,6 +343,34 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     }
                 }
 
+                // 실거래 알림·자료
+                SettingsCard {
+                    var pollMin by remember { mutableIntStateOf(prefs.dealPollMin) }
+                    var molitKey by remember { mutableStateOf(prefs.molitKey) }
+                    val subCount = remember { runCatching { DealCore.get(ctx).store.subscriptions.length() }.getOrDefault(0) }
+                    AccentTitle("실거래 알림")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "통계 > 실거래에서 단지를 고르고 '실거래 알림 받기'를 누르면, 새 실거래가 신고됐을 때 알림이 와요. 지금 알림 받는 항목 ${subCount}개.\n새 실거래 확인 주기:",
+                        fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(60 to "1시간", 180 to "3시간", 360 to "6시간").forEach { (m, label) ->
+                            IntervalPill(label, pollMin == m) { pollMin = m; prefs.dealPollMin = m; runCatching { DealPollWorker.schedule(ctx) } }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("공공데이터포털 인증키 (선택)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "비워 두면 기본 중계 서버로 국토부 실거래를 받아요. 조회가 안 될 때만, 공공데이터포털에서 '아파트 매매 실거래가 자료'와 '아파트 전월세 실거래가 자료'를 활용신청하고 받은 일반 인증키를 넣으세요.",
+                        fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedPillField(molitKey, { molitKey = it; prefs.molitKey = it }, "인증키 (없어도 됨)", 48.dp, 14.sp)
+                }
+
                 // 확인 주기
                 SettingsCard {
                     AccentTitle("확인 주기")

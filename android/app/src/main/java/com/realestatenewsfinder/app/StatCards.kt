@@ -81,23 +81,24 @@ object Watermark {
 object StatCards {
     const val W = 1080
     const val H = 1620
-    private const val F = W / 1024f // 디자인 시안(1024×1536) 좌표 → 카드 좌표
-    private const val PAD = 36f * F
-    private const val UP = 0xFFE5262B.toInt()
-    private const val DOWN = 0xFF2563EB.toInt()
-    private const val NAVY = 0xFF0B2A6F.toInt()
-    private const val INK = 0xFF14213D.toInt()
-    private const val GRAY = 0xFF5B6B8C.toInt()
-    private const val LINE = 0xFFDDE5F2.toInt()
-    private const val YELLOW = 0xFFFFD84D.toInt()
-    private val TREND_COLORS = intArrayOf(0xFF14213D.toInt(), 0xFFF03A3A.toInt(), 0xFF12A150.toInt())
+    internal const val F = W / 1024f // 디자인 시안(1024×1536) 좌표 → 카드 좌표
+    internal const val PAD = 36f * F
+    internal const val UP = 0xFFE5262B.toInt()
+    internal const val DOWN = 0xFF2563EB.toInt()
+    internal const val NAVY = 0xFF0B2A6F.toInt()
+    internal const val INK = 0xFF14213D.toInt()
+    internal const val GRAY = 0xFF5B6B8C.toInt()
+    internal const val LINE = 0xFFDDE5F2.toInt()
+    internal const val YELLOW = 0xFFFFD84D.toInt()
+    internal val TREND_COLORS = intArrayOf(0xFF14213D.toInt(), 0xFFF03A3A.toInt(), 0xFF12A150.toInt())
+    private val DEFAULT_NAMES = listOf("전국", "서울", "수도권")
 
-    private fun text(size: Float, color: Int, bold: Boolean = true) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    internal fun text(size: Float, color: Int, bold: Boolean = true) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size; this.color = color
         typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
     }
-    private fun fill(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
-    private fun fit(t: String, p: Paint, maxW: Float, min: Float = 30f): Paint { while (p.measureText(t) > maxW && p.textSize > min) p.textSize -= 2f; return p }
+    internal fun fill(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+    internal fun fit(t: String, p: Paint, maxW: Float, min: Float = 30f): Paint { while (p.measureText(t) > maxW && p.textSize > min) p.textSize -= 2f; return p }
 
     private fun colorOf(s: StatSeries, v: Double): Int = when {
         s.kind == "change" -> if (v > 0) UP else if (v < 0) DOWN else GRAY
@@ -114,10 +115,19 @@ object StatCards {
         return t.substring(0, cut) to t.substring(cut + 1)
     }
 
-    private fun asset(ctx: Context, id: Int): Bitmap? = runCatching { BitmapFactory.decodeResource(ctx.resources, id, BitmapFactory.Options().apply { inScaled = false }) }.getOrNull()
+    internal fun asset(ctx: Context, id: Int): Bitmap? = runCatching { BitmapFactory.decodeResource(ctx.resources, id, BitmapFactory.Options().apply { inScaled = false }) }.getOrNull()
 
-    /** 배경·머리·큰 숫자·바닥. 반환: 그래프 판을 놓을 영역 */
-    private fun frame(ctx: Context, c: Canvas, s: StatSeries, pill: String, mark: Watermark.Mark): RectF {
+    data class Tile(val label: String, val value: String, val color: Int)
+
+    /** 통계 지표용 틀: 제목·기준일·지역 세 곳의 최신 값 */
+    private fun frame(ctx: Context, c: Canvas, s: StatSeries, pill: String, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, label: (String) -> String = { it }): RectF {
+        val (l1, l2) = titleLines(s)
+        val tiles = names.mapNotNull { s.region(it) }.filter { it.latest != null }.take(3).map { Tile(label(it.name), s.fmt(it.latest), colorOf(s, it.latest!!)) }
+        return frameCustom(ctx, c, pill, l1, l2, "${s.source} · ${s.dateLabel} 기준 · ${s.cycle}", tiles, mark)
+    }
+
+    /** 배경·머리(알약, 흰 제목, 노란 제목, 기준 줄)·큰 숫자 칸·바닥. 반환: 그래프 판을 놓을 영역 */
+    internal fun frameCustom(ctx: Context, c: Canvas, pill: String, l1: String, l2: String, sub: String, tiles: List<Tile>, mark: Watermark.Mark): RectF {
         // 바탕
         c.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, 0f, H.toFloat(), 0xFFEAF2FF.toInt(), 0xFFF6F9FF.toInt(), Shader.TileMode.CLAMP) })
         // 머리: 남색 그라데이션 + 아파트 그림
@@ -143,27 +153,24 @@ object StatCards {
         c.drawRoundRect(pr, 29f * F, 29f * F, fill(0x553B82F6))
         c.drawRoundRect(pr, 29f * F, 29f * F, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF9CC2FF.toInt(); style = Paint.Style.STROKE; strokeWidth = 3f })
         c.drawText(pill, pr.left + 26f * F, pr.bottom - 17f * F, pp)
-        val (l1, l2) = titleLines(s)
         c.drawText(l1, tx, 182f * F, fit(l1, text(66f * F, 0xFFFFFFFF.toInt()), textMax))
         c.drawText(l2, tx - 30f * F, 270f * F, fit(l2, text(80f * F, YELLOW), textMax + 30f * F))
-        c.drawText("${s.source} · ${s.dateLabel} 기준 · ${s.cycle}", tx - 30f * F, 322f * F, fit("${s.source} · ${s.dateLabel} 기준 · ${s.cycle}", text(32f * F, 0xFFFFFFFF.toInt(), bold = false), textMax + 30f * F, 20f))
+        c.drawText(sub, tx - 30f * F, 322f * F, fit(sub, text(32f * F, 0xFFFFFFFF.toInt(), bold = false), textMax + 30f * F, 20f))
 
-        // 큰 숫자 세 칸
-        val items = listOf("전국", "서울", "수도권").mapNotNull { s.region(it) }.filter { it.latest != null }
+        // 큰 숫자 칸 (최대 3칸)
         val tilesTop = 384f * F; val tilesH = 146f * F
-        if (items.isNotEmpty()) {
+        if (tiles.isNotEmpty()) {
             val gap = 16f * F
-            val cw = (W - PAD * 2 - gap * (items.size - 1)) / items.size
-            items.forEachIndexed { i, r ->
+            val cw = (W - PAD * 2 - gap * (tiles.size - 1)) / tiles.size
+            tiles.forEachIndexed { i, t ->
                 val x = PAD + i * (cw + gap)
                 val rect = RectF(x, tilesTop, x + cw, tilesTop + tilesH)
                 c.drawRoundRect(RectF(rect.left, rect.top + 6f, rect.right, rect.bottom + 6f), 26f * F, 26f * F, fill(0x1A1E5FD8))
                 c.drawRoundRect(rect, 26f * F, 26f * F, white)
                 c.drawCircle(x + 46f * F, tilesTop + 42f * F, 11f * F, fill(NAVY))
-                c.drawText(r.name, x + 70f * F, tilesTop + 55f * F, text(36f * F, INK))
-                val v = s.fmt(r.latest)
-                val vp = fit(v, text(66f * F, colorOf(s, r.latest!!)), cw - 56f * F, 34f)
-                c.drawText(v, x + (cw - vp.measureText(v)) / 2, tilesTop + 122f * F, vp)
+                c.drawText(t.label, x + 70f * F, tilesTop + 55f * F, fit(t.label, text(36f * F, INK), cw - 90f * F, 20f))
+                val vp = fit(t.value, text(66f * F, t.color), cw - 56f * F, 30f)
+                c.drawText(t.value, x + (cw - vp.measureText(t.value)) / 2, tilesTop + 122f * F, vp)
             }
         }
 
@@ -176,7 +183,7 @@ object StatCards {
     }
 
     /** 흰 판 + 남색 머리띠(제목). 반환: 판 안쪽 그래프 영역 */
-    private fun panel(c: Canvas, area: RectF, title: String, legend: List<Pair<String, Int>> = emptyList()): RectF {
+    internal fun panel(c: Canvas, area: RectF, title: String, legend: List<Pair<String, Int>> = emptyList()): RectF {
         val r = 26f * F
         c.drawRoundRect(RectF(area.left, area.top + 6f, area.right, area.bottom + 6f), r, r, fill(0x1A1E5FD8))
         c.drawRoundRect(area, r, r, fill(0xFFFFFFFF.toInt()))
@@ -212,18 +219,26 @@ object StatCards {
     }
 
     /** 시도별 순위 막대. 시도 자료가 5곳 미만이면 null */
-    fun rank(ctx: Context, s: StatSeries, sido: List<String>, mark: Watermark.Mark): Bitmap? {
-        val rows = s.regions.filter { it.name in sido && it.latest != null }.sortedByDescending { it.latest!! }
+    fun rank(
+        ctx: Context, s: StatSeries, sido: List<String>, mark: Watermark.Mark,
+        pill: String = "지역별 한눈에", panelTitle: String = "지역별 ${s.short}", names: List<String> = DEFAULT_NAMES,
+        label: (String) -> String = { it }, highlight: String? = null,
+    ): Bitmap? {
+        var rows = s.regions.filter { it.name in sido && it.latest != null }.sortedByDescending { it.latest!! }
         if (rows.size < 5) return null
+        // 줄이 너무 많으면 위 12곳 + 아래 12곳 (강조 지역은 꼭 넣음)
+        if (rows.size > 26) rows = (rows.take(12) + rows.filter { it.name == highlight } + rows.takeLast(12)).distinct().sortedByDescending { it.latest!! }
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val base = frame(ctx, c, s, "지역별 한눈에", mark)
+        val base = frame(ctx, c, s, pill, mark, names, label)
         // 17개 시도가 다 들어가도록 판을 아래로 조금 더 키움 (설명 줄은 추이 카드에만)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
-        val inner = panel(c, area, "지역별 ${s.short}")
+        val inner = panel(c, area, panelTitle)
 
         val rowH = inner.height() / rows.size
-        val labelW = 92f * F; val valueW = 150f * F
+        val valueW = 150f * F
+        val size0 = (rowH * 0.74f).coerceIn(20f, 36f)
+        val labelW = max(92f * F, rows.maxOf { text(size0, INK).measureText(label(it.name)) } + 14f * F).coerceAtMost(inner.width() * 0.34f)
         val chartL = inner.left + labelW; val chartR = inner.right - valueW
         val values = rows.map { it.latest!! }
         // 변동률은 0을 기준으로 좌우, 지수는 0부터 (기준선 표시)
@@ -237,7 +252,8 @@ object StatCards {
         rows.forEach { r ->
             val v = r.latest!!
             val cy = y + rowH / 2
-            c.drawText(r.name, inner.left, cy + size * 0.36f, text(size, INK))
+            if (r.name == highlight) c.drawRoundRect(RectF(inner.left - 10f, y + 1f, inner.right + 10f, y + rowH - 1f), 8f, 8f, fill(0x33FFD84D))
+            c.drawText(label(r.name), inner.left, cy + size * 0.36f, fit(label(r.name), text(size, INK), labelW - 8f, 14f))
             val bh = rowH * 0.62f
             val x1 = x(v)
             val left = minOf(zeroX, x1)
@@ -252,13 +268,13 @@ object StatCards {
     }
 
     /** 전국·서울·수도권 추이. 값이 3개 미만이면 null */
-    fun trend(ctx: Context, s: StatSeries, mark: Watermark.Mark): Bitmap? {
-        val lines = listOf("전국", "서울", "수도권").mapNotNull { s.region(it) }.filter { r -> r.values.count { it != null } >= 3 }
+    fun trend(ctx: Context, s: StatSeries, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, pill: String? = null, label: (String) -> String = { it }): Bitmap? {
+        val lines = names.mapNotNull { s.region(it) }.filter { r -> r.values.count { it != null } >= 3 }.take(3)
         if (lines.isEmpty() || s.dates.size < 3) return null
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val area = frame(ctx, c, s, "최근 ${s.dates.size}회 추이", mark)
-        val inner = panel(c, area, "${s.short} 추이", lines.mapIndexed { i, r -> r.name to TREND_COLORS[i] })
+        val area = frame(ctx, c, s, pill ?: "최근 ${s.dates.size}회 추이", mark, names, label)
+        val inner = panel(c, area, "${s.short} 추이", lines.mapIndexed { i, r -> label(r.name) to TREND_COLORS[i] })
 
         val left = inner.left + 104f * F; val right = inner.right - 14f * F
         val top = inner.top + 10f * F; val bottom = inner.bottom - 58f * F
@@ -298,6 +314,26 @@ object StatCards {
         }
         captions(c, s, area.bottom + 52f * F)
         return bmp
+    }
+
+    /**
+     * 한 지역의 카드들: 고른 지표마다 추이(지역·시도·전국) 한 장, 변동률 지표는 같은 시도 시군구 순위 한 장.
+     * 그 지역 자료가 없는 지표는 가장 가까운 상위 지역(권역·시도) 값으로 그림
+     */
+    fun renderRegion(ctx: Context, stats: Stats, region: String, picked: List<StatSeries>, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        val sido = stats.sidoOf(region)
+        val out = mutableListOf<Bitmap>()
+        val label: (String) -> String = { n -> if (n == "전국" || n == sido) n else stats.shortName(n) }
+        for (s in picked) {
+            val at = stats.chain(region).firstOrNull { s.region(it)?.latest != null } ?: continue
+            val names = listOf(at, sido, "전국").distinct()
+            trend(ctx, s, mark, names, "${if (at == sido) sido else "$sido ${stats.shortName(at)}"} · 최근 ${s.dates.size}회", label)?.let { out += it }
+            val sib = stats.siblings(region)
+            if (s.kind == "change" && sib.count { s.region(it)?.latest != null } >= 5) {
+                rank(ctx, s, sib, mark, "$sido 시군구 순위", "$sido ${s.short}", names, label, highlight = at)?.let { out += it }
+            }
+        }
+        return out
     }
 
     fun render(ctx: Context, s: StatSeries, sido: List<String>, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> =
