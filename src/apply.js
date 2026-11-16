@@ -168,6 +168,24 @@ export function parseApplyhomeDetail(html) {
     const cur = byArea.get(area) ?? [price, price];
     byArea.set(area, [Math.min(cur[0], price), Math.max(cur[1], price)]);
   });
+  // 무순위·잔여세대 공고: "주택형 | 공급세대수 | 분양가(또는 비고)" 표
+  const units = new Map();
+  if (!byArea.size) {
+    $('tr').each((_, tr) => {
+      const c = $(tr).find('td').map((__, td) => clean($(td).text())).get();
+      if (!/^\d{2,3}\.\d+/.test(c[0] ?? '')) return;
+      const area = parseInt(c[0], 10);
+      const n = num(c[1]);
+      if (n != null && n > 0 && n < 100000) units.set(area, (units.get(area) ?? 0) + n);
+      const price = /^[\d,]+$/.test(c[2] ?? '') ? num(c[2]) : null;
+      if (price == null || price < 1000) return;
+      const cur = byArea.get(area) ?? [price, price];
+      byArea.set(area, [Math.min(cur[0], price), Math.max(cur[1], price)]);
+    });
+    const u = [...units.entries()].sort((a, b) => a[0] - b[0]);
+    if (u.length) details.push(`주택형: ${u.slice(0, 5).map(([a, n]) => `${a}㎡ ${n}세대`).join(' · ')}${u.length > 5 ? ' 외' : ''}`);
+    if (u.length && !byArea.size && /공급금액\s*:\s*사업주체 문의/.test(text)) details.push('분양가: 사업주체 문의 (모집공고문 확인)');
+  }
   const areas = [...byArea.entries()].sort((a, b) => a[0] - b[0]);
   // 종류가 많으면 가장 작은 것, 59·84 같은 대표 면적, 가장 큰 것 위주로 4개까지
   const picked = areas.length <= 4 ? areas : [areas[0], ...areas.filter(([a]) => a === 59 || a === 84), areas.at(-1)].filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 4).sort((a, b) => a[0] - b[0]);
@@ -176,6 +194,9 @@ export function parseApplyhomeDetail(html) {
   const sp = text.match(/특별공급\s*(20\d\d-\d\d-\d\d)/)?.[1];
   const r1 = text.match(/1순위\s*(20\d\d-\d\d-\d\d)/)?.[1];
   const r2 = text.match(/2순위\s*(20\d\d-\d\d-\d\d)/)?.[1];
+  const recv = !sp && !r1 && text.match(/청약접수\s*(20\d\d-\d\d-\d\d)\s*~\s*(20\d\d-\d\d-\d\d)/);
+  if (recv) details.push(`청약접수: ${recv[1] === recv[2] ? short(recv[1]) : `${short(recv[1])}~${short(recv[2])}`}`);
+  const tel = text.match(/분양사무실\s*\(([\d-]{7,14})\)/)?.[1];
   const sched = [sp && `특별공급 ${short(sp)}`, r1 && `1순위 ${short(r1)}`, r2 && `2순위 ${short(r2)}`].filter(Boolean);
   if (sched.length) details.push(`청약일정: ${sched.join(' · ')}`);
   const win = text.match(/당첨자\s*발표일?\s*(20\d\d-\d\d-\d\d)/)?.[1];
@@ -185,6 +206,7 @@ export function parseApplyhomeDetail(html) {
   if (movein) details.push(`입주예정: ${movein.replace(/^(\d{4})\.(\d{1,2})$/, (_, y, m) => `${y}년 ${+m}월`)}`);
   const etc = tableByCaption($, /기타사항/).find('tr').eq(1).find('td').map((_, td) => clean($(td).text())).get();
   if (etc[0] || etc[1]) details.push(`시행·시공: ${[etc[0], etc[1]].filter(Boolean).join(' / ')}`);
+  if (tel && units.size) details.push(`문의: ${tel}`);
   const special = text.match(/특이사항\s*:\s*([^*]{2,30}?)\s*\*/)?.[1];
   if (special) details.push(`특이사항: ${clean(special)}`);
   return { details: details.slice(0, 9) };
