@@ -208,11 +208,11 @@ class AndroidTest {
             val budget = DealTools.budget(half, 84, 200000)
             DealCards.budget(app, "과천시", 84, 200000, DealPeriod.M6, budget, today, mark).forEachIndexed { i, b -> save("tool-budget-${i + 1}", b) }
             assertEquals(1, budget.items.size)
-            val pts = listOf(0, 10, 20, 30).map { n ->
+            val pts = (listOf(0) + DealTools.HISTORY_YEARS).map { n ->
                 val yms = DealTools.historyYms(today, n)
                 DealTools.historyPoint(today, n, if (yms.isEmpty()) null else core.molit.fetchYms("trade", "41290", yms), id, "래미안슈르", "원문동", 84, 2008)
             }
-            assertEquals(listOf(true, true, false, false), pts.map { it.ok })
+            assertEquals(listOf(true, true, true, false), pts.map { it.ok })
             DealCards.history(app, "래미안슈르", "과천시 원문동", 84, pts, today, mark).forEachIndexed { i, b -> save("tool-history-${i + 1}", b) }
             val items = DealTools.parsePresale("""{"items":[{"id":"1","name":"과천 자이","date":"2021-12-01","lawd":["41290"],"addr":"","prices":{"84":[150000,160000]}}]}""")
             val matches = DealTools.presaleCompare(items, "41290", year + core.service.getDeals("41290", complexes[0].getString("id"), "trade", 13), 84, today.year)

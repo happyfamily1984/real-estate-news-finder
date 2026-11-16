@@ -126,7 +126,7 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
     }
 }
 
-/** 과거 가격 비교: 단지와 평형을 고르면 지금과 10·20·30년 전 실거래 평균을 비교 (자료가 있는 만큼) */
+/** 과거 가격 비교: 단지와 평형을 고르면 지금과 5·10·20년 전 실거래 평균을 비교 (자료가 있는 만큼) */
 @Composable
 fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -> Unit, onSent: () -> Unit) {
     val ctx = LocalContext.current
@@ -156,14 +156,14 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
             error = e.message ?: "실거래 자료를 받지 못했어요"
         }
     }
-    // 2) 고른 평형으로 10·20·30년 전
+    // 2) 고른 평형으로 5·10·20년 전
     LaunchedEffect(areaKey, recent) {
         val key = areaKey ?: return@LaunchedEffect
         val mine = recent ?: return@LaunchedEffect
         points = null
         val buildYear = mine.firstNotNullOfOrNull { it.buildYear }
         val out = mutableListOf(DealTools.historyPoint(today, 0, mine, target.complexId, aptNm, umdNm, key, buildYear))
-        for (n in listOf(10, 20, 30)) {
+        for (n in DealTools.HISTORY_YEARS) {
             val yms = DealTools.historyYms(today, n)
             val skip = yms.isEmpty() || (buildYear != null && today.year - n < buildYear - 1)
             progress = "${n}년 전 실거래 받는 중…"
@@ -185,7 +185,7 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
         Label("평형 (전용면적)")
         if (areas.isEmpty()) Text(if (error == null) "평형을 불러오는 중…" else "고를 평형이 없어요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         else PillRow { areas.forEach { (a, n) -> ChoicePill("${a}㎡ ($n)", areaKey == a) { areaKey = a } } }
-        Text("지금(최근 1년)과 10년·20년·30년 전 무렵의 실거래 평균을 비교해요. 실거래가는 2006년부터 공개돼서 그 전은 자료가 없어요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("지금(최근 1년)과 5년·10년·20년 전 무렵의 실거래 평균을 비교해요. 그때 없던 단지이거나 거래가 없으면 그 시점은 비워 둬요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
