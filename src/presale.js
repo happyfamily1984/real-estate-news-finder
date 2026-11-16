@@ -7,7 +7,7 @@ import * as cheerio from 'cheerio';
 import { fetchHtml } from './fetcher.js';
 
 const BASE = 'https://www.applyhome.co.kr/ai/aia/';
-const START_YM = '202001'; // 청약홈 운영 시작 무렵
+const START_YM = '202001'; // 청약홈 운영 시작 무렵 (목록은 최근 5년치만 나오지만, 한 번 쌓은 것은 계속 남김)
 const clean = (t) => String(t ?? '').replace(/\s+/g, ' ').trim();
 const num = (t) => { const v = parseFloat(String(t ?? '').replace(/,/g, '')); return Number.isFinite(v) ? v : null; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -32,11 +32,13 @@ function regions() {
  * 공급위치 주소 → 시군구 코드들. 구가 있는 시인데 주소에 구가 없으면 그 시의 모든 구 코드.
  *  "경기도 성남시 분당구 정자동 1" → ['41135'], "경기도 부천시 괴안동 2" → 부천시의 구 3곳
  */
-export function lawdCodes(addr, list = regions()) {
+export function lawdCodes(addr, sidoHint = '', list = regions()) {
   const a = clean(addr);
-  const sido = list.find((r) => shortSido(r.sido) === shortSido(a.split(' ')[0]));
+  let sido = list.find((r) => shortSido(r.sido) === shortSido(a.split(' ')[0]));
+  let rest = a.split(' ').slice(1).join(' ');
+  // 주소에 시도가 빠진 공고("창원시 마산회원구 …")는 목록의 지역 칸으로 시도를 정함
+  if (!sido && sidoHint) { sido = list.find((r) => shortSido(r.sido) === sidoHint.slice(0, 2)); rest = a; }
   if (!sido) return [];
-  const rest = a.split(' ').slice(1).join(' ');
   if (sido.sigungu.length === 1) return [sido.sigungu[0].code]; // 세종
   const exact = sido.sigungu.filter((s) => rest.startsWith(s.name + ' ') || rest === s.name).sort((x, y) => y.name.length - x.name.length);
   if (exact.length) return [exact[0].code];
@@ -113,7 +115,7 @@ async function listMonth(ym) {
  * prev: 이전 presale.json. 달 단위로 cursor부터 이번 달까지 훑으며 아직 없는 공고의 상세를 받음.
  * 한 번 실행에 상세 maxDetails건, budgetMs 안에서만. 다 따라잡은 뒤에는 최근 두 달만 다시 봄(6시간마다).
  */
-export async function collectPresale(prev, { now = Date.now(), maxDetails = 150, budgetMs = 150_000, fetchList = listMonth, fetchDetail } = {}) {
+export async function collectPresale(prev, { now = Date.now(), maxDetails = 300, budgetMs = 270_000, fetchList = listMonth, fetchDetail } = {}) {
   const started = Date.now();
   const cur = kstYm(now);
   const state = { version: 1, updatedAt: prev?.updatedAt ?? 0, cursor: prev?.cursor ?? START_YM, items: prev?.items ?? [], empty: prev?.empty ?? [] };
@@ -135,7 +137,7 @@ export async function collectPresale(prev, { now = Date.now(), maxDetails = 150,
       try {
         const d = await detail(r);
         if (Object.keys(d.prices).length === 0) { state.empty.push(r.id); } // 분양가 표가 없는 공고는 다시 보지 않음
-        else state.items.push({ id: r.id, name: r.name, sido: r.sido, date: r.date, lawd: lawdCodes(d.addr), ...d });
+        else state.items.push({ id: r.id, name: r.name, sido: r.sido, date: r.date, lawd: lawdCodes(d.addr, r.sido), ...d });
         have.add(r.id); done++;
       } catch (e) {
         failed++;

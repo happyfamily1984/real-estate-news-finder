@@ -28,6 +28,8 @@ test('공급위치 → 시군구 코드', () => {
   assert.equal(lawdCodes('경기도 부천시 괴안동 2').length, 3); // 구가 주소에 없으면 그 시의 구 전부
   assert.equal(lawdCodes('세종특별자치시 산울동').length, 1);
   assert.deepEqual(lawdCodes('어디인지 모름'), []);
+  assert.deepEqual(lawdCodes('창원시 마산회원구 합성2동 262-1번지 일원', '경남'), lawdCodes('경상남도 창원시 마산회원구 합성2동'));
+  assert.equal(lawdCodes('창원시 마산회원구 합성2동', '경남').length, 1);
 });
 
 test('조금씩 쌓기: 한 번에 정한 건수만, 다음 실행은 이어서', async () => {
