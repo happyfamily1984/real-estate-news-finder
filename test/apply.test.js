@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLhList, parseApplyhome, parseApplyhomeDetail, parseLhDetail, eok } from '../src/apply.js';
+import { parseLhList, parseApplyhome, parseApplyhomeDetail, parseLhDetail, parseShList, parseGhList, isRecruitNotice, eok } from '../src/apply.js';
 import { sourceById } from '../src/sources.js';
 
 const now = Date.parse('2026-11-16T03:00:00Z');
@@ -74,4 +74,38 @@ test('LH 상세: 소재지·공급 세대·분양가·접수 일정', () => {
     '문의: 031-528-2220',
   ]);
   assert.match(r.note, /^금회 공급하는 주택의 입주자모집공고일은/);
+});
+
+test('SH 공고 게시판: 모집 공고만, 발표·안내 글 제외, 상세 주소·조회수', () => {
+  const html = `<table><tbody>
+   <tr><td>제목 내용 담당부서 전체</td></tr>
+   <tr><td>1735</td><td class="txtL"><a href="#" onclick="javascript:getDetailView('313316');return false;" class="ellipsis ">제47차 장기전세주택(2025.04.30.) 예비 6차 입주대상자 발표</a></td><td>미리내집공급부</td><td class="num">2026-11-13</td><td class="num">4609</td></tr>
+   <tr><td>1732</td><td class="txtL"><a href="#" onclick="javascript:getDetailView('313180');return false;" class="ellipsis ">홈페이지 등 공사 시스템 일시 중단 안내</a></td><td>시스템운영부</td><td class="num">2026-11-11</td><td class="num">2719</td></tr>
+   <tr><td>1730</td><td class="txtL"><a href="#" onclick="javascript:getDetailView('312903');return false;" class="ellipsis icon">NEW [청년형] 특화형 매입임대주택 입주자 모집 공고(운영기관 : 한지붕 협동조합)</a></td><td>매입주택공급부</td><td class="num">2026-11-11</td><td class="num">14,139</td></tr>
+  </tbody></table>`;
+  assert.equal(isRecruitNotice('뉴홈 전용 디딤돌대출(토지임대부 분양주택) 출시 안내'), false);
+  assert.equal(isRecruitNotice('고덕강일 3단지 토지임대부 분양주택 평균 건물분양가격 공개'), false);
+  assert.equal(isRecruitNotice('[정정] 고덕강일지구 3단지 토지임대부 분양주택 입주자모집공고'), true);
+  const posts = parseShList(html, sourceById.sh, now);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].id, 'sh:312903');
+  assert.equal(posts[0].title, '[SH 임대] [청년형] 특화형 매입임대주택 입주자 모집 공고(운영기관 : 한지붕 협동조합)');
+  assert.equal(posts[0].url, 'https://www.i-sh.co.kr/main/lay2/program/S1T294C297/www/brd/m_247/view.do?seq=312903&multi_itm_seq=2');
+  assert.equal(posts[0].views, 14139);
+  assert.equal(posts[0].summary, '주택임대 공고 · 매입주택공급부 · 게시 2026-11-11');
+  assert.equal(new Date(posts[0].publishedAt).toISOString(), '2026-11-11T03:00:00.000Z');
+});
+
+test('GH 공고 게시판: 주택 분류의 모집 공고만, 두 자리 연도 날짜', () => {
+  const html = `<table><tbody>
+   <tr><td class="number">공지</td><td class="category">택지</td><td class="title"><a href="?mode=view&amp;articleNo=65324&amp;article.offset=0&amp;articleLimit=40">GH 공급용지 알선 장려금 시행 안내</a></td><td class="department">판매총괄부</td><td class="date">26.11.06</td><td class="hit ">11995</td><td class="attach"></td></tr>
+   <tr><td class="number">2304</td><td class="category">주택</td><td class="title"><a href="?mode=view&amp;articleNo=65345&amp;article.offset=0&amp;articleLimit=40">다산 메트로3단지 국민임대주택 예비입주자 모집공고</a></td><td class="department">건설임대공급2부</td><td class="date">26.11.13</td><td class="hit ">1396</td><td class="attach"><a href="?mode=download&amp;articleNo=65345&amp;attachNo=83667">첨부</a></td></tr>
+   <tr><td class="number">2302</td><td class="category">상가</td><td class="title"><a href="?mode=view&amp;articleNo=65341&amp;article.offset=0&amp;articleLimit=40">다산진건 B5 분양주택 분양상가 모집공고</a></td><td class="department">주택분양부</td><td class="date">26.11.13</td><td class="hit ">616</td><td class="attach"></td></tr>
+  </tbody></table>`;
+  const posts = parseGhList(html, sourceById.gh, now);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].title, '[GH] 다산 메트로3단지 국민임대주택 예비입주자 모집공고');
+  assert.equal(posts[0].url, 'https://www.gh.or.kr/gh/announcement-of-salerental001.do?mode=view&articleNo=65345');
+  assert.equal(posts[0].views, 1396);
+  assert.equal(posts[0].summary, '분양·임대 공고 · 건설임대공급2부 · 게시 2026-11-13');
 });

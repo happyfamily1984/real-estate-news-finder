@@ -53,28 +53,81 @@ private fun valueColor(s: StatSeries, v: Double?): Color = when {
     else -> MaterialTheme.colorScheme.onSurface
 }
 
-/** 통계 탭: 지표 목록. 누르면 스레드용 이미지·글 만들기 */
+/** 통계 탭: ① 전국 지표 ② 지역별(시도·시군구를 골라 그 지역 지표 만들기) ③ 실거래(단지 실거래·알림) */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(stats: Stats?, error: String?, loading: Boolean, onRefresh: () -> Unit, onOpen: (StatSeries) -> Unit) {
+fun StatsScreen(
+    stats: Stats?, error: String?, loading: Boolean, onRefresh: () -> Unit, onOpen: (StatSeries) -> Unit,
+    onRegion: (String) -> Unit = {}, onDealRegion: (String) -> Unit = {}, onDealOpen: (DealTarget) -> Unit = {},
+    mode: Int = 0, onMode: (Int) -> Unit = {},
+) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
             Text("통계", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-            Text("지표를 누르면 스레드용 그래프 이미지와 글이 만들어져요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                when (mode) { 1 -> "지역을 고르면 그 지역 지표로 이미지와 글이 만들어져요"; 2 -> "단지 실거래를 보고 알림을 받거나 스레드용으로 만들어요"; else -> "지표를 누르면 스레드용 그래프 이미지와 글이 만들어져요" },
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("전국 지표", "지역별", "실거래").forEachIndexed { i, label -> ChoicePill(label, mode == i) { onMode(i) } }
+            }
         }
-        PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-            LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
-                if (error != null) item { Text("⚠ $error", Modifier.padding(horizontal = 20.dp, vertical = 6.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }
-                if (stats == null) item { EmptyText(if (error == null) "불러오는 중…" else "통계를 받지 못했어요. 아래로 당겨 다시 시도하세요.") }
-                items(stats?.series.orEmpty(), key = { it.id }) { s -> StatCard(s, stats?.sido.orEmpty()) { onOpen(s) } }
-                if (stats != null) item {
-                    Text(
-                        "자료: 한국부동산원 R-ONE, KB부동산 데이터허브 · 확인 ${ago(stats.updatedAt)}",
-                        Modifier.padding(horizontal = 20.dp, vertical = 10.dp), fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        when (mode) {
+            1 -> RegionPicker(stats, error, onRegion)
+            2 -> DealHome(onDealRegion, onDealOpen)
+            else -> PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
+                    if (error != null) item { Text("⚠ $error", Modifier.padding(horizontal = 20.dp, vertical = 6.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }
+                    if (stats == null) item { EmptyText(if (error == null) "불러오는 중…" else "통계를 받지 못했어요. 아래로 당겨 다시 시도하세요.") }
+                    items(stats?.series.orEmpty(), key = { it.id }) { s -> StatCard(s, stats?.sido.orEmpty()) { onOpen(s) } }
+                    if (stats != null) item {
+                        Text(
+                            "자료: 한국부동산원 R-ONE, KB부동산 데이터허브 · 확인 ${ago(stats.updatedAt)}",
+                            Modifier.padding(horizontal = 20.dp, vertical = 10.dp), fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** 지역 고르기: 시도 → 그 시도 전체 또는 시군구·권역. 고르면 그 지역의 지표 화면으로 */
+@Composable
+private fun RegionPicker(stats: Stats?, error: String?, onRegion: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    if (stats == null) { EmptyText(if (error == null) "불러오는 중…" else "통계를 받지 못했어요."); return }
+    var sido by remember { mutableStateOf(prefs.statSido.takeIf { it in stats.sido } ?: stats.sido.firstOrNull().orEmpty()) }
+    val children = remember(stats, sido) { stats.childrenOf(sido) }
+    val sale = stats.series.firstOrNull { it.kind == "change" && it.region(children.firstOrNull() ?: sido) != null } ?: stats.series.firstOrNull { it.kind == "change" }
+    LazyColumn(contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+        item { PillRow { stats.sido.forEach { n -> ChoicePill(n, n == sido) { sido = n; prefs.statSido = n } } } }
+        if (stats.parents.isEmpty()) item {
+            Text("시·군·구 자료는 다음 통계 수집 뒤부터 보여요. 지금은 시도 단위만 만들 수 있어요.", fontSize = 13.sp, lineHeight = 19.sp, color = muted, modifier = Modifier.padding(6.dp))
+        }
+        items(listOf(sido) + children, key = { it }) { region ->
+            val v = sale?.region(region)?.latest
+            val shape = RoundedCornerShape(16.dp)
+            Row(
+                Modifier.fillMaxWidth().shadow(3.dp, shape, ambientColor = Color(0x262563EB), spotColor = Color(0x262563EB)).clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainer).clickable { onRegion(region) }.padding(start = 16.dp, top = 13.dp, bottom = 13.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (region == sido) "$sido 전체" else stats.shortName(region), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    if (Stats.isZone(region)) Text("권역", fontSize = 11.sp, color = muted)
+                }
+                if (sale != null && v != null) Column(horizontalAlignment = Alignment.End) {
+                    Text(sale.fmt(v), fontSize = 16.sp, fontWeight = FontWeight.Black, color = valueColor(sale, v))
+                    Text("${sale.short} ${sale.cycle}", fontSize = 11.sp, color = muted)
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted.copy(alpha = 0.7f), modifier = Modifier.size(26.dp))
+            }
+        }
+        item { Text("자료: 한국부동산원 R-ONE 주간아파트가격동향, KB부동산", fontSize = 12.sp, color = muted, modifier = Modifier.padding(6.dp)) }
     }
 }
 

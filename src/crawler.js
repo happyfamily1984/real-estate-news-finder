@@ -54,15 +54,19 @@ export class Crawler {
     }
   }
 
-  /** 상세 정보가 없는 글(청약·LH 공고)의 상세 페이지를 받아 details를 채움. 사이트 부담을 줄이려고 소스당 한 번에 12개까지 */
-  async enrich() {
+  /** 상세 정보가 없는 글(청약·LH 공고)의 상세 페이지를 받아 details를 채움. 소스당 한 번에 30개까지, 전체 2분 30초 안에서만 (남은 건 다음 실행 때) */
+  async enrich({ perSource = 30, budgetMs = 150_000 } = {}) {
+    const started = Date.now();
     for (const src of this.sources.filter((s) => s.enrich && this.status[s.id]?.ok)) {
       const v = src.detailV ?? 1;
       // 뽑는 방식이 바뀌었으면(detailV) 예전 상세 정보는 버리고 다시 받음
       for (const p of this.posts.values()) if (p.source === src.id && (p.detailV ?? 1) !== v) { delete p.details; delete p.note; p.detailTries = 0; p.detailV = v; }
-      const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && (p.detailTries ?? 0) < 3).slice(0, 12);
+      const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && (p.detailTries ?? 0) < 3).slice(0, perSource);
       let done = 0;
+      let tried = 0;
       for (const p of todo) {
+        if (Date.now() - started > budgetMs) break;
+        tried++;
         p.detailTries = (p.detailTries ?? 0) + 1;
         try {
           const r = await src.enrich(p);
@@ -72,7 +76,7 @@ export class Crawler {
         }
         await new Promise((r) => setTimeout(r, 250));
       }
-      if (todo.length) console.log(`[enrich] ${src.id}: ${done}/${todo.length}건 상세 정보. 예: ${(todo.find((p) => p.details)?.details ?? []).join(' | ').slice(0, 400)}`);
+      if (todo.length) console.log(`[enrich] ${src.id}: ${done}/${tried}건 상세 정보${tried < todo.length ? ` (시간 부족으로 ${todo.length - tried}건은 다음에)` : ''}. 예: ${(todo.find((p) => p.details)?.details ?? []).join(' | ').slice(0, 400)}`);
     }
   }
 

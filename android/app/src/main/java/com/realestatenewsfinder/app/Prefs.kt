@@ -100,6 +100,35 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("autoSwitchAccount", true)
         set(v) = sp.edit().putBoolean("autoSwitchAccount", v).apply()
 
+    // ----- 실거래 -----
+    /** 공공데이터포털 개인 인증키 (선택). 있으면 국토부를 직접 호출, 없으면 중계 서버 사용 */
+    var molitKey: String
+        get() = sp.getString("molitKey", "") ?: ""
+        set(v) = sp.edit().putString("molitKey", v.trim()).apply()
+
+    /** 실거래 중계 서버 주소. 비우면 앱에 들어 있는 기본 주소 */
+    var dealProxyUrl: String
+        get() = sp.getString("dealProxyUrl", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.DEAL_PROXY_URL
+        set(v) = sp.edit().putString("dealProxyUrl", v.trim()).apply()
+
+    /** 새 실거래 확인 주기(분) */
+    var dealPollMin: Int
+        get() = sp.getInt("dealPollMin", 180)
+        set(v) = sp.edit().putInt("dealPollMin", v).apply()
+
+    /** 마지막으로 고른 시도·시군구 코드 */
+    var dealSido: String
+        get() = sp.getString("dealSido", "") ?: ""
+        set(v) = sp.edit().putString("dealSido", v).apply()
+    var dealRecent: List<String>
+        get() = (sp.getString("dealRecent", "") ?: "").split(',').filter { it.isNotBlank() }
+        set(v) = sp.edit().putString("dealRecent", v.take(6).joinToString(",")).apply()
+
+    /** 통계 '지역별'에서 마지막으로 고른 시도 */
+    var statSido: String
+        get() = sp.getString("statSido", "서울") ?: "서울"
+        set(v) = sp.edit().putString("statSido", v).apply()
+
     var onboardingDone: Boolean
         get() = sp.getBoolean("onboardingDone", false)
         set(v) = sp.edit().putBoolean("onboardingDone", v).apply()

@@ -113,6 +113,99 @@ export async function fetchApplyhome(source) {
   return posts;
 }
 
+/** 공지 게시판 제목 중 입주자 모집·공급 공고만 (당첨자 발표·접수 결과·시스템 안내 등은 제외) */
+export function isRecruitNotice(title) {
+  if (/발표|접수\s?결과|경쟁률|중단|점검|설명회|교육|장려금|수의계약|입찰|낙찰|용역/.test(title)) return false;
+  if (/(?:안내|공개)\s*$/.test(title) || /대출/.test(title)) return false; // 대출 상품 안내, 분양가격 공개 같은 알림 글
+  return /모집|공급|분양|임대|청약|공고문/.test(title);
+}
+
+/**
+ * SH(서울주택도시개발공사) 공고 및 공지 게시판 (주택분양·주택임대).
+ * 줄: 번호 | 제목(getDetailView('글번호')) | 담당부서 | 등록일 | 조회수
+ */
+export function parseShList(html, source, now = Date.now()) {
+  const $ = cheerio.load(html);
+  const out = [];
+  const seen = new Set();
+  $('tbody tr').each((_, el) => {
+    const tr = $(el);
+    const a = tr.find('a[onclick*="getDetailView"]').first();
+    const seq = (a.attr('onclick') ?? '').match(/getDetailView\('?(\d+)/)?.[1];
+    if (!seq || seen.has(seq)) return;
+    const title = clean(a.text()).replace(/^NEW\s*/, '');
+    if (!title || !isRecruitNotice(title)) return;
+    const cells = tr.find('td').map((__, td) => clean($(td).text())).get();
+    const date = cells.find((c) => /^20\d{2}-\d{2}-\d{2}$/.test(c));
+    const posted = noon(date);
+    const views = parseInt((cells.at(-1) ?? '').replace(/,/g, ''), 10);
+    seen.add(seq);
+    out.push({
+      id: `${source.id}:${seq}`, source: source.id,
+      title: `[${source.label}] ${title}`,
+      url: `${source.base}view.do?seq=${seq}&multi_itm_seq=${source.itm}`,
+      views: Number.isFinite(views) ? views : null, comments: null, likes: null,
+      publishedAt: posted != null ? Math.min(posted, now) : null,
+      outlet: 'SH 서울주택도시개발공사',
+      summary: clean([source.board, cells[2], date && `게시 ${date}`].filter(Boolean).join(' · ')),
+    });
+  });
+  return out.slice(0, source.limit ?? 30);
+}
+
+/**
+ * GH(경기주택도시공사) 분양/임대 공고 게시판. 분류가 '주택'인 글만 (택지·상가·산업단지 제외).
+ * 줄: 번호 | 분류 | 제목(?mode=view&articleNo=…) | 담당부서 | 26.11.13 | 조회수 | 첨부
+ */
+export function parseGhList(html, source, now = Date.now()) {
+  const $ = cheerio.load(html);
+  const out = [];
+  const seen = new Set();
+  $('tbody tr').each((_, el) => {
+    const tr = $(el);
+    const a = tr.find('td.title a[href*="articleNo="]').first();
+    const no = (a.attr('href') ?? '').match(/articleNo=(\d+)/)?.[1];
+    const category = clean(tr.find('td.category').first().text());
+    if (!no || seen.has(no) || category !== '주택') return;
+    const title = clean(a.text()).replace(/^(?:NEW|새글)\s*/, '');
+    if (!title || !isRecruitNotice(title)) return;
+    const d = clean(tr.find('td.date').first().text()).match(/^(\d{2})\.(\d{1,2})\.(\d{1,2})$/);
+    const date = d ? `20${d[1]}-${d[2].padStart(2, '0')}-${d[3].padStart(2, '0')}` : '';
+    const posted = noon(date);
+    const views = parseInt(clean(tr.find('td.hit').first().text()).replace(/,/g, ''), 10);
+    const dept = clean(tr.find('td.department').first().text());
+    seen.add(no);
+    out.push({
+      id: `${source.id}:${no}`, source: source.id,
+      title: `[${source.label}] ${title}`,
+      url: `${source.url}?mode=view&articleNo=${no}`,
+      views: Number.isFinite(views) ? views : null, comments: null, likes: null,
+      publishedAt: posted != null ? Math.min(posted, now) : null,
+      outlet: 'GH 경기주택도시공사',
+      summary: clean([source.board, dept, date && `게시 ${date}`].filter(Boolean).join(' · ')),
+    });
+  });
+  return out.slice(0, source.limit ?? 30);
+}
+
+export async function fetchSh(source) {
+  const html = await fetchHtml(`${source.base}list.do?multi_itm_seq=${source.itm}`, { cookies: true, timeoutMs: 20000 });
+  const rows = (html.match(/getDetailView\('/g) || []).length;
+  const posts = parseShList(html, source);
+  console.log(`[apply] ${source.id}: 글 ${rows}건 중 모집 공고 ${posts.length}건`);
+  if (rows === 0) throw new Error('공고 목록을 찾지 못했습니다 (사이트 구조 변경 가능성)');
+  return posts;
+}
+
+export async function fetchGh(source) {
+  const html = await fetchHtml(`${source.url}?mode=list&articleLimit=40`, { cookies: true, timeoutMs: 20000 });
+  const rows = (html.match(/mode=view&(?:amp;)?articleNo=/g) || []).length;
+  const posts = parseGhList(html, source);
+  console.log(`[apply] ${source.id}: 글 ${rows}건 중 주택 모집 공고 ${posts.length}건`);
+  if (rows === 0) throw new Error('공고 목록을 찾지 못했습니다 (사이트 구조 변경 가능성)');
+  return posts;
+}
+
 // ---------- 상세 페이지에서 주요 정보 뽑기 (목록만으로는 내용이 부족해서) ----------
 
 /** 만원 단위 금액 → "5억6,320만원" */
