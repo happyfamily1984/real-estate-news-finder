@@ -47,6 +47,8 @@ data class Stats(
     val updatedAt: Long, val sido: List<String>, val series: List<StatSeries>,
     /** 하위 지역 → 상위 지역들 (가까운 순). 예: "서울 강남구" → [서울 동남권, 서울 강남, 서울] */
     val parents: Map<String, List<String>> = emptyMap(),
+    /** 물가 비교용 외식비 (참가격, 서울): 품목 → (연도 → 원) */
+    val dineout: Map<String, Map<Int, Int>> = emptyMap(),
 ) {
     /** 시도 아래의 지역들: 시군구 먼저(가나다순), 권역은 뒤에 */
     fun childrenOf(sido: String): List<String> =
@@ -96,7 +98,13 @@ data class Stats(
                 )
             }
             val parents = o.optJSONObject("parents")?.let { p -> p.keys().asSequence().associateWith { k -> strings(p.optJSONArray(k)) } }.orEmpty()
-            return Stats(o.optLong("checkedAt", o.optLong("updatedAt", 0)), strings(o.optJSONArray("sido")), series, parents)
+            val dine = o.optJSONObject("dineout")?.optJSONObject("items")?.let { items ->
+                items.keys().asSequence().associateWith { name ->
+                    val by = items.getJSONObject(name)
+                    by.keys().asSequence().mapNotNull { y -> y.toIntOrNull()?.let { it to by.optInt(y) } }.filter { it.second > 0 }.toMap()
+                }
+            }.orEmpty()
+            return Stats(o.optLong("checkedAt", o.optLong("updatedAt", 0)), strings(o.optJSONArray("sido")), series, parents, dine)
         }
     }
 }

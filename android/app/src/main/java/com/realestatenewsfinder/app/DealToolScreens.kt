@@ -20,44 +20,89 @@ import java.net.URL
 @Composable
 private fun Label(text: String) = Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
 
-/** 시도 → 시군구 고르기 (두 줄 알약). 고른 값은 다음에도 기억 */
-@Composable
-private fun RegionSelect(lawd: String, onLawd: (String) -> Unit) {
-    val ctx = LocalContext.current
-    val prefs = remember { Prefs(ctx) }
-    val core = remember { DealCore.get(ctx) }
-    val sidos = remember { core.regions.raw.objects() }
-    var sido by remember { mutableStateOf(core.regions.get(lawd)?.optString("sido") ?: prefs.dealSido.ifBlank { sidos.first().getString("sido") }) }
-    Label("지역" + (core.regions.get(lawd)?.optString("fullName")?.let { " · $it" } ?: " · 아래에서 시·군·구를 고르세요"))
-    PillRow { sidos.forEach { s -> val n = s.getString("sido"); ChoicePill(shortSido(n), n == sido) { sido = n; prefs.dealSido = n } } }
-    PillRow {
-        sidos.firstOrNull { it.getString("sido") == sido }?.getJSONArray("sigungu")?.objects().orEmpty().forEach { g ->
-            ChoicePill(g.getString("name"), g.getString("code") == lawd) { onLawd(g.getString("code")) }
+/** 고른 지역: 시군구 하나 또는 시도 전체 */
+class DealArea(
+    /** 저장·선택 값: 시군구 코드 또는 "ALL:시도이름" */
+    val key: String,
+    val codes: List<String>,
+    /** 글 머리: "인천 미추홀구" / "서울" */
+    val label: String,
+    /** 이미지 제목: "미추홀구" / "서울 전체" */
+    val cardPlace: String,
+    /** 시군구 코드 → 이름 (시도 전체일 때 단지 옆에 붙임) */
+    val guName: Map<String, String>,
+) {
+    val all: Boolean get() = codes.size > 1
+
+    companion object {
+        fun of(core: DealCore, key: String): DealArea? {
+            if (key.startsWith("ALL:")) {
+                val sido = core.regions.raw.objects().firstOrNull { it.getString("sido") == key.removePrefix("ALL:") } ?: return null
+                val gus = sido.getJSONArray("sigungu").objects()
+                val short = shortSido(sido.getString("sido"))
+                return DealArea(key, gus.map { it.getString("code") }, short, "$short 전체", gus.associate { it.getString("code") to it.getString("name") })
+            }
+            val r = core.regions.get(key) ?: return null
+            return DealArea(key, listOf(key), "${shortSido(r.getString("sido"))} ${r.getString("name")}", r.getString("name"), emptyMap())
         }
     }
 }
 
+/** 시도 → 시군구 고르기 (두 줄 알약). 시군구 줄 맨 앞에 '전체'(그 시도 전부). 고른 값은 다음에도 기억 */
+@Composable
+private fun RegionSelect(area: DealArea?, onPick: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    val core = remember { DealCore.get(ctx) }
+    val sidos = remember { core.regions.raw.objects() }
+    val current = area?.key.orEmpty()
+    var sido by remember {
+        mutableStateOf(if (current.startsWith("ALL:")) current.removePrefix("ALL:") else core.regions.get(current)?.optString("sido") ?: prefs.dealSido.ifBlank { sidos.first().getString("sido") })
+    }
+    Label("지역" + (area?.let { " · ${if (it.all) it.cardPlace else it.label}" } ?: " · 아래에서 고르세요"))
+    PillRow { sidos.forEach { s -> val n = s.getString("sido"); ChoicePill(shortSido(n), n == sido) { sido = n; prefs.dealSido = n } } }
+    PillRow {
+        val gus = sidos.firstOrNull { it.getString("sido") == sido }?.getJSONArray("sigungu")?.objects().orEmpty()
+        if (gus.size > 1) ChoicePill("${shortSido(sido)} 전체", current == "ALL:$sido") { onPick("ALL:$sido") }
+        gus.forEach { g -> ChoicePill(g.getString("name"), g.getString("code") == current) { onPick(g.getString("code")) } }
+    }
+    if (area?.all == true) Text("시도 전체는 시군구마다 따로 받아서 처음에는 시간이 걸려요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
 private val TOOL_PERIODS = listOf(DealPeriod.M1, DealPeriod.M3, DealPeriod.M6, DealPeriod.Y1)
 
-/** 그 시군구의 기간 안 매매 거래를 받아 옴. 반환: (거래, 오류) */
+/** 받아 온 매매 거래와, 단지가 어느 시군구 것인지 */
+class AreaTrades(val deals: List<Deal>, val codeOf: Map<String, String>)
+
+/** 그 지역(시군구 하나 또는 시도 전체)의 기간 안 매매 거래를 받아 옴. 반환: (거래, 오류, 진행 문구) */
 @Composable
-private fun rememberTrades(lawd: String, period: DealPeriod): Pair<List<Deal>?, String?> {
+private fun rememberTrades(area: DealArea?, period: DealPeriod): Triple<AreaTrades?, String?, String> {
     val ctx = LocalContext.current
     val core = remember { DealCore.get(ctx) }
-    var deals by remember { mutableStateOf<List<Deal>?>(null) }
+    var trades by remember { mutableStateOf<AreaTrades?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(lawd, period) {
-        deals = null; error = null
-        if (lawd.isBlank()) return@LaunchedEffect
+    var progress by remember { mutableStateOf("실거래 받는 중…") }
+    LaunchedEffect(area?.key, period) {
+        trades = null; error = null
+        val a = area ?: return@LaunchedEffect
         try {
             val since = period.since(core.molit.today())
-            deals = withContext(Dispatchers.IO) { core.molit.fetchMonths("trade", lawd, period.fetchMonths) }.filter { it.date >= since }
-            Prefs(ctx).let { p -> p.dealRecent = listOf(lawd) + p.dealRecent.filter { it != lawd } }
+            val all = mutableListOf<Deal>()
+            val codeOf = HashMap<String, String>()
+            a.codes.forEachIndexed { k, code ->
+                progress = if (a.all) "실거래 받는 중… ${a.guName[code].orEmpty()} (${k + 1}/${a.codes.size})" else "실거래 받는 중…"
+                val ds = withContext(Dispatchers.IO) { core.molit.fetchMonths("trade", code, period.fetchMonths) }.filter { it.date >= since }
+                ds.forEach { codeOf[it.complexId] = code }
+                all += ds
+            }
+            trades = AreaTrades(all, codeOf)
+            Prefs(ctx).dealArea = a.key
+            if (!a.all) Prefs(ctx).let { p -> p.dealRecent = listOf(a.key) + p.dealRecent.filter { it != a.key } }
         } catch (e: Exception) {
             error = e.message ?: "실거래 자료를 받지 못했어요"
         }
     }
-    return deals to error
+    return Triple(trades, error, progress)
 }
 
 /**
@@ -71,28 +116,34 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
     val core = remember { DealCore.get(ctx) }
     var eok by remember { mutableStateOf("10") }
     var band by remember { mutableIntStateOf(84) }
-    var lawd by remember { mutableStateOf(prefs.dealRecent.firstOrNull().orEmpty()) }
+    var areaKey by remember { mutableStateOf(prefs.dealArea.ifBlank { prefs.dealRecent.firstOrNull().orEmpty() }) }
+    val area = remember(areaKey) { DealArea.of(core, areaKey) }
     var period by remember { mutableStateOf(DealPeriod.M6) }
-    val (deals, error) = rememberTrades(lawd, period)
+    val (trades, error, progress) = rememberTrades(area, period)
     // 1억~200억 (소수 한 자리까지)
     val budget = ((eok.toDoubleOrNull() ?: 0.0).coerceIn(1.0, 200.0) * 10000).toLong()
-    val regionName = core.regions.get(lawd)?.optString("fullName").orEmpty()
-    // 아파트만 보기: 빌라형·소규모를 거르려고 최근 6개월 매매·전월세 거래도 받아서 단지 규모를 짐작함
+    // 아파트만 보기: 빌라형·소규모를 거르려고 최근 6개월 매매·전월세 거래도 받아서 단지 규모를 짐작함 (시도 전체는 양이 많아 매매만)
     var aptOnly by remember { mutableStateOf(true) }
     var extra by remember { mutableStateOf<List<Deal>>(emptyList()) }
-    LaunchedEffect(lawd) {
+    LaunchedEffect(areaKey) {
         extra = emptyList()
-        if (lawd.isNotBlank()) extra = withContext(Dispatchers.IO) { runCatching { core.molit.fetchMonths("trade", lawd, 6) + core.molit.fetchMonths("rent", lawd, 6) }.getOrDefault(emptyList()) }
+        val a = area ?: return@LaunchedEffect
+        extra = withContext(Dispatchers.IO) {
+            runCatching { a.codes.flatMap { code -> core.molit.fetchMonths("trade", code, 6) + (if (a.all) emptyList() else core.molit.fetchMonths("rent", code, 6)) } }.getOrDefault(emptyList())
+        }
     }
-    val result = remember(deals, band, budget, aptOnly, extra) { deals?.let { DealTools.budget(it, band, budget, aptOnly, extra) } }
+    val result = remember(trades, band, budget, aptOnly, extra) {
+        trades?.let { t -> DealTools.budget(t.deals, band, budget, aptOnly, extra, if (area?.all == true) t.codeOf.mapValues { area.guName[it.value].orEmpty() } else emptyMap()) }
+    }
+    val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(result, regionName, period) { text = result?.let { DealTools.budgetText(regionName, band, budget, period, it, prefs.casualTone) } ?: "" }
+    LaunchedEffect(result, area?.key) { text = result?.let { DealTools.budgetText(area?.label.orEmpty(), band, budget, it, prefs.casualTone, seed + it.items.size) } ?: "" }
     ThreadShareScreen(
-        title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", hint = "국토부 실거래로 뽑은 목록이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(result, band, budget),
-        render = result?.let { r -> { DealCards.budget(ctx, regionName.substringAfter(' ', regionName), band, budget, period, r, core.molit.today()) } },
-        status = when { lawd.isBlank() -> "지역을 골라주세요."; error != null -> "⚠ $error"; result == null -> "실거래 받는 중…"; result.total == 0 -> "이 기간에 ${band}㎡ 실거래가 없어요. 기간을 늘려보세요."; else -> null },
+        render = result?.let { r -> { DealCards.budget(ctx, area?.cardPlace.orEmpty(), band, budget, period, r, core.molit.today()) } },
+        status = when { area == null -> "지역을 골라주세요."; error != null -> "⚠ $error"; result == null -> progress; result.total == 0 -> "이 기간에 ${band}㎡ 실거래가 없어요. 기간을 늘려보세요."; else -> null },
         onBack = onBack, onSent = onSent,
     ) {
         Label("가진 돈 (1억 ~ 200억)")
@@ -110,7 +161,7 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
         PillRow { listOf(1, 3, 5, 7, 10, 15, 20, 30, 50, 100, 200).forEach { v -> ChoicePill("${v}억", eok == "$v") { eok = "$v" } } }
         Label("평형")
         PillRow { DealTools.BANDS.forEach { b -> ChoicePill("${b}㎡", band == b) { band = b } } }
-        RegionSelect(lawd) { lawd = it }
+        RegionSelect(area) { areaKey = it }
         Label("실거래 기간")
         PillRow { TOOL_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -141,6 +192,8 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
     var progress by remember { mutableStateOf("최근 1년 실거래 받는 중…") }
     var text by remember { mutableStateOf("") }
     val today = remember { core.molit.today() }
+    var compare by remember { mutableStateOf<DealTools.PriceCompare?>(null) }
+    val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
 
     // 1) 최근 1년: 이 단지의 평형 목록
     LaunchedEffect(target) {
@@ -171,14 +224,17 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
             out += DealTools.historyPoint(today, n, deals, target.complexId, aptNm, umdNm, key, buildYear)
         }
         points = out
-        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone)
+        // 물가와 견줄 품목 하나 (열 때마다 바뀜). 외식비 자료는 통계 자료에 같이 들어 있음
+        val dine = (StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() } ?: runCatching { StatsRepository.fetch(ctx).dineout }.getOrNull()).orEmpty()
+        compare = DealTools.priceCompare(out, dine, today.year, seed + key)
+        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, compare)
     }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
         title = "$aptNm · 그때와 지금", cacheId = "history-${target.complexId}", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = points to areaKey,
-        render = points?.let { p -> { DealCards.history(ctx, aptNm, place, areaKey ?: 0, p, today) } },
+        render = points?.let { p -> { DealCards.history(ctx, aptNm, place, areaKey ?: 0, p, today, note = compare?.line) } },
         status = error?.let { "⚠ $it" } ?: if (points == null) progress else null,
         onBack = onBack, onSent = onSent,
     ) {
@@ -218,28 +274,34 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
     val prefs = remember { Prefs(ctx) }
     val core = remember { DealCore.get(ctx) }
     var band by remember { mutableIntStateOf(84) }
-    var lawd by remember { mutableStateOf(prefs.dealRecent.firstOrNull().orEmpty()) }
+    var areaKey by remember { mutableStateOf(prefs.dealArea.ifBlank { prefs.dealRecent.firstOrNull().orEmpty() }) }
+    val area = remember(areaKey) { DealArea.of(core, areaKey) }
     var period by remember { mutableStateOf(DealPeriod.Y1) }
     var items by remember { mutableStateOf<List<DealTools.PresaleItem>?>(null) }
     var itemsError by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { runCatching { PresaleRepository.load(ctx) }.onSuccess { items = it }.onFailure { itemsError = it.message } }
-    val (deals, error) = rememberTrades(lawd, period)
-    val regionName = core.regions.get(lawd)?.optString("fullName").orEmpty()
+    val (trades, error, progress) = rememberTrades(area, period)
     val today = remember { core.molit.today() }
-    val matches = remember(deals, items, band, lawd) { if (deals != null && items != null) DealTools.presaleCompare(items!!, lawd, deals, band, today.year) else null }
+    // 시군구마다 따로 짝을 지은 뒤 합쳐서 오른 금액이 큰 순으로
+    val matches = remember(trades, items, band) {
+        val t = trades; val its = items; val a = area
+        if (t == null || its == null || a == null) null
+        else a.codes.flatMap { code -> DealTools.presaleCompare(its, code, t.deals.filter { t.codeOf[it.complexId] == code }, band, today.year) }.sortedByDescending { it.diff }
+    }
+    val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(matches, regionName, period) { text = matches?.let { DealTools.presaleText(regionName, band, period, it, prefs.casualTone) } ?: "" }
-    val inRegion = items?.count { lawd in it.lawd } ?: 0
+    LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed) } ?: "" }
+    val inRegion = items?.count { i -> area?.codes.orEmpty().any { it in i.lawd } } ?: 0
     ThreadShareScreen(
-        title = "분양가 vs 실거래가", cacheId = "presale", hint = "청약홈 분양가와 국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = "분양가 vs 실거래가", cacheId = "presale", hint = "청약홈 분양가와 국토부 실거래 숫자로 만든 글이에요. 평가 문장은 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(matches, band, period),
-        render = matches?.let { m -> { DealCards.presale(ctx, regionName.substringAfter(' ', regionName), band, period, m, today) } },
+        render = matches?.let { m -> { DealCards.presale(ctx, area?.cardPlace.orEmpty(), band, period, m, today) } },
         status = when {
-            lawd.isBlank() -> "지역을 골라주세요."
+            area == null -> "지역을 골라주세요."
             itemsError != null -> "⚠ $itemsError"
             error != null -> "⚠ $error"
-            matches == null -> "분양가와 실거래 받는 중…"
+            matches == null -> progress
             matches.isEmpty() -> "비교할 단지가 없어요. (이 지역 분양 공고 ${inRegion}건 중 최근 ${period.label} 안에 ${band}㎡ 실거래가 있는 10년 이내 단지 없음)"
             else -> null
         },
@@ -247,7 +309,7 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
     ) {
         Label("평형")
         PillRow { DealTools.BANDS.forEach { b -> ChoicePill("${b}㎡", band == b) { band = b } } }
-        RegionSelect(lawd) { lawd = it }
+        RegionSelect(area) { areaKey = it }
         Label("실거래 기간")
         PillRow { TOOL_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
         Text("최근 10년 안에 지어진 단지만, 청약홈에 분양가가 남아 있는 최근 5년 분양 단지를 비교해요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -213,10 +213,10 @@ class AndroidTest {
                 DealTools.historyPoint(today, n, if (yms.isEmpty()) null else core.molit.fetchYms("trade", "41290", yms), id, "래미안슈르", "원문동", 84, 2008)
             }
             assertEquals(listOf(true, true, true, false), pts.map { it.ok })
-            DealCards.history(app, "래미안슈르", "과천시 원문동", 84, pts, today, mark).forEachIndexed { i, b -> save("tool-history-${i + 1}", b) }
+            DealCards.history(app, "래미안슈르", "과천시 원문동", 84, pts, today, mark, note = "10년 사이 짜장면 한 그릇 4,800원 → 7,600원 (+58%)").forEachIndexed { i, b -> save("tool-history-${i + 1}", b) }
             val items = DealTools.parsePresale("""{"items":[{"id":"1","name":"과천 자이","date":"2021-12-01","lawd":["41290"],"addr":"","prices":{"84":[150000,160000]}}]}""")
-            val matches = DealTools.presaleCompare(items, "41290", year + core.service.getDeals("41290", complexes[0].getString("id"), "trade", 13), 84, today.year)
-            assertEquals(listOf("과천자이"), matches.map { it.aptNm })
+            val matches = DealTools.presaleCompare(items + DealTools.parsePresale("""{"items":[{"id":"2","name":"래미안슈르","date":"2022-05-01","lawd":["41290"],"addr":"","prices":{"84":[120000,130000]}}]}"""), "41290", year + core.service.getDeals("41290", complexes[0].getString("id"), "trade", 13), 84, today.year)
+            assertEquals(listOf("과천자이"), matches.map { it.aptNm }) // 래미안슈르는 2008년 준공이라 10년 이내가 아님
             DealCards.presale(app, "과천시", 84, DealPeriod.Y1, matches, today, mark).forEachIndexed { i, b -> save("tool-presale-${i + 1}", b) }
 
             shot("deal-home", "알림 받는 단지")
@@ -224,8 +224,9 @@ class AndroidTest {
             screen = 2; shot("deal-detail", "최근 1년 매매 실거래")
             screen = 6; shot("deal-share", "최근 래미안슈르 실거래 발생")
             Prefs(app).dealRecent = listOf("41290")
-            screen = 4; shot("tool-budget-screen", "거래된")
-            screen = 5; shot("tool-history-screen", "지금: 평균")
+            Prefs(app).dealArea = "41290"
+            screen = 4; shot("tool-budget-screen", "살 수 있는 84㎡ 아파트")
+            screen = 5; shot("tool-history-screen", "실거래가 (과천시 원문동)")
         } finally {
             DealCore.replace(null)
         }
