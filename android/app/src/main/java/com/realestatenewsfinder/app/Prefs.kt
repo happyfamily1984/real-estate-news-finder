@@ -124,6 +124,11 @@ class Prefs(ctx: Context) {
         get() = (sp.getString("dealRecent", "") ?: "").split(',').filter { it.isNotBlank() }
         set(v) = sp.edit().putString("dealRecent", v.take(6).joinToString(",")).apply()
 
+    /** 실거래 활용 화면에서 마지막으로 고른 지역: 시군구 코드 또는 "ALL:시도이름" */
+    var dealArea: String
+        get() = sp.getString("dealArea", "") ?: ""
+        set(v) = sp.edit().putString("dealArea", v).apply()
+
     /** 통계 '지역별'에서 마지막으로 고른 시도 */
     var statSido: String
         get() = sp.getString("statSido", "서울") ?: "서울"

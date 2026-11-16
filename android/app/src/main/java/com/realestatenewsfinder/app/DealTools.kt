@@ -59,45 +59,38 @@ object DealTools {
      * deals: 그 지역의 기간 안 매매 거래. 단지별 평균가가 budget(만원) 이하면 살 수 있는 아파트.
      * aptOnly면 아파트로 보기 어려운 곳을 뺌 (extra: 판단에 보탤 최근 6개월 매매·전월세 거래)
      */
-    fun budget(deals: List<Deal>, band: Int, budget: Long, aptOnly: Boolean = false, extra: List<Deal> = emptyList()): BudgetResult {
+    fun budget(deals: List<Deal>, band: Int, budget: Long, aptOnly: Boolean = false, extra: List<Deal> = emptyList(), guOf: Map<String, String> = emptyMap()): BudgetResult {
         val known = (deals + extra).filter { !it.canceled }.distinctBy { it.key }.groupBy { it.complexId }
         var excluded = 0
         val all = deals.filter { it.type == "trade" && !it.canceled && inBand(it.area, band) }.groupBy { it.complexId }.map { (id, ds) ->
             val sorted = ds.sortedByDescending { it.date }
             val prices = ds.map { it.price }
-            BudgetItem(id, sorted.first().aptNm, sorted.first().umdNm, ds.firstNotNullOfOrNull { it.buildYear }, ds.size, avg(prices), prices.min(), prices.max(), sorted.first())
+            BudgetItem(id, sorted.first().aptNm, listOfNotNull(guOf[id], sorted.first().umdNm.takeIf { it.isNotBlank() }).joinToString(" "), ds.firstNotNullOfOrNull { it.buildYear }, ds.size, avg(prices), prices.min(), prices.max(), sorted.first())
         }.filter { i -> (!aptOnly || looksLikeApartment(i.aptNm, known[i.complexId].orEmpty())).also { ok -> if (!ok) excluded++ } }
         return BudgetResult(all.filter { it.avg <= budget }.sortedByDescending { it.avg }, all.filter { it.avg > budget }.sortedBy { it.avg }, excluded)
     }
 
-    private fun itemLine(i: BudgetItem) = "${i.aptNm} (${listOfNotNull(i.umdNm.takeIf { it.isNotBlank() }, i.buildYear?.let { "${it % 100}년".padStart(3, '0') }).joinToString("·")}) ${won(i.avg)} · ${i.count}건"
+    private val BUDGET_ASK = listOf("이 중에 어디가 제일 좋아 보여?", "마음에 드는 단지 있어?", "여기서 하나만 고른다면 어디?", "나라면 몇 번 고를지 댓글로 알려줘", "살아본 곳 있으면 후기 좀 알려줘", "예산 같으면 어디로 갈 것 같아?")
+    private val BUDGET_ASK_POLITE = listOf("이 중에 어디가 제일 좋아 보이나요?", "마음에 드는 단지 있으세요?", "여기서 하나만 고른다면 어디인가요?", "몇 번을 고르실지 댓글로 알려주세요", "살아보신 곳 있으면 후기 부탁드려요", "같은 예산이면 어디로 가시겠어요?")
 
-    fun budgetText(regionName: String, band: Int, budget: Long, period: DealPeriod, r: BudgetResult, casual: Boolean): String {
+    /**
+     * 짧은 글: 지역·예산 한 줄, 단지 이름만 번호 붙여 나열, 마지막에 한마디(seed에 따라 바뀜).
+     * label: "인천 미추홀구" 또는 "서울"
+     */
+    fun budgetText(label: String, band: Int, budget: Long, r: BudgetResult, casual: Boolean, seed: Int = 0): String {
         fun e(c: String, p: String) = if (casual) c else p
-        val place = regionName.substringAfter(' ', regionName)
         val lines = mutableListOf<String>()
-        lines += "${place}에서 ${won(budget)}으로 살 수 있는 ${band}㎡ 아파트 (최근 ${period.label} 실거래 평균 기준)"
-        if (r.total == 0) {
-            lines += "최근 ${period.label} 동안 ${band}㎡ 매매 실거래가 없" + e("음", "어요")
-            return lines.joinToString("\n\n")
-        }
+        lines += "$label ${won(budget)}으로 살 수 있는 ${band}㎡ 아파트"
+        if (r.total == 0) { lines += "최근 거래된 ${band}㎡ 아파트가 없" + e("음", "어요"); return lines.joinToString("\n\n") }
         if (r.items.isEmpty()) {
             val c = r.over.first()
-            lines += "거래된 ${r.total}개 단지 중 이 예산으로 살 수 있는 곳이 없" + e("음", "어요")
-            lines += "가장 싼 곳이 ${itemLine(c)}\n${won(c.avg - budget)} 더 필요"
-        } else {
-            lines += "거래된 ${r.total}개 단지 중 ${r.items.size}곳 가능 (${r.items.size * 100 / r.total}%)"
-            val show = r.items.take(6)
-            lines += show.mapIndexed { k, i -> "${k + 1}. ${itemLine(i)}" }.joinToString("\n") + (if (r.items.size > show.size) "\n외 ${r.items.size - show.size}곳" else "")
-            val tight = r.items.count { it.avg >= budget * 0.9 }
-            val cheap = r.items.last()
-            val notes = mutableListOf<String>()
-            if (r.items.size >= 2) notes += "가장 싼 곳은 ${cheap.aptNm} ${won(cheap.avg)} (${won(budget - cheap.avg)} 남음)"
-            if (tight > 0 && tight < r.items.size) notes += "예산의 90% 넘게 써야 하는 곳 ${tight}곳"
-            r.over.firstOrNull()?.let { notes += "조금 모자란 곳: ${it.aptNm} ${won(it.avg)} (${won(it.avg - budget)} 부족)" }
-            if (notes.isNotEmpty()) lines += notes.joinToString("\n")
+            lines += "이 예산으로는 살 수 있는 곳이 없" + e("음", "어요") + "\n가장 싼 곳이 ${c.aptNm} ${won(c.avg)}"
+            return lines.joinToString("\n\n")
         }
-        lines += "자료: 국토교통부 실거래가 (단지별 평균. 층·동에 따라 다름" + (if (r.excluded > 0) ", 빌라형·소규모 ${r.excluded}곳 제외" else "") + ")"
+        val show = r.items.take(10)
+        lines += show.mapIndexed { k, i -> "${k + 1}. ${i.aptNm}" }.joinToString("\n") + (if (r.items.size > show.size) "\n외 ${r.items.size - show.size}곳" else "")
+        val asks = if (casual) BUDGET_ASK else BUDGET_ASK_POLITE
+        lines += asks[Math.floorMod(seed, asks.size)]
         return lines.joinToString("\n\n")
     }
 
@@ -151,39 +144,62 @@ object DealTools {
     /** 연평균 상승률(%) */
     fun cagr(now: Long, past: Long, years: Int): Double? = if (past > 0 && now > 0 && years > 0) ((now.toDouble() / past).pow(1.0 / years) - 1) * 100 else null
 
-    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean): String {
+    /** 참가격 외식비 품목 이름 → 글에 쓰는 표현 */
+    private val DINE_LABEL = mapOf(
+        "자장면" to "짜장면 한 그릇", "냉면" to "냉면 한 그릇", "비빔밥" to "비빔밥 한 그릇", "김치찌개백반" to "김치찌개 백반",
+        "삼겹살" to "삼겹살 1인분", "삼계탕" to "삼계탕 한 그릇", "칼국수" to "칼국수 한 그릇", "김밥" to "김밥 한 줄",
+    )
+
+    /** 물가 비교 한 가지: 그때와 지금의 외식비 */
+    data class PriceCompare(val point: HistoryPoint, val item: String, val then: Int, val now: Int) {
+        val pct: Double get() = (now - then) * 100.0 / then
+        /** "10년 사이 짜장면 한 그릇 4,800원 → 7,654원 (+59%)" */
+        val line: String get() = "${point.yearsAgo}년 사이 $item ${"%,d".format(then)}원 → ${"%,d".format(now)}원 (${String.format("%+.0f%%", pct)})"
+    }
+
+    /**
+     * 집값과 견줄 물가 하나를 고름 (seed에 따라 품목이 바뀜).
+     * dineout: 품목 → (연도 → 원). 가장 오래된 시점부터, 그 해 자료가 있는 품목 가운데서 고름 (자료는 2009년부터)
+     */
+    fun priceCompare(points: List<HistoryPoint>, dineout: Map<String, Map<Int, Int>>, thisYear: Int, seed: Int = 0): PriceCompare? {
+        for (p in points.filter { it.ok && it.yearsAgo > 0 }.sortedByDescending { it.yearsAgo }) {
+            val year = thisYear - p.yearsAgo
+            val usable = dineout.entries.mapNotNull { (name, byYear) ->
+                val then = byYear[year] ?: return@mapNotNull null
+                val now = byYear[thisYear] ?: byYear[thisYear - 1] ?: return@mapNotNull null
+                PriceCompare(p, DINE_LABEL[name] ?: name, then, now)
+            }.sortedBy { it.item }
+            if (usable.isNotEmpty()) return usable[Math.floorMod(seed, usable.size)]
+        }
+        return null
+    }
+
+    /** 짧은 글: 시점별 금액만 나열하고, 물가 한 가지와 견줘 한 줄 */
+    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean, compare: PriceCompare? = null): String {
         fun e(c: String, p: String) = if (casual) c else p
         val now = points.firstOrNull { it.yearsAgo == 0 }
         val lines = mutableListOf<String>()
-        lines += "$aptNm ${areaKey}㎡, 그때와 지금 실거래가 ($place)"
+        lines += "$aptNm ${areaKey}㎡ 실거래가 ($place)"
         if (now == null || !now.ok) {
             lines += "최근 1년 동안 ${areaKey}㎡ 매매 실거래가 없어서 비교할 수 없" + e("음", "어요")
             return lines.joinToString("\n\n")
         }
-        lines += "지금: 평균 ${won(now.avg)} (최근 1년 ${now.count}건)"
-        val past = points.filter { it.yearsAgo > 0 }.sortedBy { it.yearsAgo }
-        for (p in past) {
-            if (!p.ok) { lines += "${p.label}: ${p.reason}"; continue }
-            val diff = now.avg - p.avg
-            val times = now.avg.toDouble() / p.avg
-            val sb = StringBuilder("${p.label}(${p.whenLabel}): 평균 ${won(p.avg)} (${p.count}건)")
-            sb.append("\n→ 지금까지 ${won(abs(diff))} " + (if (diff >= 0) "올라" else "내려") + " ${String.format("%.1f", times)}배")
-            cagr(now.avg, p.avg, p.yearsAgo)?.let { sb.append(String.format(", 연평균 %s%.1f%%", if (it > 0) "+" else "", it)) }
-            lines += sb.toString()
+        val past = points.filter { it.yearsAgo > 0 && it.ok }.sortedByDescending { it.yearsAgo }
+        if (past.isEmpty()) {
+            lines += "지금 ${won(now.avg)}\n비교할 과거 거래 기록이 없" + e("음", "어요")
+            return lines.joinToString("\n\n")
         }
-        // 정리: 어느 구간에 더 많이 올랐는지
-        val ok = past.filter { it.ok }
-        if (ok.size >= 2) {
-            val near = ok[0]; val far = ok[1]
-            val recentRate = cagr(now.avg, near.avg, near.yearsAgo); val earlyRate = cagr(near.avg, far.avg, far.yearsAgo - near.yearsAgo)
-            if (recentRate != null && earlyRate != null) {
-                lines += "정리: 최근 ${near.yearsAgo}년(연 ${String.format("%+.1f", recentRate)}%)이 그 앞 ${far.yearsAgo - near.yearsAgo}년(연 ${String.format("%+.1f", earlyRate)}%)보다 " + (if (recentRate > earlyRate) "더 가파르게 올랐" else "덜 올랐") + e("음", "어요")
-            }
-        } else if (ok.size == 1) {
-            val p = ok[0]
-            lines += "정리: ${p.yearsAgo}년 동안 " + (if (now.avg >= p.avg) "${String.format("%.1f", now.avg.toDouble() / p.avg)}배가 됐" else "오히려 내렸") + e("음", "어요")
+        lines += (past.map { "${it.label} ${won(it.avg)}" } + "지금 ${won(now.avg)}").joinToString("\n")
+        fun housePct(p: HistoryPoint) = (now.avg - p.avg) * 100.0 / p.avg
+        fun times(p: HistoryPoint) = String.format("%.1f", now.avg.toDouble() / p.avg)
+        if (compare != null) {
+            val p = compare.point
+            val h = housePct(p)
+            lines += compare.line + "\n같은 기간 이 집은 ${String.format("%+.0f%%", h)}" + (if (h > 0) " (${times(p)}배)" else "")
+        } else {
+            val p = past.first()
+            lines += "${p.yearsAgo}년 사이 ${String.format("%+.0f%%", housePct(p))}" + (if (now.avg > p.avg) " (${times(p)}배)" else "")
         }
-        lines += "자료: 국토교통부 실거래가 (각 시점 앞뒤 1년 평균. 물가 반영 안 함)"
         return lines.joinToString("\n\n")
     }
 
@@ -228,7 +244,7 @@ object DealTools {
 
     /**
      * 그 시군구의 분양 공고(items) 가운데, 최근 10년 안에 지어졌고 기간 안에 실거래가 있는 단지를 찾아 분양가와 비교.
-     * deals: 그 시군구의 기간 안 매매 거래. 결과는 상승률 높은 순
+     * deals: 그 시군구의 기간 안 매매 거래. 결과는 오른 금액이 큰 순
      */
     fun presaleCompare(items: List<PresaleItem>, lawdCd: String, deals: List<Deal>, band: Int, thisYear: Int): List<PresaleMatch> {
         val complexes = deals.filter { it.type == "trade" && !it.canceled && inBand(it.area, band) }.groupBy { it.complexId }
@@ -243,29 +259,39 @@ object DealTools {
             val ds = hit.value.sortedByDescending { it.date }
             out += PresaleMatch(item, ds.first().aptNm, ds.first().umdNm, ds.firstNotNullOfOrNull { it.buildYear }, price, ds.size, avg(ds.map { it.price }), ds.first())
         }
-        return out.sortedByDescending { it.pct }
+        return out.sortedByDescending { it.diff }
     }
 
-    fun presaleText(regionName: String, band: Int, period: DealPeriod, matches: List<PresaleMatch>, casual: Boolean): String {
-        fun e(c: String, p: String) = if (casual) c else p
-        val place = regionName.substringAfter(' ', regionName)
-        val lines = mutableListOf<String>()
-        lines += "$place 새 아파트, 분양가와 지금 실거래가 (${band}㎡)"
-        if (matches.isEmpty()) {
-            lines += "분양가 자료가 있고 최근 ${period.label} 안에 ${band}㎡ 실거래가 있는 10년 이내 단지가 없" + e("음", "어요")
-            lines += "분양가 자료는 청약홈 최근 5년 공고만 있음"
-            return lines.joinToString("\n\n")
+    /** 분양가 대비 얼마나 올랐는지에 따른 한마디 (여러 개 중 seed로 고름 → 매번 같은 말이 되지 않게) */
+    private fun presaleComment(m: PresaleMatch, pick: Int): String {
+        val gain = won(abs(m.diff))
+        val list = when {
+            m.pct >= 100 -> listOf("분양가의 두 배를 넘김. 이건 진짜 미친 상승", "분양 때 비싸다고 망설였다면 땅을 칠 숫자", "청약 당첨이 곧 로또였던 단지", "분양가만큼이 그대로 한 번 더 붙음", "그때 넣을까 말까 고민한 사람은 속 쓰릴 결과")
+            m.pct >= 50 -> listOf("분양가 비싸다는 말이 쏙 들어갈 상승폭", "당첨자는 앉아서 $gain 번 셈", "고분양가 걱정이 무색해진 결과", "웬만한 직장인 평생 저축이 몇 년 만에 붙음", "청약 경쟁률이 괜히 높았던 게 아님")
+            m.pct >= 20 -> listOf("분양가 대비 꾸준히 오른 편", "당첨됐다면 꽤 쏠쏠한 수익", "입주 프리미엄이 확실히 붙은 단지", "$gain 차이면 청약 넣을 이유는 충분했음")
+            m.pct >= 0 -> listOf("분양가에서 크게 벗어나지 않은 수준", "프리미엄은 아직 얇은 편", "오르긴 했지만 금융비용 생각하면 애매한 폭", "분양가가 곧 시세였던 셈")
+            else -> listOf("분양가보다 싸게 거래되는 중. 이른바 마피 구간", "분양가를 못 지키고 있는 단지", "고분양가 논란이 현실이 된 사례", "분양받은 사람은 $gain 손해를 보고 있는 셈")
         }
-        val show = matches.take(5)
-        lines += show.mapIndexed { k, m ->
-            "${k + 1}. ${m.aptNm} (${m.item.date.take(4)}년 분양)\n분양가 ${won(m.presale)} → 실거래 ${won(m.avg)} (${String.format("%+.0f%%", m.pct)}, ${won(abs(m.diff))} ${if (m.diff >= 0) "올라" else "내려"})"
-        }.joinToString("\n") + (if (matches.size > show.size) "\n외 ${matches.size - show.size}곳" else "")
-        val up = matches.count { it.diff > 0 }
-        val mean = matches.map { it.pct }.average()
-        var sum = "정리: ${matches.size}곳 중 ${up}곳이 분양가보다 비싸게 거래, 평균 ${String.format("%+.0f%%", mean)}"
-        if (matches.size - up > 0) sum += "\n분양가 아래로 거래된 곳도 ${matches.size - up}곳"
-        lines += sum
-        lines += "자료: 청약홈 분양가(주택형 중간값), 국토부 실거래가 최근 ${period.label} 평균"
+        return list[Math.floorMod(pick, list.size)]
+    }
+
+    /**
+     * 금액 중심의 짧은 글: "2024년 5월 서초구에 분양됐던 OO 59㎡, 최근 실거래 39억 … 찍힘 / 분양가 17억 … / 한마디".
+     * 오른 금액이 큰 순으로 3곳까지. seed에 따라 한마디가 바뀜
+     */
+    fun presaleText(place: String, band: Int, period: DealPeriod, matches: List<PresaleMatch>, casual: Boolean, seed: Int = 0): String {
+        fun e(c: String, p: String) = if (casual) c else p
+        if (matches.isEmpty()) {
+            return "$place ${band}㎡, 분양가와 견줄 단지가 없" + e("음", "어요") + "\n\n분양가 자료(청약홈 최근 5년 공고)가 있고 최근 ${period.label} 안에 실거래가 있는 10년 이내 단지만 비교함"
+        }
+        val lines = mutableListOf<String>()
+        matches.take(3).forEachIndexed { k, m ->
+            val ym = m.item.date.split('-').let { d -> if (d.size >= 2) "${d[0]}년 ${d[1].toInt()}월" else m.item.date.take(4) + "년" }
+            val head = "$ym ${place}에 분양됐던 ${m.aptNm} ${band}㎡"
+            val move = if (m.diff >= 0) "${won(m.diff)} 오름" else "${won(abs(m.diff))} 내림"
+            lines += "$head\n최근 실거래 ${won(m.avg)} " + e("찍힘", "찍혔어요") + "\n분양가는 ${won(m.presale)} → $move\n${presaleComment(m, seed + k * 7 + m.aptNm.length)}"
+        }
+        if (matches.size > 3) lines += "외 ${matches.size - 3}곳"
         return lines.joinToString("\n\n")
     }
 }
