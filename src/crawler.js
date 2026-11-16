@@ -76,7 +76,7 @@ export class Crawler {
         this.posts.set(p.id, p);
       });
       // 커뮤니티는 인기글 목록에서 빠진 글을 숨김. 뉴스·정부 글은 피드에서 밀려나도 기한까지 유지
-      if (this.status[src.id]?.ok && src.kind === 'community') {
+      if (this.status[src.id]?.ok && (src.kind === 'community' || src.replace)) {
         for (const p of this.posts.values()) {
           if (p.source === src.id && !current.has(p.id)) p.onBoard = false;
         }
@@ -85,13 +85,18 @@ export class Crawler {
 
     for (const [id, p] of this.posts) {
       const src = this.sources.find((s) => s.id === p.source);
-      const base = src?.kind === 'community' ? p.lastSeenAt : (p.publishedAt ?? p.firstSeenAt);
+      const base = src?.kind === 'community' || src?.replace ? p.lastSeenAt : (p.publishedAt ?? p.firstSeenAt);
       const keep = src?.maxAgeH ? src.maxAgeH * 3600_000 : src?.kind === 'gov' ? KEEP_GOV_MS : KEEP_MS;
       // 없어진 소스의 글, 기한 지난 글, 부동산 글만 남기는 소스에 예전 기준으로 들어온 무관한 글 정리
       if (!src || now - base > keep || (src.filter && !isRelevant(p.title))) this.posts.delete(id);
     }
 
     scorePosts([...this.posts.values()].filter((p) => p.onBoard), this.kindOf, now, this.nameOf);
+    // 우선 노출 소스(부동산스터디 등)는 중요도에 가산
+    const listed = new Set(this.sources.filter((s) => s.replace && s.kind !== 'community').map((s) => s.id));
+    for (const p of this.posts.values()) if (p.onBoard && listed.has(p.source)) p.score = Math.max(p.score ?? 0, 45); // 접수 중인 공고는 오래돼도 일정 점수
+    const boosted = new Set(this.sources.filter((s) => s.boostHours).map((s) => s.id));
+    for (const p of this.posts.values()) if (p.onBoard && boosted.has(p.source)) p.score = Math.min(100, (p.score ?? 0) + 12);
     this.lastCrawlAt = now;
     this.save();
 

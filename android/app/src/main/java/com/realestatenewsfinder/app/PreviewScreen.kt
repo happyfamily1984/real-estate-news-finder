@@ -61,7 +61,7 @@ fun mobileUrl(post: Post): String {
 
 /** 글 미리보기: 모바일 페이지 스캔 이미지 + 아래 "해당 글로 이동" */
 @Composable
-fun PreviewScreen(post: Post, source: Source?, onExport: () -> Unit, onOpenSite: () -> Unit, onBack: () -> Unit) {
+fun PreviewScreen(post: Post, source: Source?, onExport: () -> Unit, onOpenSite: () -> Unit, onBack: () -> Unit, onNaverLogin: (() -> Unit)? = null) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember(attempt) { mutableStateOf<ScanState>(ScanState.Loading(0, "페이지 여는 중")) }
     DisposableEffect(Unit) { onDispose { (state as? ScanState.Done)?.result?.bitmap?.recycle() } }
@@ -87,9 +87,17 @@ fun PreviewScreen(post: Post, source: Source?, onExport: () -> Unit, onOpenSite:
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
+        Column(Modifier.padding(pad).fillMaxSize()) {
+          if (post.source == "navercafe" && onNaverLogin != null && !NaverSession.loggedIn()) {
+            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)).padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("카페 글 내용은 네이버 로그인이 필요할 수 있어요", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onNaverLogin) { Text("로그인", fontWeight = FontWeight.Bold) }
+            }
+          }
+          Box(Modifier.weight(1f).fillMaxWidth()) {
             PageScanner(post, attempt) { state = it }
             ScanStatus(state, onRetry = { attempt++ }) { ScanImage(it.bitmap, it.truncated) }
+          }
         }
     }
 }

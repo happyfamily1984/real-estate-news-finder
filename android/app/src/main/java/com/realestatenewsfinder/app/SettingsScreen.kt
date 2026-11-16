@@ -323,10 +323,13 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
 
                 // 네이버 로그인 (카페 글 본문 보기용)
                 if (onNaverLogin != null) SettingsCard {
+                    var naverOn by remember { mutableStateOf(NaverSession.loggedIn()) }
                     AccentTitle("네이버 로그인 (부동산스터디 글 보기)")
                     Spacer(Modifier.height(8.dp))
+                    Text(if (naverOn) "✅ 로그인돼 있어요" else "로그인돼 있지 않아요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (naverOn) Color(0xFF12A150) else MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        "부동산스터디 카페 글 목록은 로그인 없이 받아오지만, 글 내용은 카페 회원만 볼 수 있는 경우가 많아요. 여기서 네이버에 로그인해 두면 앱 안 미리보기와 요약에서 글 내용을 읽을 수 있어요.\n아이디·비밀번호는 네이버 페이지에 직접 입력하고, 앱은 저장하지 않아요.",
+                        "부동산스터디 카페 글 목록은 로그인 없이 받아오지만, 글 내용은 카페 회원만 볼 수 있는 경우가 많아요. 여기서 네이버에 로그인해 두면 앱 안 미리보기와 요약에서 글 내용을 읽을 수 있어요.\n한 번 로그인하면 '로그인 상태 유지'로 계속 유지돼요. 아이디·비밀번호는 네이버 페이지에 직접 입력하고(휴대폰의 자동 완성 사용 가능), 앱은 저장하지 않아요.",
                         fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(10.dp))
@@ -334,6 +337,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                         Button(shape = CircleShape, onClick = onNaverLogin) { Text("네이버 로그인", fontWeight = FontWeight.Bold) }
                         OutlinedButton(shape = CircleShape, onClick = {
                             android.webkit.CookieManager.getInstance().apply { removeAllCookies(null); flush() }
+                            naverOn = false
                             message = "네이버 로그인 정보를 지웠어요."
                         }) { Text("로그아웃", fontWeight = FontWeight.Bold) }
                     }

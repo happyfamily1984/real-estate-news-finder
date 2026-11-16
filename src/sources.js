@@ -3,17 +3,20 @@
 //   filter   : true면 부동산 관련 제목만 남김 (경제 전체 피드, 타 부처 보도자료)
 //   selectors: HTML 목록 파싱 (row/title/link/views/comments/likes/exclude)
 //   keepParams : 글 주소에서 남길 쿼리 파라미터 (같은 글이 같은 id가 되도록)
+//   replace  : 목록에서 빠진 글은 바로 숨김 (마감된 청약 공고 등)
+//   boostHours : 앱 목록에서 이 소스 글을 더 위에 보이게 (최신순에서 이 시간만큼 새 글로 취급, 중요도 가산)
 //   disabled : true면 수집 안 함
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
 import { fetchKorea } from './korea.js';
 import { fetchNaverCafe } from './navercafe.js';
+import { fetchLh, fetchApplyhome } from './apply.js';
 
 export const SOURCES = [
   // ---- 언론 ----
   {
     id: 'gnews', name: '구글뉴스', board: '부동산 종합', kind: 'news', color: '#4285f4',
-    url: 'https://news.google.com/', fetch: fetchGoogleNews, outletFromTitle: true, limit: 150,
-    queries: ['부동산', '아파트 청약 분양', '재건축 재개발', '전세 월세', '주택담보대출 금리', '집값 실거래가'],
+    url: 'https://news.google.com/', fetch: fetchGoogleNews, outletFromTitle: true, limit: 200,
+    queries: ['부동산', '아파트 청약 분양', '공공분양 청약', '사전청약 OR 본청약', '무순위 청약 줍줍', '재건축 재개발', '전세 월세', '주택담보대출 금리', '집값 실거래가'],
   },
   // 한국경제는 클라우드 접근을 막음(HTTP 403). 구글뉴스를 통해 들어오므로 꺼둠
   { id: 'hankyung', name: '한국경제', board: '부동산', kind: 'news', color: '#0a4da2', url: 'https://www.hankyung.com/realestate', feed: 'https://www.hankyung.com/feed/realestate', fetch: fetchFeed, disabled: true },
@@ -26,6 +29,12 @@ export const SOURCES = [
   { id: 'sedaily', name: '서울경제', board: '부동산', kind: 'news', color: '#7a3e9d', url: 'https://www.sedaily.com/v/NewsMain/GB', feed: 'https://www.sedaily.com/rss/realestate', fetch: fetchFeed },
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
+  // ---- 청약·공공분양 공고 (목록에 있는 동안만 보여줌: replace) ----
+  { id: 'applyhome', name: '청약홈', board: 'APT 분양정보', kind: 'gov', color: '#e4572e', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTLttotPblancListView.do', list: 'selectAPTLttotPblancListView.do', detail: 'selectAPTLttotPblancDetail.do', label: '청약', fetch: fetchApplyhome, replace: true, maxAgeH: 24 * 45, boostHours: 4 },
+  { id: 'applyhome-remain', name: '청약홈 무순위', board: '무순위·잔여세대', kind: 'gov', color: '#c2410c', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTRemndrLttotPblancListView.do', list: 'selectAPTRemndrLttotPblancListView.do', detail: 'selectAPTRemndrLttotPblancDetail.do', label: '무순위', fetch: fetchApplyhome, replace: true, allowEmpty: true, maxAgeH: 24 * 45, boostHours: 4 },
+  { id: 'lh-sale', name: 'LH 분양', board: '분양주택 공고', kind: 'gov', color: '#0e7490', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1027', mi: 1027, fetch: fetchLh, replace: true, maxAgeH: 24 * 60, boostHours: 4 },
+  { id: 'lh', name: 'LH 임대', board: '임대주택 공고', kind: 'gov', color: '#155e75', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1026', mi: 1026, types: /임대|행복|전세|든든/, fetch: fetchLh, replace: true, maxAgeH: 24 * 60 },
+
   // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
   { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },
   // 서울시 주택 분야 새소식 (보도자료·공고), 경기도 보도자료
@@ -58,7 +67,7 @@ export const SOURCES = [
   // 뽐뿌 부동산포럼: 목록 페이지는 클라우드를 막지만(403) RSS는 열림. 조회수는 없어서 최신순
   { id: 'ppomppu', name: '뽐뿌', board: '부동산포럼', kind: 'community', color: '#d9534f', url: 'https://m.ppomppu.co.kr/new/bbs_list.php?id=house', feed: 'https://www.ppomppu.co.kr/rss.php?id=house', fetch: fetchFeed, keepOnly: ['id', 'no'] },
   // 네이버 카페 부동산스터디 인기글
-  { id: 'navercafe', name: '부동산스터디', board: '네이버 카페 인기글', kind: 'community', color: '#03c75a', url: 'https://cafe.naver.com/jaegebal', cafeId: 12730407, cafeUrl: 'jaegebal', fetch: fetchNaverCafe, filter: true },
+  { id: 'navercafe', name: '부동산스터디', board: '네이버 카페 인기글', kind: 'community', color: '#03c75a', url: 'https://cafe.naver.com/jaegebal', cafeId: 12730407, cafeUrl: 'jaegebal', fetch: fetchNaverCafe, filter: true, limit: 80, boostHours: 8 }, // 목록에서 더 위에 보이게
 ];
 
 export const ACTIVE_SOURCES = SOURCES.filter((s) => !s.disabled);

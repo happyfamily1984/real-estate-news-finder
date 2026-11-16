@@ -17,6 +17,8 @@ data class Source(
     val color: Long,
     val kind: String,
     val ok: Boolean,
+    /** 목록에서 더 위에 보이게 하는 시간(시간 단위). 최신순에서 이만큼 새 글로 취급 */
+    val boostHours: Int = 0,
     val error: String?,
 )
 
@@ -87,7 +89,7 @@ data class Feed(val updatedAt: Long, val sources: List<Source>, val posts: List<
                     val st = s.optJSONObject("status")
                     Source(
                         id = s.getString("id"), name = s.getString("name"), board = s.optString("board"),
-                        color = parseColor(s.optString("color")), kind = s.optString("kind", "news"),
+                        color = parseColor(s.optString("color")), kind = s.optString("kind", "news"), boostHours = s.optInt("boostHours", 0),
                         ok = st?.optBoolean("ok", false) ?: false,
                         error = st?.optString("error")?.takeIf { it.isNotEmpty() },
                     )

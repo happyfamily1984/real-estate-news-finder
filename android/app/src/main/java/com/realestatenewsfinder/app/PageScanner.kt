@@ -71,6 +71,7 @@ val AUTHOR_SELECTORS = mapOf(
  * 본문만 남기기: 본문 요소를 찾아 페이지 전체를 '제목 + 본문'으로 바꿈 (메뉴·광고·댓글·추천글·작성자 줄 제거).
  * 사진은 화면 폭에 맞추고 글자는 읽기 좋은 크기로. 본문을 못 찾으면 아무것도 하지 않고 false.
  */
+@Suppress("unused")
 private fun isolateJs(title: String, sel: String) = """
 (function(){try{
   var list=document.querySelectorAll(${JSONObject.quote(sel)}), c=null;
@@ -157,13 +158,11 @@ fun PageScanner(post: Post, attempt: Int, community: Boolean = false, onState: (
     suspend fun capture(wv: WebView) {
         if (busy) return
         busy = true
-        // 커뮤니티 글: 본문만 추려 '제목 + 본문' 화면으로 다시 구성 (작성자 줄·메뉴·광고·댓글이 빠짐)
-        var isolated = false
-        if (community) BODY_SELECTORS[post.source]?.let { sel ->
-            onState(ScanState.Loading(87, "본문만 추리는 중"))
-            delay(900) // 늦게 그려지는 본문(네이버 카페 등) 기다림
-            if (eval(wv, isolateJs(post.title, sel)) == "true") { isolated = true; delay(700) }
-        }
+        // 커뮤니티 글은 사이트 화면 그대로(제목·작성자 줄 포함) 캡처해서 어느 커뮤니티 글인지 바로 보이게 함.
+        // 광고·댓글만 숨기고, 작성자 닉네임·프로필은 내보낼 때 모자이크함.
+        // (본문만 추려 다시 구성하는 isolateJs는 사이트 화면을 못 쓸 때를 위해 남겨둠)
+        val isolated = false
+        if (community) delay(900) // 늦게 그려지는 본문(네이버 카페 등) 기다림
         eval(wv, HIDE_ADS_JS)
         onState(ScanState.Loading(90, "글 전체 펼치는 중"))
         delay(600)
@@ -195,6 +194,12 @@ fun PageScanner(post: Post, attempt: Int, community: Boolean = false, onState: (
             var content = rect(info?.optJSONArray("content"))
             val title = rect(info?.optJSONArray("title"))
             if (content != null && title != null && title.top < content.top) content = Rect(content.left, title.top, content.right, content.bottom)
+            // 커뮤니티 글: 제목 근처의 작성자 줄(닉네임·날짜)이 본문 영역 위에 있으면 거기까지 포함
+            if (community && content != null) {
+                val c = content
+                val head = authors.filter { it.bottom <= c.top + 8 && c.top - it.top < bmp.width * 0.6f }.minOfOrNull { it.top }
+                if (head != null && head < c.top) content = Rect(c.left, (head - 16).coerceAtLeast(0), c.right, c.bottom)
+            }
             onState(ScanState.Done(ScanResult(bmp, fullPx > MAX_SCAN_HEIGHT_PX, authors, content, title, images, info?.optString("text").orEmpty(), wv.url)))
         } catch (e: OutOfMemoryError) {
             onState(ScanState.Failed("글이 너무 길어서 캡처하지 못했어요"))

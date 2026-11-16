@@ -20,7 +20,7 @@ const feed = {
   version: 1,
   updatedAt: crawler.lastCrawlAt,
   topics: TOPICS.map((t) => t.id),
-  sources: SOURCES.map(({ id, name, board, url, color, kind }) => ({ id, name, board, url, color, kind, status: crawler.status[id] })),
+  sources: SOURCES.map(({ id, name, board, url, color, kind, boostHours }) => ({ id, name, board, url, color, kind, ...(boostHours ? { boostHours } : {}), status: crawler.status[id] })),
   posts: crawler.list({ sort: 'score', limit: 700 }).map((p) => ({
     id: p.id, source: p.source, title: p.title, url: p.url, views: p.views, comments: p.comments, likes: p.likes,
     score: p.score, pick: p.pick ?? 0, viewsPerMin: p.viewsPerMin, firstSeenAt: p.firstSeenAt, rank: p.rank,

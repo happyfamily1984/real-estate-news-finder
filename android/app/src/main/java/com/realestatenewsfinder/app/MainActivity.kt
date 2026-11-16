@@ -260,6 +260,7 @@ fun App() {
             onExport = { toExport(p) }, // 미리보기는 그대로 두고 위에 띄움 → 뒤로가기로 한 단계씩 돌아옴
             onOpenSite = { openPost(ctx, p) },
             onBack = { preview = null },
+            onNaverLogin = { naverLogin = true },
         )
     } }
     // 스레드용 내보내기 (미리보기의 '내보내기' 또는 글 길게 누르기)
@@ -396,7 +397,8 @@ fun HomeScreen(
             SortBy.PICK -> list.sortedByDescending { it.pick }
             SortBy.VIEWS -> list.sortedByDescending { it.views ?: -1 }
             SortBy.COMMENTS -> list.sortedByDescending { it.comments ?: -1 }
-            SortBy.LATEST -> list.sortedByDescending { it.time }
+            // 최신순: 우선 노출 소스(부동산스터디)는 정해진 시간만큼 새 글로 쳐서 위로
+            SortBy.LATEST -> list.sortedByDescending { it.time + (feed?.sourceById?.get(it.source)?.boostHours ?: 0) * 3600_000L }
         }
     }
     val hasNew = remember(feed) { feed?.posts?.any { isNew(it) } == true }
@@ -410,10 +412,18 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        // 주제 칩: 사람들이 많이 찾는 주제별로 모아 보기
-                        item { SourceChip("전체", null, topic == "", ok = true, icon = Icons.Filled.GridView) { topic = "" } }
-                        items(feed?.topics.orEmpty()) { t ->
-                            SourceChip(t, null, topic == t, ok = true) { topic = if (topic == t) "" else t }
+                        if (community) {
+                            // 커뮤니티 탭: 주제 대신 커뮤니티 종류로 고름
+                            item { SourceChip("전체", null, source == "", ok = true, icon = Icons.Filled.GridView) { source = "" } }
+                            items(feed?.sources.orEmpty()) { s ->
+                                SourceChip(s.name, Color(s.color), source == s.id, s.ok) { source = if (source == s.id) "" else s.id }
+                            }
+                        } else {
+                            // 주제 칩: 사람들이 많이 찾는 주제별로 모아 보기
+                            item { SourceChip("전체", null, topic == "", ok = true, icon = Icons.Filled.GridView) { topic = "" } }
+                            items(feed?.topics.orEmpty()) { t ->
+                                SourceChip(t, null, topic == t, ok = true) { topic = if (topic == t) "" else t }
+                            }
                         }
                     }
                 }
@@ -423,7 +433,7 @@ fun HomeScreen(
                         Spacer(Modifier.width(10.dp))
                         // 필터 버튼: 정렬 · 출처
                         Box {
-                            val active = source.isNotEmpty() || sort != SortBy.LATEST
+                            val active = (source.isNotEmpty() && !community) || sort != SortBy.LATEST
                             Surface(
                                 onClick = { sortMenu = true }, shape = RoundedCornerShape(16.dp),
                                 color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
@@ -438,11 +448,13 @@ fun HomeScreen(
                                 SortBy.entries.filter { community || !it.communityOnly }.forEach {
                                     MenuChoice(it.label, sort == it) { sort = it; sortMenu = false }
                                 }
-                                HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                                MenuLabel("출처")
-                                MenuChoice("전체", source.isEmpty()) { source = ""; sortMenu = false }
-                                feed?.sources.orEmpty().forEach { s ->
-                                    MenuChoice(if (s.ok) s.name else "${s.name} ⚠", source == s.id) { source = s.id; sortMenu = false }
+                                if (!community) { // 커뮤니티 탭은 위쪽 칩으로 고름
+                                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                                    MenuLabel("출처")
+                                    MenuChoice("전체", source.isEmpty()) { source = ""; sortMenu = false }
+                                    feed?.sources.orEmpty().forEach { s ->
+                                        MenuChoice(if (s.ok) s.name else "${s.name} ⚠", source == s.id) { source = s.id; sortMenu = false }
+                                    }
                                 }
                             }
                         }

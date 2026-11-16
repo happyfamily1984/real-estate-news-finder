@@ -220,16 +220,31 @@ fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSen
     }
 }
 
-/** 네이버 로그인 화면: 사용자가 네이버 페이지에 직접 로그인. 앱은 비밀번호를 다루지 않고, 로그인 상태(쿠키)는 휴대폰 안 브라우저 저장소에만 남음 */
+/** 네이버 로그인 상태 (앱 안 브라우저 저장소의 쿠키로 판단. 비밀번호는 다루지 않음) */
+object NaverSession {
+    fun loggedIn(): Boolean = runCatching {
+        val c = android.webkit.CookieManager.getInstance().getCookie("https://nid.naver.com").orEmpty() + ";" +
+            android.webkit.CookieManager.getInstance().getCookie("https://cafe.naver.com").orEmpty()
+        c.contains("NID_AUT=") && c.contains("NID_SES=")
+    }.getOrDefault(false)
+}
+
+/**
+ * 네이버 로그인 화면: 사용자가 네이버 페이지에 직접 로그인. 앱은 비밀번호를 다루지 않음.
+ * - '로그인 상태 유지'를 미리 체크해 둠 → 한 번 로그인하면 앱을 껐다 켜도 유지됨
+ * - 아이디·비밀번호는 휴대폰의 자동 완성(삼성 패스·구글 비밀번호 관리자)이 채워줄 수 있음
+ * - 로그인이 끝나면 화면을 자동으로 닫음
+ */
 @Composable
 fun NaverLoginScreen(onBack: () -> Unit) {
+    val ctx = LocalContext.current
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Column(Modifier.weight(1f)) {
                 Text("네이버 로그인", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                Text("로그인한 뒤 '완료'를 누르세요", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("'로그인 상태 유지'를 켠 채로 로그인하면 다음부터는 다시 묻지 않아요", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             TextButton(onClick = { android.webkit.CookieManager.getInstance().flush(); onBack() }) { Text("완료", fontWeight = FontWeight.Bold) }
         }
@@ -240,8 +255,26 @@ fun NaverLoginScreen(onBack: () -> Unit) {
                     @Suppress("SetJavaScriptEnabled")
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
-                    webViewClient = android.webkit.WebViewClient()
+                    settings.saveFormData = true
+                    importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_YES
+                    val cm = android.webkit.CookieManager.getInstance()
+                    cm.setAcceptCookie(true)
+                    cm.setAcceptThirdPartyCookies(this, true)
+                    webViewClient = object : android.webkit.WebViewClient() {
+                        override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                            if (url.contains("nid.naver.com")) {
+                                // '로그인 상태 유지'가 꺼져 있으면 켜 둠 (세션이 앱을 꺼도 남도록)
+                                view.evaluateJavascript(
+                                    "(function(){try{['#nvlong','#keep','input[name=nvlong]','#login_keep'].forEach(function(s){var e=document.querySelector(s); if(e&&e.type==='checkbox'&&!e.checked) e.click();});}catch(x){}})()", null,
+                                )
+                            } else if (NaverSession.loggedIn()) {
+                                // 로그인이 끝나 카페로 넘어옴 → 저장하고 닫기
+                                cm.flush()
+                                android.widget.Toast.makeText(ctx, "네이버에 로그인했어요.", android.widget.Toast.LENGTH_SHORT).show()
+                                onBack()
+                            }
+                        }
+                    }
                     loadUrl("https://nid.naver.com/nidlogin.login?url=" + java.net.URLEncoder.encode("https://m.cafe.naver.com/jaegebal", "UTF-8"))
                 }
             },

@@ -230,7 +230,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                         }
                         if (result == null) Text(if (useCapture) "원문 캡처를 기다리는 중…" else "이미지 만드는 중…", Modifier.padding(16.dp), color = muted)
                         if (kind == "community") Text(
-                            if (useCapture) "글 본문만 캡처했어요 (광고·댓글 제외, 작성자는 모자이크). 길면 여백에서 나눠요." else "캡처 대신 직접 만든 카드예요.",
+                            if (useCapture) "글 화면을 제목·작성자 줄부터 본문까지 캡처했어요 (광고·댓글 제외, 작성자는 모자이크). 길면 여백에서 나눠요." else "캡처 대신 직접 만든 카드예요.",
                             Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), fontSize = 12.sp, color = muted,
                         )
                         if (kind != "community") Text(
