@@ -9,7 +9,8 @@
 - 앱: Kotlin + Compose, 사이드로드 APK (`android/`)
 - 수집기: GitHub Actions에서 도는 Node 22 스크립트 (`src/`)
 - 저장소: `happyfamily1984/real-estate-news-finder`
-  - 개발 브랜치(기본 브랜치): `ccr-63d315cd-vo3531`
+  - 기본 브랜치: `ccr-63d315cd-vo3531` (예약 수집은 이 브랜치 코드로 돎)
+  - 현재 개발 브랜치: `ccr-e5b6ecc7-udh9ht` (SH·GH 추가분. 기본 브랜치에 아직 안 합쳐짐 → 수동 실행은 이 브랜치를 골라서)
   - `data` 브랜치: `posts.json`, `state.json`, `stats.json` (커밋 1개로 덮어씀)
   - `screens` 브랜치: CI가 찍은 화면 스크린샷
 
@@ -27,8 +28,8 @@
 
 - 출시된 버전: **v1.0.5** (versionCode 205)
 - 마지막으로 보낸 테스트 APK: **1.2.1-test** (versionCode 459413). 다음은 1.2.2-test.
-- 마지막 커밋: `b462bc2` 무순위 공고 상세 (서버 쪽 수정이라 APK 재설치 불필요)
-- 수집: 21개 소스 모두 정상 (동아일보·구글뉴스는 가끔 실패). 통계 10종.
+- 마지막 작업: SH·GH 모집 공고 수집 추가, 공고 상세 정보 한 번에 30건 (서버 쪽 수정이라 APK 재설치 불필요)
+- 수집: 24개 소스 모두 정상 (동아일보·구글뉴스는 가끔 실패). 통계 10종.
 - GitHub 시크릿: `REB_API_KEY` 등록됨. `KOSIS_API_KEY`는 아직 없음.
 
 ### 기기에서 아직 확인 안 된 것
@@ -42,14 +43,14 @@
 ### 남은 일 / 제안만 해둔 것
 
 - KOSIS 통계 연결 (사용자가 `KOSIS_API_KEY` 시크릿을 넣어야 함)
-- SH·GH 공고 소스 추가
 - 예약 실행(cron)이 거의 안 돎 → 지금은 수동 실행으로 데이터 갱신
-- LH 상세 정보는 한 번에 12건씩만 채워짐
+- 개발 브랜치를 기본 브랜치에 합치기 (안 합치면 예약 수집이 돌 때 SH·GH 글이 빠짐)
+- SH·GH는 목록에 마감일이 없어 게시 후 30일 동안 보여줌. 상세 정보(details)는 없음 (공고문이 첨부 파일)
 - v1.0.5 이후 작업은 출시 요청 없음
 
 ## 4. 수집기 (`src/`)
 
-테스트: `npm test` (20개 통과)
+테스트: `npm test` (22개 통과)
 
 | 파일 | 역할 |
 |---|---|
@@ -58,7 +59,7 @@
 | `feeds.js` | RSS 해석, 구글뉴스 (1.5초 간격 직렬 요청, 429/503 재시도) |
 | `korea.js` | 정책브리핑 목록 페이지 해석 (RSS는 2026-07-01 종료) |
 | `navercafe.js` | 부동산스터디 주간 인기글 API |
-| `apply.js` | 청약홈·LH 목록과 상세 해석 |
+| `apply.js` | 청약홈·LH 목록과 상세 해석, SH·GH 공고 게시판 (`isRecruitNotice`로 모집 공고만) |
 | `topics.js` | 주제 태그, 관련성 판별, 독자 관심 점수 `threadPick` |
 | `score.js` | 점수 계산, 비슷한 기사 묶기(`dupOf`) |
 | `crawler.js` | 이전 상태와 합치기, 상세 보강, 보관 기간 |
@@ -68,7 +69,7 @@
 ### 소스
 
 - **뉴스**: gnews(구글뉴스 검색 9개), mk, yna, donga, khan, hani, asiae, sedaily. (hankyung은 403이라 꺼둠)
-- **정부·공공**: applyhome(청약홈 APT), applyhome-remain(무순위), lh-sale(LH 분양), lh(LH 임대), molit(국토부), seoul, gg, korea-press, korea-policy, gov-search
+- **정부·공공**: applyhome(청약홈 APT), applyhome-remain(무순위), lh-sale(LH 분양), lh(LH 임대), sh-sale(SH 분양), sh(SH 임대), gh(GH 주택 공고), molit(국토부), seoul, gg, korea-press, korea-policy, gov-search
 - **커뮤니티**: dcinside(부동산갤 개념글), ppomppu, navercafe(부동산스터디, cafeId 12730407)
 
 ### 청약홈 주소 (주의)

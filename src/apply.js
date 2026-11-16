@@ -116,6 +116,7 @@ export async function fetchApplyhome(source) {
 /** 공지 게시판 제목 중 입주자 모집·공급 공고만 (당첨자 발표·접수 결과·시스템 안내 등은 제외) */
 export function isRecruitNotice(title) {
   if (/발표|접수\s?결과|경쟁률|중단|점검|설명회|교육|장려금|수의계약|입찰|낙찰|용역/.test(title)) return false;
+  if (/(?:안내|공개)\s*$/.test(title) || /대출/.test(title)) return false; // 대출 상품 안내, 분양가격 공개 같은 알림 글
   return /모집|공급|분양|임대|청약|공고문/.test(title);
 }
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLhList, parseApplyhome, parseApplyhomeDetail, parseLhDetail, parseShList, parseGhList, eok } from '../src/apply.js';
+import { parseLhList, parseApplyhome, parseApplyhomeDetail, parseLhDetail, parseShList, parseGhList, isRecruitNotice, eok } from '../src/apply.js';
 import { sourceById } from '../src/sources.js';
 
 const now = Date.parse('2026-11-16T03:00:00Z');
@@ -83,6 +83,9 @@ test('SH 공고 게시판: 모집 공고만, 발표·안내 글 제외, 상세 �
    <tr><td>1732</td><td class="txtL"><a href="#" onclick="javascript:getDetailView('313180');return false;" class="ellipsis ">홈페이지 등 공사 시스템 일시 중단 안내</a></td><td>시스템운영부</td><td class="num">2026-11-11</td><td class="num">2719</td></tr>
    <tr><td>1730</td><td class="txtL"><a href="#" onclick="javascript:getDetailView('312903');return false;" class="ellipsis icon">NEW [청년형] 특화형 매입임대주택 입주자 모집 공고(운영기관 : 한지붕 협동조합)</a></td><td>매입주택공급부</td><td class="num">2026-11-11</td><td class="num">14,139</td></tr>
   </tbody></table>`;
+  assert.equal(isRecruitNotice('뉴홈 전용 디딤돌대출(토지임대부 분양주택) 출시 안내'), false);
+  assert.equal(isRecruitNotice('고덕강일 3단지 토지임대부 분양주택 평균 건물분양가격 공개'), false);
+  assert.equal(isRecruitNotice('[정정] 고덕강일지구 3단지 토지임대부 분양주택 입주자모집공고'), true);
   const posts = parseShList(html, sourceById.sh, now);
   assert.equal(posts.length, 1);
   assert.equal(posts[0].id, 'sh:312903');
