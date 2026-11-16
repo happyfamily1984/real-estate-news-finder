@@ -224,20 +224,25 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
             out += DealTools.historyPoint(today, n, deals, target.complexId, aptNm, umdNm, key, buildYear)
         }
         points = out
-        // 물가와 견줄 품목 하나 (열 때마다 바뀜). 외식비 자료는 통계 자료에 같이 들어 있음
-        // (클라우드 수집분이 있으면 그걸, 없으면 휴대폰에서 참가격을 직접 받음. 못 받으면 물가 줄 없이 집값만)
-        val dine = StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() } ?: run {
-            progress = "물가 자료 받는 중…"
-            withContext(Dispatchers.IO) { runCatching { DineOut.load(ctx, today.year, out.filter { it.ok && it.yearsAgo > 0 }.map { today.year - it.yearsAgo }) }.getOrDefault(emptyMap()) }
+        // 글은 바로 보여주고, 물가 자료는 그 뒤에 받아서 되면 한 줄을 붙임 (못 받아도 글은 그대로)
+        compare = null
+        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone)
+        val years = out.filter { it.ok && it.yearsAgo > 0 }.map { today.year - it.yearsAgo }
+        val dine = StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() }
+            ?: kotlinx.coroutines.withTimeoutOrNull(20_000) { withContext(Dispatchers.IO) { runCatching { DineOut.load(ctx, today.year, years) }.getOrNull() } }
+        val c = dine?.let { DealTools.priceCompare(out, it, today.year, seed + key) }
+        if (c != null) {
+            val plain = text
+            compare = c
+            // 그 사이 글을 고쳤으면 건드리지 않음
+            if (plain == DealTools.historyText(aptNm, place, key, out, prefs.casualTone)) text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, c)
         }
-        compare = DealTools.priceCompare(out, dine, today.year, seed + key)
-        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, compare)
     }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
         title = "$aptNm · 그때와 지금", cacheId = "history-${target.complexId}", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
-        renderKey = points to areaKey,
+        renderKey = Triple(points, areaKey, compare),
         render = points?.let { p -> { DealCards.history(ctx, aptNm, place, areaKey ?: 0, p, today, note = compare?.line) } },
         status = error?.let { "⚠ $it" } ?: if (points == null) progress else null,
         onBack = onBack, onSent = onSent,

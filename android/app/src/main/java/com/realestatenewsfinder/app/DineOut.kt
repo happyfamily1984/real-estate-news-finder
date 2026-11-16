@@ -43,7 +43,7 @@ object DineOut {
 
     private fun http(url: String, body: String? = null): String {
         val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 8000; c.readTimeout = 12000
+        c.connectTimeout = 5000; c.readTimeout = 8000
         c.setRequestProperty("User-Agent", UA)
         c.setRequestProperty("Accept-Language", "ko-KR,ko;q=0.9")
         c.setRequestProperty("Referer", URL_)
@@ -96,7 +96,8 @@ object DineOut {
                 }
             }
         }
-        if (month.isNotBlank()) for (y in years.distinct()) {
+        // 올해 값을 못 받았으면(접속 불가) 지난 해도 시도하지 않음
+        if (month.isNotBlank() && (byYear.has(thisYear.toString()) || byYear.has((thisYear - 1).toString()))) for (y in years.distinct()) {
             if (y < 2009 || byYear.has(y.toString())) continue
             fetchYear(y, month)?.let { byYear.put(y.toString(), JSONObject(it as Map<*, *>)); changed = true }
         }
