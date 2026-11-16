@@ -124,58 +124,237 @@ object StatsRepository {
     fun cached(ctx: Context): Stats? = runCatching { Stats.parse(cacheFile(ctx).readText()) }.getOrNull()
 }
 
+/** 숫자 흐름을 읽는 도구 (연속 상승·하락, 기간 내 위치, 평균과 비교) */
+object Insight {
+    /** 끝에서부터 같은 부호(+/-)가 몇 번 이어졌는지. 부호 포함 (+3 = 3회 연속 플러스, -2 = 2회 연속 마이너스, 0 = 최근 값이 0이거나 없음) */
+    fun signStreak(values: List<Double?>, eps: Double = 1e-9): Int {
+        val last = values.lastOrNull() ?: return 0
+        val sign = if (last > eps) 1 else if (last < -eps) -1 else return 0
+        var n = 0
+        for (v in values.asReversed()) { if (v != null && v * sign > eps) n++ else break }
+        return n * sign
+    }
+
+    /** 끝에서부터 직전 값보다 계속 오른(+) / 내린(-) 횟수 */
+    fun moveStreak(values: List<Double?>, eps: Double = 1e-9): Int {
+        val v = values.filterNotNull()
+        if (v.size < 2) return 0
+        val sign = if (v[v.size - 1] - v[v.size - 2] > eps) 1 else if (v[v.size - 1] - v[v.size - 2] < -eps) -1 else return 0
+        var n = 0
+        for (k in v.size - 1 downTo 1) { if ((v[k] - v[k - 1]) * sign > eps) n++ else break }
+        return n * sign
+    }
+
+    /** 최신 값이 기간 안에서 가장 크면 1, 가장 작으면 -1, 아니면 0 (값이 4개 이상이고 단독일 때만) */
+    fun extreme(values: List<Double?>): Int {
+        val v = values.filterNotNull()
+        if (v.size < 4) return 0
+        val last = v.last(); val rest = v.dropLast(1)
+        return if (rest.all { it < last }) 1 else if (rest.all { it > last }) -1 else 0
+    }
+
+    /** 최신 값을 뺀 직전 n개 평균 */
+    fun prevAvg(values: List<Double?>, n: Int): Double? {
+        val v = values.filterNotNull().dropLast(1).takeLast(n)
+        return if (v.size == n) v.average() else null
+    }
+}
+
 /**
  * 통계를 스레드 글로. AI를 쓰지 않고 숫자를 그대로 문장에 끼워 넣어서 숫자가 틀릴 일이 없음.
+ * 숫자만 나열하지 않고 흐름을 읽어 줌: 연속 상승·하락, 최근 평균 대비 속도, 기간 내 최고·최저, 지역 간 격차, 누적 변동, 한 줄 정리.
  */
 object StatText {
     private fun ranked(s: StatSeries, sido: List<String>) =
         s.regions.filter { it.name in sido && it.latest != null }.sortedByDescending { it.latest!! }
 
-    fun thread(s: StatSeries, sido: List<String>, casual: Boolean): String {
-        fun e(casualEnd: String, politeEnd: String) = if (casual) casualEnd else politeEnd
-        val lines = mutableListOf<String>()
-        val nation = s.region("전국")
-        val seoul = s.region("서울")
-        val metro = s.region("수도권")
-        val head = nation ?: seoul ?: s.regions.first()
-        val basis = "(${s.source} ${s.dateLabel} 기준)"
-        lines += "${s.title}, ${head.name} ${s.fmt(head.latest)} $basis"
+    /** 주기 낱말: 날짜가 연-월-일이면 "주", 연-월이면 "개월" */
+    private fun unit(s: StatSeries) = if (s.date.count { it == '-' } == 2) "주" else "개월"
+    private fun num(s: StatSeries, v: Double, digits: Int = s.digits) = String.format("%.${digits}f", v)
+    private fun eps(s: StatSeries) = 0.5 / Math.pow(10.0, s.digits.toDouble())
 
-        val others = listOfNotNull(seoul, metro).filter { it !== head && it.latest != null }
-        if (others.isNotEmpty()) lines += others.joinToString(", ") { "${it.name} ${s.fmt(it.latest)}" } + e("임", "예요")
+    fun thread(s: StatSeries, sido: List<String>, casual: Boolean): String {
+        val nation = s.region("전국")
+        val head = nation ?: s.region("서울") ?: s.regions.first()
+        return when {
+            s.kind == "change" -> changeThread(s, head, sido, casual)
+            s.id.contains("pir") -> pirThread(s, head, casual)
+            else -> levelThread(s, head, sido, casual)
+        }.joinToString("\n\n")
+    }
+
+    // ---------- 변동률 (매매가·전세가 주간 변동률) ----------
+    private fun changeThread(s: StatSeries, head: StatRegion, sido: List<String>, casual: Boolean): List<String> {
+        fun e(c: String, p: String) = if (casual) c else p
+        val lines = mutableListOf<String>()
+        val u = unit(s)
+        val now = head.latest ?: 0.0
+        val pt = "%p"
+        val streak = Insight.signStreak(head.values, eps(s))
+        var first = "${s.title}, ${head.name} ${s.fmt(head.latest)}"
+        if (kotlin.math.abs(streak) >= 2) first += " · ${kotlin.math.abs(streak)}$u${if (kotlin.math.abs(streak) >= head.values.size) " 넘게" else ""} 연속 " + (if (streak > 0) "상승" else "하락")
+        lines += "$first (${s.source} ${s.dateLabel} 기준)"
+
+        // 속도: 직전과 비교 + 최근 4회 평균과 비교 + 기간 내 최고·최저
+        val speed = mutableListOf<String>()
+        val before = head.prev
+        var accel = 0 // 1 = 강해짐, -1 = 약해짐
+        if (before != null) {
+            val diff = now - before
+            val same = abs(diff) < eps(s)
+            val unitWord = if (u == "주") "지난주" else "지난달"
+            speed += when {
+                same -> "${head.name} 변동률은 $unitWord(${s.fmt(before)})와 같" + e("음", "아요")
+                now > 0 && before > 0 -> { accel = if (diff > 0) 1 else -1; "${head.name} 상승폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff > 0) "커졌" else "줄었") + e("음", "어요") }
+                now < 0 && before < 0 -> { accel = if (diff < 0) 1 else -1; "${head.name} 하락폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff < 0) "커졌" else "줄었") + e("음", "어요") }
+                else -> "$unitWord(${s.fmt(before)})에서 " + (if (now > 0) "상승" else if (now < 0) "하락" else "보합") + "으로 바뀌었" + e("음", "어요")
+            }
+        }
+        Insight.prevAvg(head.values, 4)?.let { a ->
+            if (abs(now - a) >= eps(s) && now * a > 0) {
+                val stronger = abs(now) > abs(a)
+                speed += "직전 4$u 평균(${s.fmt(a)})보다 " + (if (stronger) "빠른" else "느린") + " 속도"
+            }
+        }
+        when (Insight.extreme(head.values)) {
+            1 -> if (now > 0) speed += "최근 ${head.values.size}$u 중 가장 큰 상승폭"
+            -1 -> speed += if (now < 0) "최근 ${head.values.size}$u 중 가장 큰 하락폭" else "최근 ${head.values.size}$u 중 가장 낮은 상승률"
+        }
+        if (speed.isNotEmpty()) lines += speed.joinToString("\n")
+
+        // 서울·수도권과 전국의 격차
+        val others = listOfNotNull(s.region("서울"), s.region("수도권")).filter { it !== head && it.latest != null }
+        if (others.isNotEmpty()) {
+            var line = others.joinToString(", ") { "${it.name} ${s.fmt(it.latest)}" }
+            val seoul = others.firstOrNull { it.name == "서울" }?.latest
+            if (seoul != null && head.name == "전국") {
+                val gap = seoul - now
+                line += if (abs(gap) < eps(s)) "\n서울과 전국이 같은 속도" else "\n서울이 전국보다 ${num(s, abs(gap))}$pt " + (if (gap > 0) "높" else "낮") + e("음", "아요")
+            }
+            lines += line
+        }
+
+        // 지역별: 1위·꼴찌, 격차, 오른 곳·내린 곳 수와 그 뜻
+        val rank = ranked(s, sido)
+        var breadth = ""
+        if (rank.size >= 5) {
+            val top = rank.first(); val bottom = rank.last()
+            val up = rank.count { it.latest!! > 0 }; val down = rank.count { it.latest!! < 0 }
+            val b = mutableListOf<String>()
+            b += if (top.latest!! > 0) "가장 많이 오른 곳 ${top.name}(${s.fmt(top.latest)})" else "오른 곳 없이 ${top.name}(${s.fmt(top.latest)})이 가장 덜 내림"
+            b += if (bottom.latest!! < 0) "가장 많이 내린 곳 ${bottom.name}(${s.fmt(bottom.latest)})" else "가장 덜 오른 곳 ${bottom.name}(${s.fmt(bottom.latest)})"
+            breadth = when {
+                up * 3 >= rank.size * 2 -> "상승이 전국으로 퍼진 모습"
+                down * 3 >= rank.size * 2 -> "약세가 넓게 퍼진 모습"
+                up > 0 && down > 0 -> "오르는 곳과 내리는 곳이 갈리는 모습"
+                else -> "대부분 제자리"
+            }
+            b += "${rank.size}개 시도 중 오른 곳 ${up}곳, 내린 곳 ${down}곳 → $breadth"
+            b += "1위와 꼴찌 격차 ${num(s, top.latest!! - bottom.latest!!)}$pt"
+            lines += b.joinToString("\n")
+        }
+
+        // 누적: 주간 숫자는 작아 보여도 쌓이면 달라짐
+        val n = head.values.size
+        if (n >= 8) {
+            val parts = listOfNotNull(head, s.region("서울").takeIf { it !== head }).mapNotNull { r -> RegionText.cumulative(r.values, n)?.let { "${r.name} ${s.fmt(it)}" } }
+            if (parts.isNotEmpty()) lines += "최근 $n$u 누적으로는 " + parts.joinToString(", ")
+        }
+
+        // 한 줄 정리
+        val dir = if (now > eps(s)) "오름세" else if (now < -eps(s)) "내림세" else "보합"
+        val pace = when { dir == "보합" -> ""; accel > 0 -> "가 강해지는 중"; accel < 0 -> "가 약해지는 중"; else -> " 유지" }
+        lines += "정리: ${head.name} $dir$pace" + (if (breadth.isNotBlank()) ", 지역별로는 $breadth" else "")
+        return lines
+    }
+
+    // ---------- 지수 (수급·매수우위·전망: 기준선 100) ----------
+    private fun levelThread(s: StatSeries, head: StatRegion, sido: List<String>, casual: Boolean): List<String> {
+        fun e(c: String, p: String) = if (casual) c else p
+        val lines = mutableListOf<String>()
+        val u = unit(s)
+        val now = head.latest ?: 0.0
+        val move = Insight.moveStreak(head.values, eps(s))
+        var first = "${s.title}, ${head.name} ${s.fmt(head.latest)}"
+        if (kotlin.math.abs(move) >= 2) first += " · ${kotlin.math.abs(move)}$u 연속 " + (if (move > 0) "상승" else "하락")
+        lines += "$first (${s.source} ${s.dateLabel} 기준)"
+
+        val base = s.base
+        if (base != null) {
+            val gap = now - base
+            val how = when { abs(gap) < 5 -> "기준선 ${num(s, base, 0)} 근처"; abs(gap) >= 30 -> "기준선 ${num(s, base, 0)}보다 ${num(s, abs(gap))} " + (if (gap > 0) "높음 → 기준선을 크게 웃도는 상태" else "낮음 → 기준선을 크게 밑도는 상태"); else -> "기준선 ${num(s, base, 0)}보다 ${num(s, abs(gap))} " + (if (gap > 0) "높음" else "낮음") }
+            lines += how + (if (s.desc.isNotBlank()) "\n(${s.desc})" else "")
+        }
+
+        // 흐름: 직전 대비, 기간 처음 대비, 기간 내 최고·최저
+        val flow = mutableListOf<String>()
+        val before = head.prev
+        if (before != null) {
+            val diff = now - before
+            val unitWord = if (u == "주") "지난주" else "지난달"
+            flow += if (abs(diff) < eps(s)) "${head.name}은 $unitWord(${s.fmt(before, false)})와 같" + e("음", "아요")
+            else "${head.name}은 $unitWord(${s.fmt(before, false)})보다 ${s.fmt(abs(diff), false)} " + (if (diff > 0) "올랐" else "내렸") + e("음", "어요")
+        }
+        val start = head.values.firstOrNull()
+        if (start != null && head.values.size >= 6 && abs(now - start) >= eps(s)) {
+            flow += "${head.values.size - 1}$u 전(${s.fmt(start, false)})과 비교하면 ${s.fmt(abs(now - start), false)} " + (if (now > start) "높아짐" else "낮아짐")
+        }
+        when (Insight.extreme(head.values)) {
+            1 -> flow += "최근 ${head.values.size}$u 중 가장 높은 값"
+            -1 -> flow += "최근 ${head.values.size}$u 중 가장 낮은 값"
+        }
+        if (flow.isNotEmpty()) lines += flow.joinToString("\n")
+
+        val others = listOfNotNull(s.region("서울"), s.region("수도권")).filter { it !== head && it.latest != null }
+        if (others.isNotEmpty()) {
+            var line = others.joinToString(", ") { "${it.name} ${s.fmt(it.latest)}" }
+            val seoul = others.firstOrNull { it.name == "서울" }?.latest
+            if (seoul != null && head.name == "전국") {
+                line += "\n서울이 전국보다 ${s.fmt(abs(seoul - now), false)} " + (if (seoul > now) "높" else "낮") + e("음", "아요")
+                if (base != null && (seoul - base) * (now - base) < 0) line += "\n서울은 기준선 " + (if (seoul > base) "위" else "아래") + ", 전국은 " + (if (now > base) "위" else "아래") + "로 온도 차이가 뚜렷함"
+            }
+            lines += line
+        }
 
         val rank = ranked(s, sido)
         if (rank.size >= 5) {
-            val top = rank.first(); val bottom = rank.last()
-            if (s.kind == "change") {
-                lines += if (top.latest!! > 0) "제일 많이 오른 곳은 ${top.name}(${s.fmt(top.latest)})" + e("", "예요") else "오른 곳 없이 ${top.name}(${s.fmt(top.latest)})이 가장 덜 내렸" + e("음", "어요")
-                lines += if (bottom.latest!! < 0) "제일 많이 내린 곳은 ${bottom.name}(${s.fmt(bottom.latest)})" + e("", "예요") else "가장 덜 오른 곳은 ${bottom.name}(${s.fmt(bottom.latest)})" + e("", "예요")
-                val up = rank.count { it.latest!! > 0 }; val down = rank.count { it.latest!! < 0 }
-                lines += "17개 시도 중 오른 곳 ${up}곳, 내린 곳 ${down}곳" + e("", "이에요")
-            } else {
-                lines += "가장 높은 곳은 ${top.name}(${s.fmt(top.latest)}), 가장 낮은 곳은 ${bottom.name}(${s.fmt(bottom.latest)})" + e("", "예요")
-            }
+            var line = "가장 높은 곳 ${rank.first().name}(${s.fmt(rank.first().latest)}), 가장 낮은 곳 ${rank.last().name}(${s.fmt(rank.last().latest)})"
+            if (base != null) line += "\n${rank.size}개 시도 중 기준선을 넘은 곳 ${rank.count { it.latest!! > base }}곳"
+            lines += line
         }
+        if (base == null && s.desc.isNotBlank()) lines += s.desc
+        return lines
+    }
 
-        val now = head.latest; val before = head.prev
-        if (now != null && before != null) {
-            val unitWord = when (s.cycle) { "주간" -> "지난주"; "월간" -> "지난달"; else -> "직전 조사" }
-            val diff = now - before
-            val same = abs(diff) < 0.5 / Math.pow(10.0, s.digits.toDouble())
-            lines += if (s.kind == "change") {
-                when {
-                    same -> "${head.name} 변동률은 $unitWord(${s.fmt(before)})와 같" + e("음", "아요")
-                    now > 0 && before > 0 -> "${head.name} 상승폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff > 0) "커졌" else "줄었") + e("음", "어요")
-                    now < 0 && before < 0 -> "${head.name} 하락폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff < 0) "커졌" else "줄었") + e("음", "어요")
-                    else -> "$unitWord(${s.fmt(before)})에서 " + (if (now > 0) "상승" else if (now < 0) "하락" else "보합") + "으로 바뀌었" + e("음", "어요")
-                }
-            } else {
-                if (same) "${head.name}은 $unitWord(${s.fmt(before, false)})와 같" + e("음", "아요")
-                else "${head.name}은 $unitWord(${s.fmt(before, false)})보다 ${s.fmt(abs(diff), false)} " + (if (diff > 0) "올랐" else "내렸") + e("음", "어요")
-            }
+    // ---------- PIR (소득 대비 집값) ----------
+    private fun pirThread(s: StatSeries, head: StatRegion, casual: Boolean): List<String> {
+        fun e(c: String, p: String) = if (casual) c else p
+        val lines = mutableListOf<String>()
+        val seoul = s.region("서울").takeIf { it !== head && it?.latest != null }
+        val now = head.latest ?: 0.0
+        lines += "${s.title}, ${head.name} ${s.fmt(head.latest)}" + (seoul?.let { " · 서울 ${s.fmt(it.latest)}" } ?: "") + " (${s.source} ${s.dateLabel} 기준)"
+        if (s.desc.isNotBlank()) lines += s.desc
+        // 숫자를 생활 감각으로: 소득의 절반을 저축하면 두 배가 걸림
+        val real = mutableListOf<String>()
+        fun years(v: Double) = String.format("%.0f", v * 2)
+        real += "소득의 절반을 저축한다고 치면 ${head.name} 약 ${years(now)}년" + (seoul?.latest?.let { ", 서울 약 ${years(it)}년" } ?: "")
+        seoul?.latest?.let { if (now > 0) real += "서울은 ${head.name}의 ${String.format("%.1f", it / now)}배 수준" }
+        lines += real.joinToString("\n")
+        // 흐름
+        val flow = mutableListOf<String>()
+        val u = unit(s)
+        for (r in listOfNotNull(head, seoul)) {
+            val v = r.latest ?: continue
+            val start = r.values.firstOrNull() ?: continue
+            if (r.values.size < 4) continue
+            val d = v - start
+            flow += if (abs(d) < eps(s)) "${r.name}은 ${r.values.size - 1}$u 전(${s.fmt(start)})과 같은 수준"
+            else "${r.name}은 ${r.values.size - 1}$u 전(${s.fmt(start)})보다 ${s.fmt(abs(d))} " + (if (d > 0) "올랐" else "내렸") + e("음", "어요")
         }
-        if (s.kind != "change" && s.desc.isNotBlank()) lines += s.desc
-        return lines.joinToString("\n\n")
+        if (flow.isNotEmpty()) lines += flow.joinToString("\n")
+        val dir = seoul?.let { r -> r.values.firstOrNull()?.let { st -> (r.latest ?: st) - st } } ?: head.values.firstOrNull()?.let { now - it }
+        if (dir != null && abs(dir) >= eps(s)) lines += "정리: 소득이 느는 속도보다 집값이 " + (if (dir > 0) "더 빨리 올라 내 집 마련 부담이 커지는 흐름" else "덜 올라 내 집 마련 부담이 줄어드는 흐름")
+        return lines
     }
 }
 
@@ -200,7 +379,17 @@ object RegionText {
             val who = if (at == region) "" else "($at 기준) "
             val compare = listOf(sido, "전국").distinct().filter { it != at }.mapNotNull { n -> s.region(n)?.latest?.let { "$n ${s.fmt(it)}" } }
             var line = "${s.source} ${s.short} $who${s.fmt(r.latest)}"
+            val u = if (s.date.count { it == '-' } == 2) "주" else "개월"
+            val streak = if (s.kind == "change") Insight.signStreak(r.values, 0.5 / Math.pow(10.0, s.digits.toDouble())) else Insight.moveStreak(r.values, 0.5 / Math.pow(10.0, s.digits.toDouble()))
+            if (abs(streak) >= 2) line += " · ${abs(streak)}$u${if (s.kind == "change" && abs(streak) >= r.values.size) " 넘게" else ""} 연속 " + (if (streak > 0) "상승" else "하락")
             if (compare.isNotEmpty()) line += " (${compare.joinToString(", ")})"
+            // 시도 평균과의 격차
+            val sd = s.region(sido)?.latest
+            if (at != sido && sd != null && r.latest != null) {
+                val gap = r.latest!! - sd
+                val gapText = if (s.kind == "change") String.format("%.${s.digits}f%%p", abs(gap)) else s.fmt(abs(gap), false)
+                if (abs(gap) >= 0.5 / Math.pow(10.0, s.digits.toDouble())) line += "\n$sido 평균보다 $gapText " + (if (gap > 0) "높" else "낮") + e("음", "아요")
+            }
             if (s.kind == "change") {
                 val c4 = cumulative(r.values, 4)
                 val call = if (r.values.size >= 8) cumulative(r.values, r.values.size) else null
@@ -217,7 +406,10 @@ object RegionText {
         if (sale != null) {
             val sib = stats.siblings(region).mapNotNull { n -> sale.region(n)?.latest?.let { n to it } }.sortedByDescending { it.second }
             val rank = sib.indexOfFirst { it.first == region }
-            if (rank >= 0 && sib.size >= 5) lines += "$sido ${sib.size}개 시군구 중 ${sale.short} 상승률 ${rank + 1}위" + e("", "예요")
+            if (rank >= 0 && sib.size >= 5) {
+                val pos = when { rank * 3 < sib.size -> "강한 편"; rank * 3 >= sib.size * 2 -> "약한 편"; else -> "중간" }
+                lines += "$sido ${sib.size}개 시군구 중 ${sale.short} 상승률 ${rank + 1}위 → $sido 안에서 $pos\n1위 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)}), 꼴찌 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})"
+            }
             else if (region == sido && sib.size >= 5) lines += "$sido 안에서는 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)})가 가장 높고 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})가 가장 낮" + e("음", "아요")
         }
         return lines.joinToString("\n\n")

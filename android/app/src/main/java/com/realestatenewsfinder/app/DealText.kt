@@ -86,8 +86,28 @@ object DealText {
                 }
             }
         }
+        // 거래량 흐름: 기간을 날짜로 반 나눠 앞쪽과 최근 쪽 건수 비교
+        if (valid.size >= 6 && period.months >= 3) {
+            val first = java.time.LocalDate.parse(valid.last().date).toEpochDay(); val end = java.time.LocalDate.parse(valid.first().date).toEpochDay()
+            val mid = java.time.LocalDate.ofEpochDay((first + end) / 2).toString()
+            val early = valid.count { it.date < mid }; val late = valid.size - early
+            if (early > 0 && end - first >= 30) {
+                val word = when { late >= early * 1.3 -> "거래가 늘어나는 중"; late <= early * 0.7 -> "거래가 줄어드는 중"; else -> "거래량은 비슷" }
+                lines += "거래량은 기간 앞쪽 ${early}건 → 최근 쪽 ${late}건 ($word)"
+            }
+        }
         val last = valid.first()
-        lines += "가장 최근 거래는 ${md(last.date)} ${one(last)}"
+        var recent = "가장 최근 거래는 ${md(last.date)} ${one(last)}"
+        // 최근 거래가 같은 면적 기간 최고가와 얼마나 떨어져 있는지
+        if (type != "monthly") {
+            val same = valid.filter { areaKey(it) == areaKey(last) }
+            val peak = same.maxBy(::value)
+            if (same.size >= 3) {
+                recent += if (value(last) >= value(peak)) "\n같은 면적 기간 내 최고가" + e("", "예요")
+                else "\n같은 면적 최고가 ${won(value(peak))}(${md(peak.date)}) 대비 ${pct(value(last), value(peak))}"
+            }
+        }
+        lines += recent
         lines += "자료: 국토교통부 실거래가 (계약일 기준, 해제 거래 제외)"
         return lines.joinToString("\n\n")
     }
