@@ -1,18 +1,9 @@
-// 진단: SH·GH 공고 상세 주소가 그대로 열리는지 (앱에서 여는 주소)
-import { fetchHtml } from './fetcher.js';
-import { fetchSh, fetchGh } from './apply.js';
-import { sourceById } from './sources.js';
-
-for (const [id, f] of [['sh-sale', fetchSh], ['sh', fetchSh], ['gh', fetchGh]]) {
+// 진단: 실거래 중계 서버 접속(토큰 필요 여부), R-ONE·KB 통계의 시군구 단위 제공 여부
+const px = 'https://apt-alert.k-rebirth7-03a.workers.dev';
+for (const u of [`${px}/health`, `${px}/molit/trade?LAWD_CD=41290&DEAL_YMD=202610&pageNo=1&numOfRows=5`, `${px}/molit/rent?LAWD_CD=41290&DEAL_YMD=202610&pageNo=1&numOfRows=5`]) {
   try {
-    const posts = await f(sourceById[id]);
-    for (const p of posts.slice(0, 8)) console.log(' ', p.title, '|', p.summary, '|', p.views);
-    if (!posts[0]) continue;
-    const html = await fetchHtml(posts[0].url, { cookies: true, timeoutMs: 20000 });
-    const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
-    const key = posts[0].title.replace(/^\[[^\]]+\]\s*/, '').slice(0, 12);
-    console.log(' 상세', posts[0].url, '길이', html.length, '제목 포함:', text.includes(key), '| 위치 주변:', text.slice(Math.max(0, text.indexOf(key) - 50), text.indexOf(key) + 500));
-  } catch (e) {
-    console.log(id, '실패:', e.message);
-  }
+    const r = await fetch(u, { signal: AbortSignal.timeout(30000) });
+    const t = await r.text();
+    console.log('\n##', u, '→', r.status, r.headers.get('x-cache'), t.slice(0, 900).replace(/\s+/g, ' '));
+  } catch (e) { console.log('\n##', u, '실패', e.message); }
 }
