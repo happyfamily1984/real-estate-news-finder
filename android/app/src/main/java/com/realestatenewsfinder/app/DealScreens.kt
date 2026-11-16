@@ -84,7 +84,7 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     Triple("budget", "내 돈으로 살 수 있는 아파트", "예산·평형·지역을 고르면 살 수 있는 아파트 목록"),
-                    Triple("history", "10·20·30년 전 가격 비교", "단지와 평형을 고르면 그때와 지금 실거래가"),
+                    Triple("history", "5·10·20년 전 가격 비교", "단지와 평형을 고르면 그때와 지금 실거래가"),
                     Triple("presale", "분양가 vs 실거래가", "10년 이내 단지의 분양가와 최근 실거래가"),
                 ).forEach { (id, title, sub) ->
                     SoftCard(onClick = { onTool(id) }) {
@@ -375,7 +375,7 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptN
                 SoftCard(onClick = { onHistory(name, umd) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("10·20·30년 전 가격과 비교", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("5·10·20년 전 가격과 비교", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text("그때와 지금 실거래가를 스레드용으로", fontSize = 12.sp, color = muted)
                         }
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted)
