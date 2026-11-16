@@ -53,6 +53,7 @@ class DealsTest {
         assertTrue(t, t.contains("최고 19억원 (84㎡ 12층, 10/19)"))
         assertTrue(t, t.contains("59㎡ 15억원 (1건)"))
         assertTrue(t, t.contains("84㎡ 기준, 기간 앞쪽 평균 17억 2,000만원 → 뒤쪽 평균 18억 6,000만원 (+8.1%)"))
+        assertTrue(t, t.contains("가장 최근 거래는 10/19 84㎡ 12층 19억원\n같은 면적 기간 내 최고가"))
         val none = DealText.summary("래미안슈르", "경기도 과천시", "원문동", "jeonse", DealPeriod.M1, emptyList(), casual = false)
         assertTrue(none, none.contains("최근 1개월 동안 신고된 전세 실거래가 없어요"))
     }
