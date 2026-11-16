@@ -3,13 +3,14 @@
 //   filter   : true면 부동산 관련 제목만 남김 (경제 전체 피드, 타 부처 보도자료)
 //   selectors: HTML 목록 파싱 (row/title/link/views/comments/likes/exclude)
 //   keepParams : 글 주소에서 남길 쿼리 파라미터 (같은 글이 같은 id가 되도록)
+//   enrich   : 글의 상세 페이지에서 주요 정보(details)를 뽑는 함수. 새 글에 대해서만, 한 번에 몇 개씩 호출
 //   replace  : 목록에서 빠진 글은 바로 숨김 (마감된 청약 공고 등)
 //   boostHours : 앱 목록에서 이 소스 글을 더 위에 보이게 (최신순에서 이 시간만큼 새 글로 취급, 중요도 가산)
 //   disabled : true면 수집 안 함
 import { fetchFeed, fetchGoogleNews } from './feeds.js';
 import { fetchKorea } from './korea.js';
 import { fetchNaverCafe } from './navercafe.js';
-import { fetchLh, fetchApplyhome } from './apply.js';
+import { fetchLh, fetchApplyhome, enrichApplyhome, enrichLh } from './apply.js';
 
 export const SOURCES = [
   // ---- 언론 ----
@@ -30,10 +31,10 @@ export const SOURCES = [
 
   // ---- 정부·공공 (정책브리핑 부처별 보도자료 RSS) ----
   // ---- 청약·공공분양 공고 (목록에 있는 동안만 보여줌: replace) ----
-  { id: 'applyhome', name: '청약홈', board: 'APT 분양정보', kind: 'gov', color: '#e4572e', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTLttotPblancListView.do', list: 'selectAPTLttotPblancListView.do', detail: 'selectAPTLttotPblancDetail.do', label: '청약', fetch: fetchApplyhome, replace: true, maxAgeH: 24 * 45, boostHours: 4 },
+  { id: 'applyhome', name: '청약홈', board: 'APT 분양정보', kind: 'gov', color: '#e4572e', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTLttotPblancListView.do', list: 'selectAPTLttotPblancListView.do', detail: 'selectAPTLttotPblancDetail.do', label: '청약', fetch: fetchApplyhome, enrich: enrichApplyhome, replace: true, maxAgeH: 24 * 45, boostHours: 4 },
   { id: 'applyhome-remain', name: '청약홈 무순위', board: '무순위·잔여세대', kind: 'gov', color: '#c2410c', url: 'https://www.applyhome.co.kr/ai/aia/selectAPTRemndrLttotPblancListView.do', list: 'selectAPTRemndrLttotPblancListView.do', detail: 'selectAPTRemndrLttotPblancDetail.do', label: '무순위', fetch: fetchApplyhome, replace: true, allowEmpty: true, maxAgeH: 24 * 45, boostHours: 4 },
-  { id: 'lh-sale', name: 'LH 분양', board: '분양주택 공고', kind: 'gov', color: '#0e7490', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1027', mi: 1027, fetch: fetchLh, replace: true, maxAgeH: 24 * 60, boostHours: 4 },
-  { id: 'lh', name: 'LH 임대', board: '임대주택 공고', kind: 'gov', color: '#155e75', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1026', mi: 1026, types: /임대|행복|전세|든든/, fetch: fetchLh, replace: true, maxAgeH: 24 * 60 },
+  { id: 'lh-sale', name: 'LH 분양', board: '분양주택 공고', kind: 'gov', color: '#0e7490', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1027', mi: 1027, fetch: fetchLh, enrich: enrichLh, replace: true, maxAgeH: 24 * 60, boostHours: 4 },
+  { id: 'lh', name: 'LH 임대', board: '임대주택 공고', kind: 'gov', color: '#155e75', url: 'https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1026', mi: 1026, types: /임대|행복|전세|든든/, fetch: fetchLh, enrich: enrichLh, replace: true, maxAgeH: 24 * 60 },
 
   // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
   { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },

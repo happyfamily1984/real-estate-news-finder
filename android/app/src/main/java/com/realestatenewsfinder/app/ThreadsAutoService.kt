@@ -31,6 +31,8 @@ object ThreadsAuto {
         var curKey: String = "", var lastKey: String = "",
         /** 빈 화면이거나 '…하는 중' 화면 (스레드가 다시 켜지는 중) */
         var loading: Boolean = false,
+        /** 로그인(계정 목록) 화면을 처음 본 시각 */
+        var loginSeenAt: Long = 0,
         /** 탭이 없는 화면에서 뒤로 나간 횟수 */
         var backs: Int = 0,
     )
@@ -309,7 +311,13 @@ class ThreadsAutoService : AccessibilityService() {
         when (screen) {
             ThreadsAuto.Screen.LOGIN -> {
                 val account = nodes.firstOrNull { ThreadsAuto.isAccount(label(it), job.target) }
-                if (account == null) { endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요."); return }
+                if (account == null) {
+                    // 계정 목록이 늦게 뜨는 경우가 있어 바로 실패로 보지 않고 20초까지 기다림
+                    if (job.loginSeenAt == 0L) { job.loginSeenAt = now; ThreadsAuto.note("  계정 목록이 뜨기를 기다리는 중") }
+                    job.loading = true
+                    if (now - job.loginSeenAt > 20_000) endSwitch("스레드 로그인 목록에 @${job.target} 계정이 없어요. 직접 로그인해 주세요.")
+                    return
+                }
                 job.loggingOut = false
                 if (!steady(job, "account", account, win)) return
                 val ok = press(account)

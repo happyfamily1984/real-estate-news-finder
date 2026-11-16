@@ -118,12 +118,13 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         if (summaryRun == 0 && summaryState == "done") return@LaunchedEffect
         if (!Summarizer.hasKey(ctx)) { summaryState = "AI 요약을 쓰려면 설정에서 무료 AI 키(Gemini 등)를 넣어주세요. 지금은 제목과 기사 앞부분만 들어가요."; return@LaunchedEffect }
         val body = done?.text.orEmpty()
-        if (body.length < 80 && post.summary.isNullOrBlank()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
+        if (body.length < 80 && post.summary.isNullOrBlank() && post.details.isEmpty()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
         summaryState = "working"
         val sum = Summarizer.summarize(ctx, post, kind, sourceName, body)
         if (sum != null) {
             // 표지 제목은 기사 제목 그대로 둠 (AI가 주제를 바꾸지 못하게)
-            thread = sum.thread; pointsText = sum.points.joinToString("\n"); summaryState = "done"
+            // 공고(청약·LH)는 카드 내용을 상세 페이지에서 뽑은 정보 그대로 둠 (AI가 줄이거나 바꾸지 않게)
+            thread = sum.thread; if (post.details.isEmpty()) pointsText = sum.points.joinToString("\n"); summaryState = "done"
         } else summaryState = "요약 실패: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
     }
 
@@ -177,7 +178,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
 
     val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Text("스레드용 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)

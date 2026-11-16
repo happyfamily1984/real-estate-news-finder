@@ -89,7 +89,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.07f), CircleShape),
         )
 
-        Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(rememberScrollState())) {
             // 헤더
             Row(
                 Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 4.dp).height(72.dp),

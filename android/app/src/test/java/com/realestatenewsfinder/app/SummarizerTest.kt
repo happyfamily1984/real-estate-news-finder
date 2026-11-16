@@ -88,4 +88,18 @@ class SummarizerTest {
         assertEquals("제목이에요", s.headline)
         assertEquals(2, s.points.size)
     }
+
+    @Test
+    fun noticeUsesCrawledDetails() {
+        val p = Post("a", "applyhome", "[청약] 호반써밋 초량 (부산·민영) 11/23~11/25 접수", "u",
+            details = listOf("공급위치: 부산광역시 동구 초량3동", "공급규모: 236세대 (일반 99 · 특별 137)", "59㎡ 분양가: 5억4,820만~5억6,320만원", "청약일정: 특별공급 11/23 · 1순위 11/24 · 2순위 11/25"))
+        val s = Summarizer.basic(p)
+        assertEquals(p.details, s.points)
+        assertTrue(s.thread.contains("59㎡ 분양가: 5억4,820만~5억6,320만원"))
+        val input = Summarizer.buildInput(p, "청약홈", "본문 글자")
+        assertTrue(input.contains("공고 주요 정보:") && input.contains("공급규모: 236세대"))
+        // 상세 정보의 숫자는 원문에 있는 숫자로 인정됨
+        assertEquals(emptyList<String>(), Summarizer.unsupportedNumbers("59㎡ 분양가가 5억4,820만원부터래", input))
+        assertEquals(p, Post.fromJson(p.toJson()))
+    }
 }

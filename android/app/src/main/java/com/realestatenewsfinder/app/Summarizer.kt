@@ -49,7 +49,8 @@ object Summarizer {
             (if (today.isNotEmpty()) "오늘은 $today 이다.\n" else "") + "\n" +
             "[주제] 글의 주제는 입력의 '제목'이 말하는 바로 그것이다. 주제를 바꾸지 않는다. 본문에 나오는 다른 숫자나 곁가지 내용을 주제로 삼지 않는다.\n" +
             "[가장 먼저 할 일] 제목이 말하는 사실(무슨 일이 있었나)을 본문에서 확인하고, 그 이유와 뒷받침하는 숫자를 본문에서 찾는다. 글의 내용은 본문에 있는 것으로만 채운다.\n" +
-            "이 글에서 특히 살릴 것: $angle. 본문에 없으면 억지로 넣지 않는다.\n\n" +
+            "이 글에서 특히 살릴 것: $angle. 본문에 없으면 억지로 넣지 않는다.\n" +
+            "입력에 '공고 주요 정보'가 있으면(청약·분양·임대 공고) 그 안의 위치, 세대수, 분양가·임대조건, 청약 일정, 입주 시기를 빠짐없이 살려 쓴다. 누가 신청할 수 있는지가 본문에 있으면 함께 쓴다.\n\n" +
             "[사실 규칙 — 어기면 안 됨]\n" +
             "- 숫자(금액, 비율, 경쟁률, 가구 수, 날짜, 연도)는 본문에 있는 것만, 본문에 적힌 그대로 쓴다. 계산하거나 단위를 바꾸지 않는다.\n" +
             "- 본문에 없는 연도·날짜를 쓰지 않는다. '올해', '지난해', '현재' 같은 표현을 특정 연도로 바꾸지 않는다.\n" +
@@ -104,7 +105,9 @@ object Summarizer {
     fun buildInput(post: Post, sourceName: String, body: String): String {
         val text = body.replace(Regex("[ \\t\\u00A0]+"), " ").replace(Regex("\\n\\s*\\n+"), "\n").trim()
         val lead = post.summary?.takeIf { it.isNotBlank() && !text.contains(it.take(30)) }?.let { "기사 앞부분: $it\n\n" }.orEmpty()
-        return "매체: $sourceName\n제목: ${post.title}\n\n${lead}본문:\n${text.take(6000)}"
+        // 공고 상세 페이지에서 뽑은 주요 정보(위치·세대수·분양가·일정)는 본문보다 앞에 둠 → 요약에 빠지지 않게
+        val facts = if (post.details.isEmpty()) "" else "공고 주요 정보:\n" + post.details.joinToString("\n") + (post.note?.let { "\n안내: $it" } ?: "") + "\n\n"
+        return "매체: $sourceName\n제목: ${post.title}\n\n${facts}${lead}본문:\n${text.take(6000)}"
     }
 
     private fun cleanLine(l: String) = l.trim().trim('"', '“', '”', '*').trim()
@@ -137,8 +140,12 @@ object Summarizer {
         return Summary(thread, headline, points.take(6))
     }
 
-    /** AI 없이 만드는 기본 내용: 제목 + 피드에 있던 기사 앞부분 */
+    /** AI 없이 만드는 기본 내용: 제목 + 피드에 있던 기사 앞부분. 공고(청약·LH)는 상세 페이지에서 뽑은 주요 정보를 그대로 씀 */
     fun basic(post: Post): Summary {
+        if (post.details.isNotEmpty()) {
+            val lines = post.details.take(7)
+            return Summary((listOf(post.title) + lines).joinToString("\n\n"), post.title, post.details.take(6))
+        }
         val sentences = post.summary.orEmpty().split(Regex("(?<=[.다요])\\s+")).map { it.trim() }.filter { it.length in 8..90 }.take(3)
         return Summary((listOf(post.title, "") + sentences).joinToString("\n").trim(), post.title, sentences)
     }

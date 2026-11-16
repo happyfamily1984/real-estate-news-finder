@@ -54,6 +54,25 @@ export class Crawler {
     }
   }
 
+  /** 상세 정보가 없는 글(청약·LH 공고)의 상세 페이지를 받아 details를 채움. 사이트 부담을 줄이려고 소스당 한 번에 12개까지 */
+  async enrich() {
+    for (const src of this.sources.filter((s) => s.enrich && this.status[s.id]?.ok)) {
+      const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && (p.detailTries ?? 0) < 3).slice(0, 12);
+      let done = 0;
+      for (const p of todo) {
+        p.detailTries = (p.detailTries ?? 0) + 1;
+        try {
+          const r = await src.enrich(p);
+          if (r?.details?.length) { p.details = r.details; if (r.note) p.note = r.note; done++; }
+        } catch (e) {
+          if (done === 0 && p === todo[0]) console.log(`[enrich] ${src.id}: ${e.message}`);
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (todo.length) console.log(`[enrich] ${src.id}: ${done}/${todo.length}건 상세 정보. 예: ${(todo.find((p) => p.details)?.details ?? []).join(' | ').slice(0, 400)}`);
+    }
+  }
+
   async crawl() {
     const now = Date.now();
     const results = await Promise.all(this.sources.map((s) => this.crawlSource(s, now)));
@@ -82,6 +101,8 @@ export class Crawler {
         }
       }
     });
+
+    await this.enrich();
 
     for (const [id, p] of this.posts) {
       const src = this.sources.find((s) => s.id === p.source);

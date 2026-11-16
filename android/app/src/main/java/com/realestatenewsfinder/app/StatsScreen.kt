@@ -164,7 +164,7 @@ fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSen
 
     val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Text(s.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)

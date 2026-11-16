@@ -112,3 +112,141 @@ export async function fetchApplyhome(source) {
   if (rows === 0 && !source.allowEmpty) throw new Error('분양 목록을 찾지 못했습니다 (사이트 구조 변경 가능성)');
   return posts;
 }
+
+// ---------- 상세 페이지에서 주요 정보 뽑기 (목록만으로는 내용이 부족해서) ----------
+
+/** 만원 단위 금액 → "5억6,320만원" */
+export function eok(manwon) {
+  const n = Math.round(manwon);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const e = Math.floor(n / 10000);
+  const m = n % 10000;
+  return `${e ? `${e}억` : ''}${m ? `${m.toLocaleString('ko-KR')}만` : ''}원`;
+}
+const num = (t) => { const v = parseFloat(String(t ?? '').replace(/,/g, '')); return Number.isFinite(v) ? v : null; };
+const short = (d) => { const m = String(d).match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/); return m ? `${+m[2]}/${+m[3]}` : String(d); };
+
+function tableByCaption($, re) {
+  return $('table').filter((_, t) => re.test($(t).find('caption').text())).first();
+}
+
+/** 청약홈 APT 분양 상세 → { details: ["항목: 내용", …], summary } */
+export function parseApplyhomeDetail(html) {
+  const $ = cheerio.load(html);
+  $('script,style,noscript').remove();
+  const text = clean($('body').text());
+  const details = [];
+  const pair = (label) => {
+    let v = '';
+    $('th').each((_, th) => { if (!v && clean($(th).text()) === label) v = clean($(th).nextAll('td').first().text()); });
+    return v;
+  };
+  const loc = pair('공급위치');
+  if (loc) details.push(`공급위치: ${loc}`);
+
+  // 공급대상 표의 '계' 줄: 일반 | 특별 | 계
+  let total = null;
+  $('table').filter((_, t) => /공급대상/.test($(t).find('caption').text()) && !/특별공급/.test($(t).find('caption').text())).first().find('tr').each((_, tr) => {
+    const c = $(tr).find('th,td').map((__, x) => clean($(x).text())).get();
+    if (c[0] === '계' && c.length >= 4) total = [null, c[1], c[2], c[3]];
+  });
+  const scale = pair('공급규모');
+  if (total) details.push(`공급규모: ${total[3]}세대 (일반 ${total[1]} · 특별 ${total[2]})`);
+  else if (scale) details.push(`공급규모: ${scale}`);
+
+  // 주택형별 분양가 (최고가 기준, 만원): 전용면적(정수)별로 묶어 범위로
+  const byArea = new Map();
+  tableByCaption($, /공급금액/).find('tr').each((_, tr) => {
+    const c = $(tr).find('td').map((__, td) => clean($(td).text())).get();
+    const area = parseInt(c[0], 10);
+    const price = num(c[1]);
+    if (!Number.isFinite(area) || price == null || price < 1000) return;
+    const cur = byArea.get(area) ?? [price, price];
+    byArea.set(area, [Math.min(cur[0], price), Math.max(cur[1], price)]);
+  });
+  const areas = [...byArea.entries()].sort((a, b) => a[0] - b[0]);
+  // 종류가 많으면 가장 작은 것, 59·84 같은 대표 면적, 가장 큰 것 위주로 4개까지
+  const picked = areas.length <= 4 ? areas : [areas[0], ...areas.filter(([a]) => a === 59 || a === 84), areas.at(-1)].filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 4).sort((a, b) => a[0] - b[0]);
+  for (const [a, [lo, hi]] of picked) details.push(`${a}㎡ 분양가: ${lo === hi ? eok(lo) : `${eok(lo).replace(/원$/, '')}~${eok(hi)}`}`);
+
+  const sp = text.match(/특별공급\s*(20\d\d-\d\d-\d\d)/)?.[1];
+  const r1 = text.match(/1순위\s*(20\d\d-\d\d-\d\d)/)?.[1];
+  const r2 = text.match(/2순위\s*(20\d\d-\d\d-\d\d)/)?.[1];
+  const sched = [sp && `특별공급 ${short(sp)}`, r1 && `1순위 ${short(r1)}`, r2 && `2순위 ${short(r2)}`].filter(Boolean);
+  if (sched.length) details.push(`청약일정: ${sched.join(' · ')}`);
+  const win = text.match(/당첨자\s*발표일?\s*(20\d\d-\d\d-\d\d)/)?.[1];
+  const contract = text.match(/계약일\s*(20\d\d-\d\d-\d\d)\s*~\s*(20\d\d-\d\d-\d\d)/);
+  if (win) details.push(`당첨자 발표: ${short(win)}${contract ? ` · 계약 ${short(contract[1])}~${short(contract[2])}` : ''}`);
+  const movein = text.match(/입주예정월\s*:\s*([\d.]+)/)?.[1];
+  if (movein) details.push(`입주예정: ${movein.replace(/^(\d{4})\.(\d{1,2})$/, (_, y, m) => `${y}년 ${+m}월`)}`);
+  const etc = tableByCaption($, /기타사항/).find('tr').eq(1).find('td').map((_, td) => clean($(td).text())).get();
+  if (etc[0] || etc[1]) details.push(`시행·시공: ${[etc[0], etc[1]].filter(Boolean).join(' / ')}`);
+  const special = text.match(/특이사항\s*:\s*([^*]{2,30}?)\s*\*/)?.[1];
+  if (special) details.push(`특이사항: ${clean(special)}`);
+  return { details: details.slice(0, 9) };
+}
+
+/** LH 청약플러스 공고 상세 → { details, summary } */
+export function parseLhDetail(html) {
+  const $ = cheerio.load(html);
+  $('script,style,noscript').remove();
+  const text = clean($('body').text());
+  const details = [];
+  const loc = text.match(/소재지\s*:\s*(.+?)\s*(?:전용면적|총\s?세대수|난방방식)/)?.[1];
+  if (loc) details.push(`소재지: ${clean(loc).slice(0, 50)}`);
+  const complexes = (text.match(/소재지\s*:/g) || []).length;
+  if (complexes > 1) details.push(`대상 단지: ${complexes}곳`);
+
+  // 주택형 표: 분양은 평균분양가격, 임대는 임대보증금·월임대료
+  let supply = 0;
+  const types = [];
+  $('table').filter((_, t) => /주택형 안내/.test($(t).find('caption').text())).each((_, t) => {
+    const head = $(t).find('thead th, tr').first().parent().find('th').map((__, th) => clean($(th).text())).get();
+    const col = (re) => head.findIndex((h) => re.test(h));
+    const iArea = col(/전용면적/); const iNow = col(/금회공급/); const iPrice = col(/평균분양가격/); const iDep = col(/임대보증금/); const iRent = col(/월임대료/);
+    $(t).find('tbody tr').each((__, tr) => {
+      const c = $(tr).find('td').map((___, td) => clean($(td).text())).get();
+      if (c.length < 3) return;
+      const now = num(c[iNow]);
+      if (now) supply += now;
+      const area = num(c[iArea]);
+      const price = iPrice >= 0 ? num(c[iPrice]) : null;
+      const dep = iDep >= 0 ? num(c[iDep]) : null;
+      const rent = iRent >= 0 ? num(c[iRent]) : null;
+      if (area) types.push({ area, now, price, dep, rent });
+    });
+  });
+  if (supply) details.push(`금회 공급: ${supply.toLocaleString('ko-KR')}세대`);
+  if (types.length) {
+    const as = types.map((t) => t.area);
+    details.push(`전용면적: ${Math.min(...as) === Math.max(...as) ? `${Math.min(...as)}㎡` : `${Math.min(...as)}~${Math.max(...as)}㎡`}`);
+    const priced = types.filter((t) => t.price);
+    for (const t of priced.slice(0, 3)) details.push(`${Math.round(t.area)}㎡ 평균 분양가: ${eok(t.price / 10000)}`);
+    const rented = types.filter((t) => t.dep && t.rent);
+    for (const t of rented.slice(0, 2)) details.push(`${Math.round(t.area)}㎡ 임대조건: 보증금 ${eok(t.dep / 10000)} · 월 ${Math.round(t.rent / 10000).toLocaleString('ko-KR')}만원`);
+  }
+  // 공급일정 표: 구분 | 신청일시 | 신청방법
+  tableByCaption($, /공급일정/).find('tbody tr').slice(0, 2).each((_, tr) => {
+    const c = $(tr).find('td').map((__, td) => clean($(td).text())).get();
+    if (c[0] && c[1]) details.push(`${c[0].slice(0, 12)} 접수: ${c[1].replace(/\s*\d{1,2}:\d{2}/g, '').replace(/\s+/g, ' ').trim()}${c[2] ? ` (${c[2]})` : ''}`);
+  });
+  const win = text.match(/(?:당첨자|순번)\s*발표\s*:?\s*(20\d\d\.\d{1,2}\.\d{1,2})/)?.[1];
+  if (win) details.push(`발표: ${short(win)}`);
+  const contract = text.match(/계약체결\s*:\s*(20\d\d\.\d{1,2}\.\d{1,2})[^~]{0,6}~\s*(?:20\d\d\.)?(\d{1,2}\.\d{1,2})/);
+  if (contract) details.push(`계약: ${short(contract[1])}~${contract[2].replace('.', '/')}`);
+  const telRe = (label) => text.match(new RegExp(`${label}\\s*:?\\s*(\\d{2,4}-\\d{3,4}-\\d{4}|\\d{4}-\\d{4})`))?.[1];
+  const tel = telRe('문의전화') ?? telRe('문의처');
+  if (tel) details.push(`문의: ${tel}`);
+  // 공고내용의 첫 안내 문장 두 개 (■로 시작)
+  const body = text.match(/공고내용\s*(.+?)\s*공급정보/)?.[1] ?? '';
+  const notes = body.split('■').map((x) => clean(x)).filter((x) => x.length > 15).slice(0, 2).map((x) => x.slice(0, 150));
+  return { details: details.slice(0, 9), ...(notes.length ? { note: notes.join(' ') } : {}) };
+}
+
+/** 글 하나의 상세 페이지를 받아 details를 채움 (크롤러가 새 글에 대해서만 호출) */
+export async function enrichApplyhome(post) {
+  return parseApplyhomeDetail(await fetchHtml(post.url, { cookies: true, timeoutMs: 20000 }));
+}
+export async function enrichLh(post) {
+  return parseLhDetail(await fetchHtml(post.url, { cookies: true, timeoutMs: 20000 }));
+}
