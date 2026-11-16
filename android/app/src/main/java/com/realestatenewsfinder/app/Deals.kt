@@ -302,6 +302,18 @@ class MolitClient(
         return deals
     }
 
+    /** 지정한 달들을 한꺼번에 (과거 가격 비교용). 지난 달 자료는 7일 동안 디스크에 캐시됨 */
+    fun fetchYms(api: String, lawdCd: String, yms: List<String>): List<Deal> {
+        val futures = yms.map { ym -> pool.submit(Callable { fetchMonth(api, lawdCd, ym) }) }
+        return futures.flatMap {
+            try {
+                it.get()
+            } catch (e: ExecutionException) {
+                throw e.cause ?: e
+            }
+        }
+    }
+
     fun fetchMonths(api: String, lawdCd: String, months: Int): List<Deal> {
         val futures = Molit.recentYms(months, today()).map { ym -> pool.submit(Callable { fetchMonth(api, lawdCd, ym) }) }
         return futures.flatMap {
