@@ -2,6 +2,7 @@
 // 첨부된 한글 문서(hwpx)를 받아 글자를 뽑아 두면 앱이 요약할 때 같이 넣는다. (hwpx는 zip 안에 XML이 들어 있는 형식)
 import zlib from 'node:zlib';
 import * as cheerio from 'cheerio';
+import { fetchHtml, fetchBinary } from './fetcher.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -84,7 +85,7 @@ export function findAttachments(html, pageUrl) {
     const around = [clean(el.text()), el.attr('title') ?? '', clean(el.closest('li, td, dd, p, div').first().text())];
     const name = around.map((t) => t.match(/[^\s/\\]*[^/\\]*?\.(hwpx|hwp|pdf)\b/i)?.[0]).find(Boolean) ?? href.match(/[^/?=&]+\.(hwpx|hwp|pdf)\b/i)?.[0];
     if (!name) return;
-    if (!/down|file|attach|\.(hwpx|hwp|pdf)\b/i.test(href)) return;
+    if (!/down|file|attach|\.(hwpx|hwp|pdf)\b/i.test(href) || /viewer/i.test(href)) return; // '바로보기'(문서 보기 화면)는 파일이 아님
     let url;
     try { url = new URL(href, pageUrl).toString(); } catch { return; }
     if (seen.has(url)) return;
@@ -95,12 +96,16 @@ export function findAttachments(html, pageUrl) {
   return out.sort((a, b) => order[a.ext] - order[b.ext]);
 }
 
-export async function download(url, referer) {
-  const res = await fetch(url, { headers: { 'User-Agent': UA, Referer: referer, 'Accept-Language': 'ko-KR,ko;q=0.9' }, signal: AbortSignal.timeout(30000), redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const len = Number(res.headers.get('content-length') ?? 0);
-  if (len > MAX_BYTES) throw new Error('파일이 너무 큼');
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > MAX_BYTES) throw new Error('파일이 너무 큼');
-  return buf;
+/**
+ * 글 하나의 첨부 한글 문서(hwpx)를 받아 글자를 뽑음 (크롤러가 새 글에 대해서만 호출).
+ * 반환: { attach, attachName } 또는 {} (hwpx 첨부가 없거나 글자를 못 뽑음). hwp·pdf만 있는 글은 지금은 건너뜀
+ */
+export async function enrichAttach(post) {
+  const html = await fetchHtml(post.url, { cookies: true, timeoutMs: 25000 });
+  const files = findAttachments(html, post.url).filter((f) => f.ext === 'hwpx');
+  for (const f of files.slice(0, 2)) {
+    const text = hwpxText(await fetchBinary(f.url, { referer: post.url }));
+    if (text.length >= 100) return { attach: trimAttach(text), attachName: f.name.slice(0, 80) };
+  }
+  return {};
 }

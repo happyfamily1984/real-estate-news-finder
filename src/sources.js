@@ -4,7 +4,7 @@
 //   selectors: HTML 목록 파싱 (row/title/link/views/comments/likes/exclude)
 //   keepParams : 글 주소에서 남길 쿼리 파라미터 (같은 글이 같은 id가 되도록)
 //   detailV  : 상세 정보 뽑는 방식이 바뀌면 올림 → 저장된 상세 정보를 다시 받음
-//   enrich   : 글의 상세 페이지에서 주요 정보(details)를 뽑는 함수. 새 글에 대해서만, 한 번에 몇 개씩 호출
+//   enrich   : 글의 상세 페이지에서 주요 정보(details)나 첨부 문서 글자(attach)를 뽑는 함수. 새 글에 대해서만, 한 번에 몇 개씩 호출
 //   replace  : 목록에서 빠진 글은 바로 숨김 (마감된 청약 공고 등)
 //   boostHours : 앱 목록에서 이 소스 글을 더 위에 보이게 (최신순에서 이 시간만큼 새 글로 취급, 중요도 가산)
 //   disabled : true면 수집 안 함
@@ -12,6 +12,7 @@ import { fetchFeed, fetchGoogleNews } from './feeds.js';
 import { fetchKorea } from './korea.js';
 import { fetchNaverCafe } from './navercafe.js';
 import { fetchLh, fetchApplyhome, enrichApplyhome, enrichLh, fetchSh, fetchGh } from './apply.js';
+import { enrichAttach } from './attach.js';
 
 export const SOURCES = [
   // ---- 언론 ----
@@ -42,12 +43,12 @@ export const SOURCES = [
   { id: 'gh', name: 'GH 경기주택도시공사', board: '분양·임대 공고', kind: 'gov', color: '#047857', url: 'https://www.gh.or.kr/gh/announcement-of-salerental001.do', label: 'GH', fetch: fetchGh, allowEmpty: true, maxAgeH: 24 * 30 },
 
   // 국토교통부 공식 홈페이지 보도자료 RSS (쿠키를 받아 다시 요청해야 열림)
-  { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true },
+  { id: 'molit', name: '국토교통부', board: '보도자료', kind: 'gov', color: '#14532d', url: 'https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp', feed: 'https://www.molit.go.kr/dev/board/board_rss.jsp?rss_id=NEWS', fetch: fetchFeed, cookies: true, keepOnly: ['id'], filter: true, enrich: enrichAttach }, // 첨부 한글 문서의 글자를 뽑아 요약에 씀
   // 서울시 주택 분야 새소식 (보도자료·공고), 경기도 보도자료
   { id: 'seoul', name: '서울시', board: '주택 새소식', kind: 'gov', color: '#0b6db7', url: 'https://news.seoul.go.kr/citybuild/', feed: 'https://news.seoul.go.kr/citybuild/feed', fetch: fetchFeed, maxAgeH: 240, allowEmpty: true }, // 글이 주 몇 건이라 10일치
   { id: 'gg', name: '경기도', board: '보도자료', kind: 'gov', color: '#0f766e', url: 'https://gnews.gg.go.kr/briefing/brief_gongbo.do', feed: 'https://gnews.gg.go.kr/rss/gnewsRssBodo.do', fetch: fetchFeed, filter: true, maxAgeH: 96 },
   // 정책브리핑 목록 페이지 (RSS는 2026-07-01 종료). 모든 부처 보도자료 중 부동산 관련 제목만, 부처 이름이 매체명으로 들어감
-  { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 6, filter: true, fetch: fetchKorea },
+  { id: 'korea-press', name: '정책브리핑', board: '부처 보도자료', kind: 'gov', color: '#1f6f43', url: 'https://www.korea.kr/briefing/pressReleaseList.do', pages: 6, filter: true, fetch: fetchKorea, enrich: enrichAttach },
   { id: 'korea-policy', name: '정책뉴스', board: '정책브리핑', kind: 'gov', color: '#2b7a9e', url: 'https://www.korea.kr/news/policyNewsList.do', pages: 2, filter: true, fetch: fetchKorea },
   // 구글 뉴스에서 정부 사이트 글만 검색 (클라우드에서 받을 수 있는 정부 발표)
   {
