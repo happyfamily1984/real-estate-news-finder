@@ -25,7 +25,7 @@ const feed = {
   posts: crawler.list({ sort: 'score', limit: 700 }).map((p) => ({
     id: p.id, source: p.source, title: p.title, url: p.url, views: p.views, comments: p.comments, likes: p.likes,
     score: p.score, pick: p.pick ?? 0, viewsPerMin: p.viewsPerMin, firstSeenAt: p.firstSeenAt, rank: p.rank,
-    ...opt({ publishedAt: p.publishedAt, tags: p.tags, related: p.related || null, outlet: p.outlet, summary: p.summary, dupOf: p.dupOf, details: p.details, note: p.note }),
+    ...opt({ publishedAt: p.publishedAt, tags: p.tags, related: p.related || null, outlet: p.outlet, summary: p.summary, dupOf: p.dupOf, details: p.details, note: p.note, attach: p.attach, attachName: p.attachName }),
   })),
 };
 fs.writeFileSync(path.join(outDir, 'posts.json'), JSON.stringify(feed));

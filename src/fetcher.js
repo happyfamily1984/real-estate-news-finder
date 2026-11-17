@@ -54,3 +54,40 @@ export async function fetchJson(url, { timeoutMs = 45000, userAgent = UA } = {})
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+/**
+ * 파일 받기 (첨부 문서). 넘김을 직접 따라가며 쿠키를 다시 보냄 → 국토부처럼 쿠키 없이는 끝없이 도는 사이트도 받을 수 있음.
+ * 한글·괄호가 섞인 주소는 그대로 보내면 실패하는 서버가 있어서 주소를 한 번 정리함. 실패하면 한 번 더 시도.
+ */
+export async function fetchBinary(url, { timeoutMs = 30000, referer, maxBytes = 15 * 1024 * 1024, tries = 2 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < tries; attempt++) {
+    try {
+      const jar = new Map();
+      let cur = new URL(url).toString();
+      for (let i = 0; i < 6; i++) {
+        const res = await fetch(cur, {
+          headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR,ko;q=0.9', Accept: '*/*', ...(referer ? { Referer: referer } : {}), Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') },
+          signal: AbortSignal.timeout(timeoutMs), redirect: 'manual',
+        });
+        for (const c of res.headers.getSetCookie?.() ?? []) {
+          const kv = c.split(';')[0];
+          const j = kv.indexOf('=');
+          if (j > 0) jar.set(kv.slice(0, j).trim(), kv.slice(j + 1));
+        }
+        const loc = res.headers.get('location');
+        if (res.status >= 300 && res.status < 400 && loc) { cur = new URL(loc, cur).toString(); continue; }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (Number(res.headers.get('content-length') ?? 0) > maxBytes) throw new Error('파일이 너무 큼');
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > maxBytes) throw new Error('파일이 너무 큼');
+        return buf;
+      }
+      throw new Error('넘김이 끝나지 않음');
+    } catch (e) {
+      lastError = e;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  throw lastError;
+}

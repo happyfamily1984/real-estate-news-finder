@@ -60,8 +60,8 @@ export class Crawler {
     for (const src of this.sources.filter((s) => s.enrich && this.status[s.id]?.ok)) {
       const v = src.detailV ?? 1;
       // 뽑는 방식이 바뀌었으면(detailV) 예전 상세 정보는 버리고 다시 받음
-      for (const p of this.posts.values()) if (p.source === src.id && (p.detailV ?? 1) !== v) { delete p.details; delete p.note; p.detailTries = 0; p.detailV = v; }
-      const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && (p.detailTries ?? 0) < 3).slice(0, perSource);
+      for (const p of this.posts.values()) if (p.source === src.id && (p.detailV ?? 1) !== v) { delete p.details; delete p.note; delete p.attach; delete p.attachName; p.detailTries = 0; p.detailV = v; }
+      const todo = [...this.posts.values()].filter((p) => p.source === src.id && p.onBoard && !p.details && !p.attach && (p.detailTries ?? 0) < 3).slice(0, perSource);
       let done = 0;
       let tried = 0;
       for (const p of todo) {
@@ -71,12 +71,13 @@ export class Crawler {
         try {
           const r = await src.enrich(p);
           if (r?.details?.length) { p.details = r.details; if (r.note) p.note = r.note; done++; }
+          else if (r?.attach) { p.attach = r.attach; p.attachName = r.attachName; done++; } // 보도자료 첨부 문서의 글자
         } catch (e) {
           if (done === 0 && p === todo[0]) console.log(`[enrich] ${src.id}: ${e.message}`);
         }
         await new Promise((r) => setTimeout(r, 250));
       }
-      if (todo.length) console.log(`[enrich] ${src.id}: ${done}/${tried}건 상세 정보${tried < todo.length ? ` (시간 부족으로 ${todo.length - tried}건은 다음에)` : ''}. 예: ${(todo.find((p) => p.details)?.details ?? []).join(' | ').slice(0, 400)}`);
+      if (todo.length) console.log(`[enrich] ${src.id}: ${done}/${tried}건 상세 정보${tried < todo.length ? ` (시간 부족으로 ${todo.length - tried}건은 다음에)` : ''}. 예: ${((todo.find((p) => p.details)?.details ?? []).join(' | ') || (todo.find((p) => p.attach)?.attach ?? '').replace(/\n/g, ' / ')).slice(0, 400)}`);
     }
   }
 

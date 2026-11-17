@@ -50,6 +50,9 @@ data class Post(
     val details: List<String> = emptyList(),
     /** 공고문의 안내 문장 앞부분 */
     val note: String? = null,
+    /** 보도자료 첨부 문서(hwpx)에서 뽑은 글자. 본문에 '첨부파일 참고'만 있을 때 요약의 재료가 됨 */
+    val attach: String? = null,
+    val attachName: String? = null,
 ) {
     val time: Long get() = publishedAt ?: firstSeenAt
 
@@ -59,7 +62,7 @@ data class Post(
         .put("score", score).put("pick", pick).put("viewsPerMin", viewsPerMin).put("firstSeenAt", firstSeenAt)
         .put("publishedAt", publishedAt ?: JSONObject.NULL).put("tags", JSONArray(tags)).put("related", related)
         .put("outlet", outlet ?: JSONObject.NULL).put("summary", summary ?: JSONObject.NULL).put("dupOf", dupOf ?: JSONObject.NULL)
-        .put("details", JSONArray(details)).put("note", note ?: JSONObject.NULL)
+        .put("details", JSONArray(details)).put("note", note ?: JSONObject.NULL).put("attach", attach ?: JSONObject.NULL).put("attachName", attachName ?: JSONObject.NULL)
 
     companion object {
         private fun JSONObject.intOrNull(k: String): Int? = if (!has(k) || isNull(k)) null else optInt(k)
@@ -73,7 +76,7 @@ data class Post(
             publishedAt = if (!p.has("publishedAt") || p.isNull("publishedAt")) null else p.optLong("publishedAt"),
             tags = p.optJSONArray("tags")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
             related = p.optInt("related", 0), outlet = p.strOrNull("outlet"), summary = p.strOrNull("summary"), dupOf = p.strOrNull("dupOf"),
-            details = p.optJSONArray("details")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(), note = p.strOrNull("note"),
+            details = p.optJSONArray("details")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(), note = p.strOrNull("note"), attach = p.strOrNull("attach"), attachName = p.strOrNull("attachName"),
         )
     }
 }

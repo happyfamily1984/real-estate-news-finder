@@ -107,6 +107,9 @@ object Summarizer {
         val lead = post.summary?.takeIf { it.isNotBlank() && !text.contains(it.take(30)) }?.let { "기사 앞부분: $it\n\n" }.orEmpty()
         // 공고 상세 페이지에서 뽑은 주요 정보(위치·세대수·분양가·일정)는 본문보다 앞에 둠 → 요약에 빠지지 않게
         val facts = if (post.details.isEmpty()) "" else "공고 주요 정보:\n" + post.details.joinToString("\n") + (post.note?.let { "\n안내: $it" } ?: "") + "\n\n"
+        // 보도자료 첨부 문서의 글자가 있으면 본문 뒤에 붙임 (본문은 "첨부파일 참고" 한 줄뿐인 경우가 많음). 전체 길이는 비슷하게 유지
+        val attach = post.attach?.takeIf { it.isNotBlank() }
+        if (attach != null) return "매체: $sourceName\n제목: ${post.title}\n\n${facts}${lead}본문:\n${text.take(2000)}\n\n첨부파일 내용(${post.attachName ?: "첨부 문서"}) — 보도자료의 실제 내용이니 이것을 중심으로 요약:\n${attach.take(5000)}"
         return "매체: $sourceName\n제목: ${post.title}\n\n${facts}${lead}본문:\n${text.take(6000)}"
     }
 

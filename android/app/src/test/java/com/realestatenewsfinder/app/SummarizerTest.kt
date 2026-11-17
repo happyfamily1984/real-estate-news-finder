@@ -102,4 +102,20 @@ class SummarizerTest {
         assertEquals(emptyList<String>(), Summarizer.unsupportedNumbers("59㎡ 분양가가 5억4,820만원부터래", input))
         assertEquals(p, Post.fromJson(p.toJson()))
     }
+
+    @Test
+    fun attachmentTextGoesIntoInput() {
+        val post = Post(id = "molit:1", source = "molit", title = "(설명) 3기 신도시 교통대책", url = "https://www.molit.go.kr/x",
+            attach = "□ 3기 신도시 광역교통 개선대책 28개 사업 중 19개 착공\n□ 2027년까지 나머지 9개 착공", attachName = "261116(설명).hwpx")
+        val input = Summarizer.buildInput(post, "국토교통부", "자세한 내용은 첨부파일을 참고하시기 바랍니다.")
+        assertTrue(input, input.contains("본문:\n자세한 내용은 첨부파일을 참고하시기 바랍니다."))
+        assertTrue(input, input.contains("첨부파일 내용(261116(설명).hwpx)"))
+        assertTrue(input, input.contains("28개 사업 중 19개 착공"))
+        // 첨부에만 있는 숫자도 '본문에 있는 숫자'로 인정됨
+        assertTrue(Summarizer.unsupportedNumbers("28개 사업 중 19개 착공", input).isEmpty())
+        // 첨부가 없으면 예전과 같음
+        assertTrue(!Summarizer.buildInput(post.copy(attach = null), "국토교통부", "본문").contains("첨부파일 내용"))
+        // 저장했다가 다시 읽어도 유지
+        assertEquals(post.attach, PostStore.fromJson(PostStore.toJson(post)).attach)
+    }
 }
