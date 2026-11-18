@@ -156,14 +156,18 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
         }
         item { PillRow { sidos.forEach { s -> val name = s.getString("sido"); ChoicePill(shortSido(name), name == sido) { sido = name; prefs.dealSido = name } } } }
         item {
-            val list = sidos.firstOrNull { it.getString("sido") == sido }?.getJSONArray("sigungu")?.objects().orEmpty()
+            val gus = sidos.firstOrNull { it.getString("sido") == sido }?.getJSONArray("sigungu")?.objects().orEmpty()
+            // 맨 앞에 '○○ 전체' (그 시도의 모든 시군구 단지를 한 목록으로). 시군구가 하나뿐인 세종은 넣지 않음
+            val list = (if (gus.size > 1) listOf("${shortSido(sido)} 전체" to "ALL:$sido") else emptyList()) + gus.map { it.getString("name") to it.getString("code") }
             SoftCard {
                 list.chunked(3).forEach { row ->
                     Row(Modifier.fillMaxWidth()) {
-                        row.forEach { g ->
+                        row.forEach { (name, key) ->
                             Text(
-                                g.getString("name"), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable { onRegion(g.getString("code")) }.padding(vertical = 11.dp, horizontal = 6.dp),
+                                name, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (key.startsWith("ALL:")) FontWeight.ExtraBold else FontWeight.Normal,
+                                color = if (key.startsWith("ALL:")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable { onRegion(key) }.padding(vertical = 11.dp, horizontal = 6.dp),
                             )
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -186,17 +190,38 @@ fun shortSido(name: String): String = when {
 fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, onOpen: (DealTarget, String, String) -> Unit) {
     val ctx = LocalContext.current
     val core = remember { DealCore.get(ctx) }
+    // lawdCd: 시군구 코드 하나, 또는 "ALL:시도이름"(그 시도 전체)
     val region = remember(lawdCd) { core.regions.get(lawdCd) }
+    val allSido = lawdCd.removePrefix("ALL:").takeIf { lawdCd.startsWith("ALL:") }
+    val gus = remember(lawdCd) {
+        if (allSido == null) listOf(lawdCd to "")
+        else core.regions.raw.objects().firstOrNull { it.getString("sido") == allSido }?.getJSONArray("sigungu")?.objects().orEmpty().map { it.getString("code") to it.getString("name") }
+    }
+    val guName = remember(gus) { gus.toMap() }
+    val title = if (allSido != null) "${shortSido(allSido)} 전체" else region?.optString("fullName") ?: lawdCd
     var list by remember { mutableStateOf<List<JSONObject>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     var attempt by remember { mutableIntStateOf(0) }
     BackHandler(onBack = onBack)
     LaunchedEffect(lawdCd, attempt) {
         error = null
         try {
-            list = withContext(Dispatchers.IO) { core.service.getComplexes(lawdCd) }
-            Prefs(ctx).let { p -> p.dealRecent = listOf(lawdCd) + p.dealRecent.filter { it != lawdCd } }
+            if (allSido == null) {
+                list = withContext(Dispatchers.IO) { core.service.getComplexes(lawdCd) }
+                Prefs(ctx).let { p -> p.dealRecent = listOf(lawdCd) + p.dealRecent.filter { it != lawdCd } }
+            } else {
+                // 시군구마다 받아서 받은 만큼 바로 보여줌 (경기는 40곳이 넘어 처음엔 시간이 걸림. 일부가 실패해도 나머지는 보여줌)
+                val all = mutableListOf<JSONObject>()
+                var failed = 0
+                gus.forEachIndexed { k, (code, name) ->
+                    progress = "$name 받는 중… (${k + 1}/${gus.size})"
+                    runCatching { withContext(Dispatchers.IO) { core.service.getComplexes(code) } }.onSuccess { all += it; list = all.toList() }.onFailure { failed++ }
+                }
+                progress = if (failed > 0) "${failed}곳은 받지 못했어요" else null
+                if (all.isEmpty()) error = "단지 목록을 받지 못했어요"
+            }
         } catch (e: Exception) {
             error = e.message ?: "단지 목록을 받지 못했어요"
         }
@@ -206,15 +231,17 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
     var byPrice by remember { mutableStateOf(Prefs(ctx).dealSortByPrice) }
     val shown = remember(list, query, byPrice) {
         val q = query.trim().replace(" ", "")
-        val found = list.orEmpty().filter { q.isEmpty() || it.getString("aptNm").replace(" ", "").contains(q, true) || it.optString("umdNm").contains(q) }
-        if (byPrice) found.sortedByDescending { if (it.isNull("lastTradePrice")) -1L else it.getLong("lastTradePrice") } else found
+        val found = list.orEmpty().filter { q.isEmpty() || it.getString("aptNm").replace(" ", "").contains(q, true) || it.optString("umdNm").contains(q) || guName[it.optString("lawdCd")].orEmpty().replace(" ", "").contains(q) }
+        if (byPrice) found.sortedByDescending { if (it.isNull("lastTradePrice")) -1L else it.getLong("lastTradePrice") }
+        else if (allSido != null) found.sortedWith(compareBy(java.text.Collator.getInstance(java.util.Locale.KOREAN)) { it.getString("aptNm") }) // 시도 전체는 구를 섞어 가나다순
+        else found
     }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Column {
-                Text(region?.optString("fullName") ?: lawdCd, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                Text(note ?: list?.let { "최근 6개월 거래가 있는 단지 ${it.size}곳" } ?: "단지 목록 받는 중…", fontSize = 12.sp, color = if (note != null) MaterialTheme.colorScheme.primary else muted)
+                Text(title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                Text(progress ?: note ?: list?.let { "최근 6개월 거래가 있는 단지 ${it.size}곳" } ?: "단지 목록 받는 중…", fontSize = 12.sp, color = if (note != null || progress != null) MaterialTheme.colorScheme.primary else muted)
             }
         }
         SearchPill(query, { query = it }, Modifier.padding(horizontal = 14.dp).fillMaxWidth())
@@ -237,12 +264,13 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
                 if (shown.isEmpty()) item { EmptyText("찾는 단지가 없어요") }
                 items(shown, key = { it.getString("id") }) { c ->
                     val counts = c.getJSONObject("counts")
-                    SoftCard(onClick = { onOpen(DealTarget(lawdCd, c.getString("id"), if (counts.optInt("trade") > 0) "trade" else if (counts.optInt("jeonse") > 0) "jeonse" else "monthly"), c.getString("aptNm"), c.optString("umdNm")) }) {
+                    val code = c.optString("lawdCd").ifBlank { lawdCd }
+                    SoftCard(onClick = { onOpen(DealTarget(code, c.getString("id"), if (counts.optInt("trade") > 0) "trade" else if (counts.optInt("jeonse") > 0) "jeonse" else "monthly"), c.getString("aptNm"), c.optString("umdNm")) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(c.getString("aptNm"), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
-                                    listOfNotNull(c.optString("umdNm").takeIf { it.isNotBlank() }, c.optInt("buildYear").takeIf { it > 0 }?.let { "${it}년" },
+                                    listOfNotNull(guName[code]?.takeIf { it.isNotBlank() }, c.optString("umdNm").takeIf { it.isNotBlank() }, c.optInt("buildYear").takeIf { it > 0 }?.let { "${it}년" },
                                         "매매 ${counts.optInt("trade")} · 전세 ${counts.optInt("jeonse")} · 월세 ${counts.optInt("monthly")}").joinToString(" · "),
                                     fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
