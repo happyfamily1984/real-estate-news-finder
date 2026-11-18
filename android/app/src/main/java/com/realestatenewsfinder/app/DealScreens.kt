@@ -202,9 +202,12 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
         }
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val shown = remember(list, query) {
+    // 정렬: 가나다순(기본) 또는 최근 매매 실거래가 높은 순 (고른 것은 다음에도 기억). 매매 거래가 없는 단지는 맨 뒤
+    var byPrice by remember { mutableStateOf(Prefs(ctx).dealSortByPrice) }
+    val shown = remember(list, query, byPrice) {
         val q = query.trim().replace(" ", "")
-        list.orEmpty().filter { q.isEmpty() || it.getString("aptNm").replace(" ", "").contains(q, true) || it.optString("umdNm").contains(q) }
+        val found = list.orEmpty().filter { q.isEmpty() || it.getString("aptNm").replace(" ", "").contains(q, true) || it.optString("umdNm").contains(q) }
+        if (byPrice) found.sortedByDescending { if (it.isNull("lastTradePrice")) -1L else it.getLong("lastTradePrice") } else found
     }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -215,6 +218,11 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
             }
         }
         SearchPill(query, { query = it }, Modifier.padding(horizontal = 14.dp).fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChoicePill("가나다순", !byPrice) { byPrice = false; Prefs(ctx).dealSortByPrice = false }
+            ChoicePill("실거래가 높은순", byPrice) { byPrice = true; Prefs(ctx).dealSortByPrice = true }
+        }
         Spacer(Modifier.height(8.dp))
         if (error != null) {
             Column(Modifier.padding(20.dp)) {

@@ -129,6 +129,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("dealArea", "") ?: ""
         set(v) = sp.edit().putString("dealArea", v).apply()
 
+    /** 단지 목록 정렬: true = 최근 매매 실거래가 높은 순, false = 가나다순 */
+    var dealSortByPrice: Boolean
+        get() = sp.getBoolean("dealSortByPrice", false)
+        set(v) = sp.edit().putBoolean("dealSortByPrice", v).apply()
+
     /** 통계 '지역별'에서 마지막으로 고른 시도 */
     var statSido: String
         get() = sp.getString("statSido", "서울") ?: "서울"
