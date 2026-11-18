@@ -62,6 +62,8 @@ class SummarizerTest {
         assertTrue(p.contains("오늘은 2026년 11월 15일"))
         assertTrue(p.contains("금리나 한도가 얼마나 바뀌는지"))
         assertTrue(p.contains("~했대"))
+        // 맨 위는 한마디, 그 아래는 핵심만 2~3줄
+        assertTrue(p.contains("촌철살인 한마디") && p.contains("이어서 2~3줄(요약)") && p.contains("전체 220자 이내"))
         // 화살표는 '쓰지 않는 것' 안내에만 나옴 (형식으로 오해하지 않게)
         assertEquals(1, Regex("→").findAll(p).count())
         assertTrue(Summarizer.system("community", emptyList(), casual = false).contains("개인의 경험·의견"))
