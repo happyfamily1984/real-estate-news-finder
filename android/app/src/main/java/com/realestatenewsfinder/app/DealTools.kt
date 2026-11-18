@@ -262,36 +262,55 @@ object DealTools {
         return out.sortedByDescending { it.diff }
     }
 
-    /** 분양가 대비 얼마나 올랐는지에 따른 한마디 (여러 개 중 seed로 고름 → 매번 같은 말이 되지 않게) */
-    private fun presaleComment(m: PresaleMatch, pick: Int): String {
-        val gain = won(abs(m.diff))
-        val list = when {
-            m.pct >= 100 -> listOf("분양가의 두 배를 넘김. 이건 진짜 미친 상승", "분양 때 비싸다고 망설였다면 땅을 칠 숫자", "청약 당첨이 곧 로또였던 단지", "분양가만큼이 그대로 한 번 더 붙음", "그때 넣을까 말까 고민한 사람은 속 쓰릴 결과")
-            m.pct >= 50 -> listOf("분양가 비싸다는 말이 쏙 들어갈 상승폭", "당첨자는 앉아서 $gain 번 셈", "고분양가 걱정이 무색해진 결과", "웬만한 직장인 평생 저축이 몇 년 만에 붙음", "청약 경쟁률이 괜히 높았던 게 아님")
-            m.pct >= 20 -> listOf("분양가 대비 꾸준히 오른 편", "당첨됐다면 꽤 쏠쏠한 수익", "입주 프리미엄이 확실히 붙은 단지", "$gain 차이면 청약 넣을 이유는 충분했음")
-            m.pct >= 0 -> listOf("분양가에서 크게 벗어나지 않은 수준", "프리미엄은 아직 얇은 편", "오르긴 했지만 금융비용 생각하면 애매한 폭", "분양가가 곧 시세였던 셈")
-            else -> listOf("분양가보다 싸게 거래되는 중. 이른바 마피 구간", "분양가를 못 지키고 있는 단지", "고분양가 논란이 현실이 된 사례", "분양받은 사람은 $gain 손해를 보고 있는 셈")
-        }
-        return list[Math.floorMod(pick, list.size)]
+    /** 글에 쓰는 짧은 금액: 3.3억 / 4,385만원 */
+    fun shortWon(v: Long): String = if (v >= 10000) String.format("%.1f", v / 10000.0).removeSuffix(".0") + "억" else "%,d만원".format(v)
+
+    /** 분양 공고일부터 지금까지: "3년 만에" / "8개월 만에" */
+    fun since(date: String, today: LocalDate): String {
+        val d = runCatching { LocalDate.parse(date) }.getOrNull() ?: return "분양 뒤"
+        val months = ((today.year - d.year) * 12 + (today.monthValue - d.monthValue)).coerceAtLeast(1)
+        return if (months >= 12) "${months / 12}년 만에" else "${months}개월 만에"
     }
 
     /**
-     * 금액 중심의 짧은 글: "2024년 5월 서초구에 분양됐던 OO 59㎡, 최근 실거래 39억 … 찍힘 / 분양가 17억 … / 한마디".
-     * 오른 금액이 큰 순으로 3곳까지. seed에 따라 한마디가 바뀜
+     * 짧은 글: 맨 위 한마디(전체 흐름) → 단지 3곳(이름·평형 / N년 만에 분양가 대비 얼마) → 마지막 줄 전체 정리.
+     * 단지는 오른 금액이 큰 순으로 3곳만. label: "부산" 또는 "인천 미추홀구". seed에 따라 한마디·정리 표현이 바뀜
      */
-    fun presaleText(place: String, band: Int, period: DealPeriod, matches: List<PresaleMatch>, casual: Boolean, seed: Int = 0): String {
+    fun presaleText(label: String, band: Int, period: DealPeriod, matches: List<PresaleMatch>, casual: Boolean, seed: Int = 0, today: LocalDate = LocalDate.now(KST)): String {
         fun e(c: String, p: String) = if (casual) c else p
         if (matches.isEmpty()) {
-            return "$place ${band}㎡, 분양가와 견줄 단지가 없" + e("음", "어요") + "\n\n분양가 자료(청약홈 최근 5년 공고)가 있고 최근 ${period.label} 안에 실거래가 있는 10년 이내 단지만 비교함"
+            return "$label ${band}㎡, 분양가와 견줄 단지가 없" + e("음", "어요") + "\n\n분양가 자료(청약홈 최근 5년 공고)가 있고 최근 ${period.label} 안에 실거래가 있는 10년 이내 단지만 비교함"
         }
-        val lines = mutableListOf<String>()
-        matches.take(3).forEachIndexed { k, m ->
-            val ym = m.item.date.split('-').let { d -> if (d.size >= 2) "${d[0]}년 ${d[1].toInt()}월" else m.item.date.take(4) + "년" }
-            val head = "$ym ${place}에 분양됐던 ${m.aptNm} ${band}㎡"
-            val move = if (m.diff >= 0) "${won(m.diff)} 오름" else "${won(abs(m.diff))} 내림"
-            lines += "$head\n최근 실거래 ${won(m.avg)} " + e("찍힘", "찍혔어요") + "\n분양가는 ${won(m.presale)} → $move\n${presaleComment(m, seed + k * 7 + m.aptNm.length)}"
+        fun pick(list: List<String>, salt: Int = 0) = list[Math.floorMod(seed + salt, list.size)]
+        val up = matches.count { it.diff > 0 }
+        val down = matches.size - up
+        val mean = matches.map { it.diff }.average().roundToLong()
+        val meanPct = matches.map { it.pct }.average()
+        val city = label.substringBefore(' ')
+        // 맨 위 한마디: 전체 흐름에 따라
+        val head = when {
+            down == 0 && meanPct >= 50 -> pick(listOf("$label 새 아파트, 청약 당첨이 곧 로또였네", "$label 분양받은 사람은 전부 웃고 있음", "$label 분양가, 지금 보면 다 헐값이었네"))
+            down == 0 -> pick(listOf("$label 새 아파트, 분양가 밑으로 간 곳이 없네", "$label 분양, 넣기만 했으면 남는 장사였음", "$label 부동산도 생각보다 탄탄하네"))
+            up >= down * 2 -> pick(listOf("$label 분양, 대체로 남는 장사였네", "$label 새 아파트는 대부분 분양가 위에서 거래 중", "$label 청약, 열에 일곱은 웃었음"))
+            up >= down -> pick(listOf("$label 분양, 단지 따라 웃고 울었네", "같은 ${label}인데 분양 성적표는 극과 극", "$label 새 아파트, 오른 곳만 오름"))
+            up > 0 -> pick(listOf("$label 분양, 오른 단지가 오히려 귀함", "$label 새 아파트, 분양가 지키기도 벅참", "$label 분양가가 천장이었던 단지가 더 많음"))
+            else -> pick(listOf("$label 새 아파트, 분양가를 지킨 곳이 없네", "$label 분양받은 사람은 지금 속 쓰릴 듯", "$label, 분양가가 곧 최고가였음"))
         }
-        if (matches.size > 3) lines += "외 ${matches.size - 3}곳"
+        val lines = mutableListOf(head)
+        lines += matches.take(3).joinToString("\n\n") { m ->
+            val move = if (m.diff >= 0) "${shortWon(m.diff)} 오름" else "${shortWon(abs(m.diff))} 내림"
+            "$city ${m.aptNm} ${band}㎡\n${since(m.item.date, today)} 분양가 대비 $move"
+        }
+        // 마지막 줄: 전체 정리 (숫자 사실 + 짧은 평가)
+        val fact = if (matches.size <= 3) "비교한 ${matches.size}곳 평균 " + (if (mean >= 0) "${shortWon(mean)} 오름" else "${shortWon(abs(mean))} 내림")
+        else "비교한 ${matches.size}곳 중 ${up}곳이 분양가보다 올랐고, 평균은 " + (if (mean >= 0) "${shortWon(mean)} 오름" else "${shortWon(abs(mean))} 내림")
+        val verdict = when {
+            down == 0 -> pick(listOf("새 아파트 선호가 가격으로 확인된 셈", "분양가가 싸 보일 만큼 시세가 올라온 지역", "청약 경쟁이 치열했던 이유가 숫자로 보임"), 1)
+            up >= down && mean < 0 -> pick(listOf("오른 단지보다 내린 단지의 낙폭이 더 컸음", "잘된 곳만 보고 전체를 판단하면 안 되는 시장", "평균으로 보면 분양가를 못 지킨 셈"), 1)
+            up >= down -> pick(listOf("입지 좋은 단지 위주로 프리미엄이 붙는 흐름", "오르긴 했는데 단지별 차이가 큼", "분양가보다 어디에 짓느냐가 갈랐음"), 1)
+            else -> pick(listOf("분양가가 시세보다 앞서갔던 지역", "새 아파트라고 다 오르는 건 아니라는 증거", "분양가 부담이 시세에 그대로 남아 있음"), 1)
+        }
+        lines += "$fact\n$verdict"
         return lines.joinToString("\n\n")
     }
 }

@@ -205,11 +205,23 @@ class DealsTest {
         assertEquals(155000L to 50000L, m[0].avg to m[0].diff)
         assertEquals(47.6, m[0].pct, 0.05)
         assertTrue(m[0].diff > m[1].diff) // 오른 금액이 큰 순
-        val text = DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, m, casual = true, seed = 0).split("\n\n")
-        assertTrue(text[0], text[0].startsWith("2021년 12월 경기 과천시에 분양됐던 과천푸르지오써밋 84㎡\n최근 실거래 15억 5,000만원 찍힘\n분양가는 10억 5,000만원 → 5억원 오름\n"))
-        assertTrue(text[1], text[1].contains("분양가는 12억원 → 6,000만원 내림"))
+        // 글: 한마디 → 단지별 두 줄 → 전체 정리
+        val today = LocalDate.of(2026, 11, 19)
+        val text = DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, m, casual = true, seed = 0, today = today).split("\n\n")
+        assertEquals(4, text.size)
+        assertEquals("경기 과천시 분양, 단지 따라 웃고 울었네", text[0])
+        assertEquals("경기 과천푸르지오써밋 84㎡\n4년 만에 분양가 대비 5억 오름", text[1])
+        assertEquals("경기 힐스테이트과천 84㎡\n3년 만에 분양가 대비 6,000만원 내림", text[2])
+        assertTrue(text[3], text[3].startsWith("비교한 2곳 평균 2.2억 오름\n"))
         // 한마디는 seed에 따라 달라짐
-        assertTrue(text[0] != DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, m, casual = true, seed = 1).split("\n\n")[0])
+        assertTrue(text[0] != DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, m, casual = true, seed = 1, today = today).split("\n\n")[0])
+        // 단지는 3곳까지만
+        val many = (1..5).map { k -> m[0].copy(aptNm = "단지$k") }
+        val t5 = DealTools.presaleText("부산", 84, DealPeriod.Y1, many, casual = true, today = today).split("\n\n")
+        assertEquals(5, t5.size)
+        assertTrue(t5[4], t5[4].startsWith("비교한 5곳 중 5곳이 분양가보다 올랐고, 평균은 5억 오름"))
+        assertEquals("8개월 만에", DealTools.since("2026-03-10", today))
+        assertEquals("3.3억" to "4,385만원", DealTools.shortWon(32623) to DealTools.shortWon(4385))
         assertTrue(DealTools.presaleText("경기 과천시", 84, DealPeriod.Y1, emptyList(), true).contains("견줄 단지가 없음"))
     }
 

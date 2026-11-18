@@ -299,7 +299,7 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
     }
     val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed) } ?: "" }
+    LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed, today) } ?: "" }
     val inRegion = items?.count { i -> area?.codes.orEmpty().any { it in i.lawd } } ?: 0
     ThreadShareScreen(
         title = "분양가 vs 실거래가", cacheId = "presale", hint = "청약홈 분양가와 국토부 실거래 숫자로 만든 글이에요. 평가 문장은 자유롭게 고쳐 쓰세요.",
