@@ -184,8 +184,16 @@ class DealsTest {
         assertEquals("10년 사이 김밥 한 줄 2,000원 → 3,600원 (+80%)", DealTools.priceCompare(listOf(now, p10), dine, 2026, seed = 0)!!.line) // 올해 값이 없으면 작년 값
         assertEquals(null, DealTools.priceCompare(listOf(now, p20), dine, 2026))
         val text = DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10, p20, p30), casual = true, compare = cmp)
-        assertEquals(listOf("가 84㎡ 실거래가 (과천시 원문동)", "10년 전 7억 6,000만원\n지금 19억원", "10년 사이 짜장면 한 그릇 4,800원 → 7,600원 (+58%)\n같은 기간 이 집은 +150% (2.5배)"), text.split("\n\n"))
-        assertTrue(DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10), casual = true).endsWith("10년 사이 +150% (2.5배)"))
+        assertEquals(listOf("가 84㎡ 실거래가 (과천시 원문동)", "10년 전 7억 6,000만원\n지금 19억원", "10년 사이 짜장면 한 그릇 4,800원 → 7,600원 (+58%)\n같은 기간 이 집은 +150% (2.5배)", "10년에 2.5배. 월급으로는 못 따라갈 속도"), text.split("\n\n"))
+        assertTrue(DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10), casual = true).contains("10년 사이 +150% (2.5배)\n\n"))
+        // 맨 밑 한줄평: 오른 정도와 최근 흐름에 따라, seed로 표현이 바뀜
+        fun pt(y: Int, avg: Long) = DealTools.HistoryPoint(y, if (y == 0) "지금" else "${y}년 전", "", 3, avg, avg, avg)
+        assertEquals("두 배가 되는 데 10년이면 충분했음", DealTools.historyVerdict(now, listOf(p10), seed = 1))
+        assertEquals("20년 묵혔더니 4.0배. 이래서 다들 버티는구나", DealTools.historyVerdict(pt(0, 400000), listOf(pt(20, 100000), pt(5, 250000))))
+        assertEquals("많이 오르긴 했는데 최근 5년은 숨 고르는 중", DealTools.historyVerdict(pt(0, 300000), listOf(pt(10, 150000), pt(5, 290000))))
+        assertEquals("길게 보면 올랐는데 5년 전에 산 사람은 아직 물려 있음", DealTools.historyVerdict(pt(0, 200000), listOf(pt(10, 100000), pt(5, 250000))))
+        assertEquals("10년 전보다 오히려 싸짐. 집값도 떨어진다는 증거", DealTools.historyVerdict(pt(0, 90000), listOf(pt(10, 100000))))
+        assertEquals(null, DealTools.historyVerdict(now, listOf(p20)))
     }
 
     // ----- 분양가 vs 실거래 -----

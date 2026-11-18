@@ -174,8 +174,33 @@ object DealTools {
         return null
     }
 
-    /** 짧은 글: 시점별 금액만 나열하고, 물가 한 가지와 견줘 한 줄 */
-    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean, compare: PriceCompare? = null): String {
+    /** 짧은 글: 시점별 금액 → 변화(물가 한 가지와 견줌) → 맨 밑 한줄평 */
+    /**
+     * 맨 밑 한줄평: 가장 오래된 시점 대비 몇 배가 됐는지, 최근에 속도가 꺾였는지에 따라 (여러 표현 중 seed로 고름)
+     * past: 값이 있는 과거 시점들
+     */
+    fun historyVerdict(now: HistoryPoint, past: List<HistoryPoint>, seed: Int = 0): String? {
+        val old = past.filter { it.ok }.maxByOrNull { it.yearsAgo } ?: return null
+        val near = past.filter { it.ok }.minByOrNull { it.yearsAgo }!!
+        val n = old.yearsAgo
+        val t = now.avg.toDouble() / old.avg
+        val times = String.format("%.1f", t)
+        // 오래전부터는 많이 올랐는데 최근 구간은 거의 안 오른 경우
+        val recent = cagr(now.avg, near.avg, near.yearsAgo)
+        val stalled = near !== old && t >= 1.5 && recent != null && recent < 2.0
+        val list = when {
+            now.avg < near.avg && near !== old && t >= 1.3 -> listOf("길게 보면 올랐는데 ${near.yearsAgo}년 전에 산 사람은 아직 물려 있음", "${n}년 전 가격은 까마득한데 ${near.yearsAgo}년 전 고점은 아직 못 넘음", "오래 든 사람만 웃고 있는 단지")
+            stalled -> listOf("많이 오르긴 했는데 최근 ${near.yearsAgo}년은 숨 고르는 중", "오를 만큼 오르고 지금은 쉬어가는 구간", "예전에 다 오르고 요즘은 제자리걸음")
+            t >= 3 -> listOf("${n}년 묵혔더니 ${times}배. 이래서 다들 버티는구나", "${n}년 전에 샀다면 지금은 다른 세상에 살고 있을 단지", "월급 모아서는 평생 못 따라갈 속도")
+            t >= 2 -> listOf("${n}년에 ${times}배. 월급으로는 못 따라갈 속도", "두 배가 되는 데 ${n}년이면 충분했음", "오를 곳은 오른다는 말의 표본")
+            t >= 1.3 -> listOf("크게 튀진 않아도 꾸준히 올라온 단지", "화려하진 않은데 손해 본 사람은 없는 흐름", "${n}년 들고 있으면 배신하지 않은 집")
+            t >= 1.0 -> listOf("${n}년 지났는데 거의 제자리. 물가 생각하면 사실상 내린 셈", "오르긴 했는데 은행 이자만도 못한 수준", "버틴 시간에 비해 얻은 게 적은 단지")
+            else -> listOf("${n}년 전보다 오히려 싸짐. 집값도 떨어진다는 증거", "산 사람보다 기다린 사람이 이긴 단지", "${n}년 전 가격을 아직 못 되찾음")
+        }
+        return list[Math.floorMod(seed, list.size)]
+    }
+
+    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean, compare: PriceCompare? = null, seed: Int = 0): String {
         fun e(c: String, p: String) = if (casual) c else p
         val now = points.firstOrNull { it.yearsAgo == 0 }
         val lines = mutableListOf<String>()
@@ -200,6 +225,8 @@ object DealTools {
             val p = past.first()
             lines += "${p.yearsAgo}년 사이 ${String.format("%+.0f%%", housePct(p))}" + (if (now.avg > p.avg) " (${times(p)}배)" else "")
         }
+        // 맨 밑 한줄평
+        historyVerdict(now, past, seed)?.let { lines += it }
         return lines.joinToString("\n\n")
     }
 
