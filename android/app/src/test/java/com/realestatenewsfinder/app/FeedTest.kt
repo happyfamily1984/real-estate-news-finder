@@ -85,4 +85,18 @@ class FeedTest {
         assertTrue(ThreadsAuto.isAccount("buals_zip", "buals_zip") && ThreadsAuto.isAccount("@Buals_zip ", "buals_zip"))
         assertFalse(ThreadsAuto.isAccount("buals_zip_fan", "buals_zip"))
     }
+
+    @Test
+    fun uploadLogKeepsNewestAndSurvivesBadData() {
+        val json = UploadLog.toJson(mapOf("a" to 100L, "b" to 300L, "c" to 200L))
+        assertEquals(mapOf("b" to 300L, "c" to 200L, "a" to 100L), UploadLog.parse(json))
+        assertEquals(listOf("b", "c", "a"), UploadLog.parse(json).keys.toList()) // 최근에 보낸 것부터
+        assertTrue(UploadLog.parse(null).isEmpty())
+        assertTrue(UploadLog.parse("깨진 값").isEmpty())
+        // 너무 많이 쌓이면 오래된 것부터 버림
+        val many = (1..1600).associate { "p$it" to it.toLong() }
+        val kept = UploadLog.parse(UploadLog.toJson(many))
+        assertEquals(1500, kept.size)
+        assertTrue("p1600" in kept && "p100" !in kept)
+    }
 }

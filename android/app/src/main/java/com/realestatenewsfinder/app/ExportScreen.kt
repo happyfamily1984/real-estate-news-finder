@@ -54,6 +54,10 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val ctx = LocalContext.current
     // 스레드로 보내고 앱이 뒤로 가면 이 화면을 닫음 → 다시 앱을 열면 목록이 보임
     var sent by remember { mutableStateOf(false) }
+    // 이미 스레드로 보낸 글인지 (중복 업로드 막기). 보낼 때 기록하고, 다시 올리려 하면 한 번 물어봄
+    LaunchedEffect(Unit) { UploadLog.load(ctx) }
+    val uploadedAt = UploadLog.sent[post.id]
+    var askAgain by remember { mutableStateOf(false) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && sent) onSent() }
@@ -87,7 +91,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val outText = if (linkOn) thread.trimEnd() + "\n\n" + link else thread
 
     if (showAutoHelp) {
-        val send = { showAutoHelp = false; result?.files?.let { sent = true; ThreadsKit.upload(ctx, it, outText) }; Unit }
+        val send = { showAutoHelp = false; result?.files?.let { sent = true; UploadLog.mark(ctx, post.id); ThreadsKit.upload(ctx, it, outText) }; Unit }
         AlertDialog(
             onDismissRequest = { showAutoHelp = false },
             title = { Text("자동 입력 켜기") },
@@ -182,6 +186,14 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
             Text("스레드용 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        // 이미 스레드로 보낸 글이면 맨 위에 알림. 잘못 표시됐으면 지울 수 있음
+        if (uploadedAt != null) Row(
+            Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF12A150).copy(alpha = 0.12f)).padding(start = 14.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("✓ ${UploadLog.label(uploadedAt)}에 스레드로 보낸 글이에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0E7C3E), modifier = Modifier.weight(1f))
+            TextButton(onClick = { UploadLog.clear(ctx, post.id) }) { Text("표시 지우기", fontSize = 13.sp) }
         }
         Box(Modifier.weight(1f)) {
             PageScanner(post, attempt, community = kind == "community") { scan = it }
@@ -314,13 +326,21 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                     Toast.makeText(ctx, if (n > 0) "사진 앱에 ${n}장 저장했어요 (RealEstateNews 앨범)" else "안드로이드 10 이상에서 저장할 수 있어요", Toast.LENGTH_SHORT).show()
                 },
             ) { Text("갤러리 저장") }
-            GradientButton("스레드에 올리기", null, onClick = {
+            val go = {
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", outText) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
                     // 자동 입력이 켜져 있으면: (설정에 따라) 계정 확인·전환 → 보내기 → 본문 붙여넣기
-                    if (ThreadsAuto.isEnabled(ctx)) { sent = true; ThreadsKit.upload(ctx, files, outText) } else showAutoHelp = true
+                    if (ThreadsAuto.isEnabled(ctx)) { sent = true; UploadLog.mark(ctx, post.id); ThreadsKit.upload(ctx, files, outText) } else showAutoHelp = true
                 }
-            }, modifier = Modifier.weight(1f))
+            }
+            if (askAgain) AlertDialog(
+                onDismissRequest = { askAgain = false },
+                title = { Text("이미 올린 글이에요") },
+                text = { Text("이 글은 ${uploadedAt?.let { UploadLog.label(it) } ?: "전"}에 스레드로 보냈어요. 한 번 더 올릴까요?", fontSize = 14.sp, lineHeight = 20.sp) },
+                confirmButton = { TextButton(onClick = { askAgain = false; go() }) { Text("다시 올리기", fontWeight = FontWeight.Bold) } },
+                dismissButton = { TextButton(onClick = { askAgain = false }) { Text("취소") } },
+            )
+            GradientButton(if (uploadedAt != null) "다시 올리기" else "스레드에 올리기", null, onClick = { if (uploadedAt != null && !sent) askAgain = true else go() }, modifier = Modifier.weight(1f))
         }
     }
 }
