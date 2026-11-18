@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
         // 글 스캔(전체 페이지 캡처)용: 첫 WebView가 만들어지기 전에 호출해야 화면 밖 부분까지 그려짐
         android.webkit.WebView.enableSlowWholeDocumentDraw()
         enableEdgeToEdge()
+        UploadLog.load(this)
         HotPostWorker.schedule(this)
         runCatching { DealPollWorker.schedule(this, replace = false) }
         handleIntent(intent)
@@ -654,6 +655,8 @@ fun isNew(p: Post): Boolean {
 @Composable
 fun PostCard(p: Post, src: Source?, favorite: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, showPick: Boolean = false) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    // 이미 스레드로 보낸 글: 제목을 흐리게 하고 '올림' 표시
+    val uploaded = p.id in UploadLog.sent
     val number = if (showPick) p.pick else p.score
     val accent = if (showPick) (if (p.pick >= 70) PickGreen else Calm) else scoreColor(p.score)
     val primary = MaterialTheme.colorScheme.primary
@@ -688,13 +691,18 @@ fun PostCard(p: Post, src: Source?, favorite: Boolean, onClick: () -> Unit, onLo
             Text(
                 p.title, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
+                color = if (uploaded) muted else MaterialTheme.colorScheme.onSurface,
                 // 한글이 낱말 중간에서 끊기지 않게 (지원하는 기기에서)
                 style = LocalTextStyle.current.copy(lineBreak = LineBreak(LineBreak.Strategy.HighQuality, LineBreak.Strictness.Normal, LineBreak.WordBreak.Phrase)),
             )
             Spacer(Modifier.height(7.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Tag(p.outlet ?: src?.name ?: p.source, primary, Modifier.widthIn(max = 120.dp))
-                if (isNew(p)) Text("  NEW", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = HotRed, maxLines = 1)
+                if (uploaded) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("✓ 올림", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(PickGreen).padding(horizontal = 6.dp, vertical = 2.dp))
+                } else if (isNew(p)) Text("  NEW", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = HotRed, maxLines = 1)
                 if (!showPick && p.pick >= 70) {
                     Spacer(Modifier.width(6.dp))
                     Row(Modifier.clip(RoundedCornerShape(7.dp)).background(PickGreen.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
