@@ -328,7 +328,8 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
 
 /**
  * 지역별 최고 실거래 단지에 쓰는 자료: 시군구 하나의 기간 내 '단지별 최고가 거래' 상위권.
- * 5년이면 달마다 한 번씩 60번 넘게 받아야 해서, 받은 거래를 다 들고 있지 않고 달마다 추려 가며 모으고, 결과만 7일 동안 저장해 둠
+ * 5년이면 달마다 한 번씩 60번 넘게 받아야 해서, 받은 거래를 메모리에 다 들고 있지 않고 달마다 추려 가며 모음.
+ * 달별 자료는 공용 캐시(다른 화면과 같이 씀)에, 추린 결과는 7일 동안 따로 저장해 둠
  */
 object TopDeals {
     private const val KEEP = 30
@@ -353,7 +354,7 @@ object TopDeals {
         yms.chunked(4).forEachIndexed { k, chunk ->
             // 네 달씩 동시에 받음. 실패하면 한 번 더 시도
             val got = kotlinx.coroutines.coroutineScope {
-                chunk.map { ym -> async { runCatching { core.molit.fetchLive("trade", code, ym) }.getOrElse { runCatching { core.molit.fetchLive("trade", code, ym) }.getOrNull() } } }.map { it.await() }
+                chunk.map { ym -> async { runCatching { core.molit.fetchMonth("trade", code, ym, memory = false) }.getOrElse { runCatching { core.molit.fetchMonth("trade", code, ym, memory = false) }.getOrNull() } } }.map { it.await() }
             }
             failed += got.count { it == null }
             val deals = got.filterNotNull().flatten().filter { it.date >= since }

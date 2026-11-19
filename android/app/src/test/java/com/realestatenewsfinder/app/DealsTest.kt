@@ -268,4 +268,30 @@ class DealsTest {
         assertEquals("1. 나 25억\n2. 가 20억", DealTools.topText("서울", 84, DealPeriod.Y5, DealTools.topDeals(deals, 84, 10), true).split("\n\n")[1])
         assertTrue(DealTools.topText("서울", 84, DealPeriod.Y5, emptyList(), true).contains("매매 실거래가 없음"))
     }
+
+    // ----- 받은 실거래 자료를 임시 저장해 다시 쓰기 -----
+    @Test fun monthCacheSavesCalls() {
+        var calls = 0
+        val http = HttpGet { _, _ ->
+            calls++
+            200 to "<response><header><resultCode>000</resultCode><resultMsg>OK</resultMsg></header><body><items><item><aptNm>가</aptNm><umdNm>동</umdNm><jibun>1</jibun><dealYear>2026</dealYear><dealMonth>1</dealMonth><dealDay>3</dealDay><dealAmount>50,000</dealAmount><excluUseAr>84.9</excluUseAr><floor>3</floor></item></items><totalCount>1</totalCount></body></response>"
+        }
+        val dir = java.nio.file.Files.createTempDirectory("molit").toFile()
+        var now = ZonedDateTime.of(2026, 11, 16, 12, 0, 0, 0, KST).toInstant().toEpochMilli()
+        fun client() = MolitClient({ "" }, { "https://proxy.test" }, "", http, dir) { now }
+        val hour = 3600_000L
+        // 지난 달: 7일 동안은 다시 받지 않음 (앱을 껐다 켜도 = 새 client)
+        assertEquals(1, client().fetchMonth("trade", "11680", "202601").size)
+        client().fetchMonth("trade", "11680", "202601"); client().fetchMonth("trade", "11680", "202601", memory = false)
+        assertEquals(1, calls)
+        now += 6 * 24 * hour; client().fetchMonth("trade", "11680", "202601"); assertEquals(1, calls)
+        now += 2 * 24 * hour; client().fetchMonth("trade", "11680", "202601"); assertEquals(2, calls)
+        // 이번 달: 6시간
+        client().fetchMonth("trade", "11680", "202611"); assertEquals(3, calls)
+        now += 5 * hour; client().fetchMonth("trade", "11680", "202611"); assertEquals(3, calls)
+        now += 2 * hour; client().fetchMonth("trade", "11680", "202611"); assertEquals(4, calls)
+        // 알림 확인(force)은 늘 새로 받음
+        client().fetchMonth("trade", "11680", "202611", force = true); assertEquals(5, calls)
+        dir.deleteRecursively()
+    }
 }
