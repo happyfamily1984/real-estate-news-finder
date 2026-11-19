@@ -24,7 +24,40 @@ object Summarizer {
         "세금" to "누가 내는지(또는 줄어드는지), 금액·세율, 적용 시점과 요건",
     )
 
-    fun system(kind: String, tags: List<String>, casual: Boolean, today: String = ""): String {
+    /** 실험실 글 형식: 기본(한마디 + 요약) 말고 조회수 템플릿을 따라 쓰는 형식들 */
+    val LAB_FORMATS = linkedMapOf("basic" to "기본", "qa" to "문답형", "debate" to "찬반 질문형", "checklist" to "체크리스트형")
+
+    /** 실험실 형식별 글 쓰는 법과 예시. basic이면 null */
+    private fun labForm(format: String, casual: Boolean): Pair<String, String>? {
+        fun e(c: String, p: String) = if (casual) c else p
+        return when (format) {
+            "qa" -> ("- 구성(문답형): 아래 순서 그대로 쓴다.\n" +
+                "  1) 첫 줄: '[제도·대출·세금 이름] 이거 모르면 진짜 손해' 꼴의 한 줄. 이름은 본문에 나온 그대로.\n" +
+                "  2) 'Q. ' 로 시작하는 질문 한 줄: 읽는 사람이 가장 궁금해할 것 하나.\n" +
+                "  3) 'A. ' 로 시작하는 답 한 줄: 결론부터.\n" +
+                "  4) '- ' 로 시작하는 줄 2~3개: 대상·조건·금액·시기. 본문에 있는 것만. 놓치기 쉬운 점이 본문에 있으면 마지막 줄을 '- 주의: ' 로 쓴다.\n" +
+                "  5) 마지막 두 줄: '${e("헷갈리는 상황 있으면 댓글 남겨줘.", "헷갈리는 상황 있으면 댓글 남겨주세요.")}' / '${e("하나씩 답해줄게.", "하나씩 답해드릴게요.")}'\n" +
+                "- 본문이 제도·대출·세금·지원 내용이 아니면 이 형식을 억지로 맞추지 말고, 한마디 한 줄과 요약 2~3줄로 쓴다.\n") to
+                ("OO대출 이거 모르면 진짜 손해\n\nQ. 누가 받을 수 있어?\nA. ${e("연소득 N원 이하 무주택자면 돼", "연소득 N원 이하 무주택자면 돼요")}\n\n- 한도는 최대 N원\n- N월 N일 신청분부터 적용\n- 주의: 이미 집이 있으면 안 됨\n\n" +
+                    e("헷갈리는 상황 있으면 댓글 남겨줘.\n하나씩 답해줄게.", "헷갈리는 상황 있으면 댓글 남겨주세요.\n하나씩 답해드릴게요."))
+            "debate" -> ("- 구성(찬반 질문형): 본문에 서로 다른 두 입장이 있을 때만 쓴다.\n" +
+                "  1) 첫 줄: 상황을 한 줄로.\n" +
+                "  2) 두 줄: '[한쪽]은 [주장],' / '[다른 쪽]은 [주장].' 본문에 나온 입장 그대로. 어느 쪽이 옳다고 판단하지 않는다.\n" +
+                "  3) 마지막 두 줄: '이거 [A]가 맞아, [B]가 맞아?' 꼴의 질문 / '${e("비슷한 경험 있는 사람 댓글로 알려줘.", "비슷한 경험 있으신 분 댓글로 알려주세요.")}'\n" +
+                "- 본문에 두 입장이 없으면 이 형식을 억지로 맞추지 말고, 한마디 한 줄과 요약 2~3줄로 쓴다.\n") to
+                ("OO 문제로 집주인이랑 세입자가 부딪혔대\n\n집주인은 OO라고 하고,\n세입자는 OO라고 함.\n\n" + e("이거 집주인이 맞아, 세입자가 맞아?\n비슷한 경험 있는 사람 댓글로 알려줘.", "이거 집주인이 맞을까요, 세입자가 맞을까요?\n비슷한 경험 있으신 분 댓글로 알려주세요."))
+            "checklist" -> ("- 구성(체크리스트형): 본문에 사기·피해 수법이나 확인할 점이 나올 때만 쓴다.\n" +
+                "  1) 첫 줄: 어떤 피해·수법 얘기인지 한 줄 (예: '요즘 OO 수법 N가지'). 개수는 실제로 쓴 줄 수와 같게.\n" +
+                "  2) '1. ' '2. ' 로 시작하는 줄 2~4개: '[수법]: [한 줄 설명]'. 본문에 나온 것만.\n" +
+                "  3) 본문에 확인할 점·예방법이 있으면: '${e("계약 전에 이건 꼭 확인해.", "계약 전에 이건 꼭 확인하세요.")}' 한 줄 뒤에 '✅ ' 로 시작하는 줄 2~3개. 본문에 없으면 이 부분은 통째로 뺀다.\n" +
+                "  4) 마지막 줄: '${e("짝꿍이랑 친구한테도 공유해줘.", "가족·친구에게도 공유해 주세요.")}'\n" +
+                "- 본문에 없는 수법·확인 사항을 지어내지 않는다. 그런 내용이 없으면 한마디 한 줄과 요약 2~3줄로 쓴다.\n") to
+                ("요즘 OO 사기 수법 N가지\n\n1. OO: OO하는 방식\n2. OO: OO하는 방식\n\n" + e("계약 전에 이건 꼭 확인해.", "계약 전에 이건 꼭 확인하세요.") + "\n✅ OO 확인\n✅ OO 확인\n\n" + e("짝꿍이랑 친구한테도 공유해줘.", "가족·친구에게도 공유해 주세요."))
+            else -> null
+        }
+    }
+
+    fun system(kind: String, tags: List<String>, casual: Boolean, today: String = "", format: String = "basic"): String {
         val what = when (kind) {
             "gov" -> "정부·공공기관 보도자료"
             "community" -> "부동산 커뮤니티 게시글"
@@ -58,29 +91,37 @@ object Summarizer {
             community + "\n" +
             "[스레드 글 쓰는 법]\n" +
             "- 말투: ${tone}기사체('~했다', '~로 나타났다', '~것으로 집계됐다')와 보고서체는 쓰지 않는다.\n" +
+            (labForm(format, casual)?.let { (how, _) ->
+                how +
+                    "- 숫자는 본문에 적힌 그대로, 꼭 필요한 것만. 줄 사이에는 빈 줄을 적당히 두고 전체 420자 이내.\n" +
+                    "- 쓰지 않는 것: 화살표(→ ↓ ↑), 한자(比 등), 표, 해시태그, 따옴표, '출처' 표기, 같은 말 반복. 이모지는 위에서 정한 ✅ 만.\n\n"
+            } ?: basicForm()) +
+            "[출력 형식] 아래 두 구역만 출력한다. 머리말·설명 없이.\n" +
+            "[스레드]\n" + (if (labForm(format, casual) != null) "(위 구성대로 쓴 글)" else "(첫 줄 한마디, 빈 줄, 요약 2~3줄)") + "\n" +
+            "[카드]\n" +
+            "- 항목: 내용  (이런 줄 3~5개. 첫 줄은 제목이 말하는 핵심 사실. 항목에는 어느 지역·무엇에 대한 숫자인지 드러나게 쓴다(예: '강남 일반분양', '서울 1순위 신청자'). 항목 10자 이내, 내용 28자 이내. 본문에 있는 것만)\n\n" +
+            "[형식 예시 — 형식과 말투만 참고. OO, N은 자리 표시이며 예시의 내용은 절대 가져오지 않는다]\n" +
+            "[스레드]\n" + (labForm(format, casual)?.second ?: ex.joinToString("\n\n")) + "\n" +
+            "[카드]\n- 적용 지역: OO\n- 한도 변화: 연소득 N원 기준 N원 감소\n- 시행일: N월 N일 신청분부터\n- 예외: 그 전 계약분은 종전 기준"
+    }
+
+    /** 기본 형식: 맨 위 한마디 + 핵심 2~3줄 */
+    private fun basicForm(): String =
             "- 첫 줄(한마디): 이 소식을 한 문장으로 찌르는 촌철살인 한마디. 본문의 사실에서 나온 해석이어야 하고, 읽자마자 무슨 소식인지 감이 와야 한다. " +
             "비유·대비·반전은 써도 된다. 숫자는 넣지 않는다. 본문에 없는 사실, 전망, 권유, 비아냥, 낚시성 과장은 쓰지 않는다. 25자 안팎.\n" +
             "- 이어서 2~3줄(요약): 가장 중요한 사실만 고른다. 한 줄에 완결된 짧은 문장 하나, 줄마다 사실 하나. 숫자는 꼭 필요한 것만, 본문에 적힌 그대로. " +
             "무엇에 대한 숫자인지(어느 지역·기간·무엇과 비교)를 문장 안에 풀어 쓴다(예: '3분기 매매 거래가 2분기보다 29.8% 줄었대'). 곁가지 숫자를 줄줄이 나열하지 않는다.\n" +
             "- 한마디와 요약으로 끝낸다. 맺음말, 정리, 권유를 덧붙이지 않는다.\n" +
             "- 줄 사이에는 빈 줄 하나. 한 줄 45자 이내, 전체 220자 이내.\n" +
-            "- 쓰지 않는 것: 화살표(→ ↓ ↑), 한자(比 등), 콜론(:)으로 나열, 괄호 속 숫자 나열, 표·목록 형식, 해시태그, 이모지, 따옴표, 번호, 글머리 기호, '출처' 표기, 같은 말 반복.\n\n" +
-            "[출력 형식] 아래 두 구역만 출력한다. 머리말·설명 없이.\n" +
-            "[스레드]\n(첫 줄 한마디, 빈 줄, 요약 2~3줄)\n" +
-            "[카드]\n" +
-            "- 항목: 내용  (이런 줄 3~5개. 첫 줄은 제목이 말하는 핵심 사실. 항목에는 어느 지역·무엇에 대한 숫자인지 드러나게 쓴다(예: '강남 일반분양', '서울 1순위 신청자'). 항목 10자 이내, 내용 28자 이내. 본문에 있는 것만)\n\n" +
-            "[형식 예시 — 형식과 말투만 참고. OO, N은 자리 표시이며 예시의 내용은 절대 가져오지 않는다]\n" +
-            "[스레드]\n" + ex.joinToString("\n\n") + "\n" +
-            "[카드]\n- 적용 지역: OO\n- 한도 변화: 연소득 N원 기준 N원 감소\n- 시행일: N월 N일 신청분부터\n- 예외: 그 전 계약분은 종전 기준"
-    }
+            "- 쓰지 않는 것: 화살표(→ ↓ ↑), 한자(比 등), 콜론(:)으로 나열, 괄호 속 숫자 나열, 표·목록 형식, 해시태그, 이모지, 따옴표, 번호, 글머리 기호, '출처' 표기, 같은 말 반복.\n\n"
 
     private val NUMBER = Regex("\\d[\\d,]*(?:\\.\\d+)?")
     private fun numbers(text: String): List<String> = NUMBER.findAll(text).map { it.value.replace(",", "").trimEnd('.') }.toList()
 
     /** 요약에 나온 숫자 중 원문(제목·본문)에 없는 것 → 지어낸 숫자 */
-    fun unsupportedNumbers(summaryText: String, source: String): List<String> {
+    fun unsupportedNumbers(summaryText: String, source: String, lenient: Boolean = false): List<String> {
         val known = numbers(source).toSet()
-        return numbers(summaryText).filter { it !in known }.distinct()
+        return numbers(summaryText).filter { it !in known && !(lenient && it.toIntOrNull()?.let { n -> n in 1..9 } == true) }.distinct()
     }
 
     /** 원문에 없는 숫자가 들어간 줄을 뺌 */
@@ -117,11 +158,11 @@ object Summarizer {
     private fun cleanLine(l: String) = l.trim().trim('"', '“', '”', '*').trim()
 
     /** AI 응답을 스레드 글과 카드 내용으로 나눔. 형식이 어긋나도 최대한 살림 */
-    fun parse(raw: String, fallbackTitle: String): Summary? {
+    fun parse(raw: String, fallbackTitle: String, keepMarks: Boolean = false): Summary? {
         val text = raw.replace("\r", "").replace("**", "").trim()
         val cardAt = Regex("\\[\\s*카드\\s*]").find(text)
         val threadPart = (if (cardAt != null) text.substring(0, cardAt.range.first) else text).replace(Regex("\\[\\s*스레드\\s*]"), "")
-        var thread = threadPart.lines().map { cleanLine(it).replace(Regex("^([-•·]|\\d+[.)])\\s*"), "") }
+        var thread = threadPart.lines().map { l -> cleanLine(l).let { if (keepMarks) it else it.replace(Regex("^([-•·]|\\d+[.)])\\s*"), "") } }
             .joinToString("\n").replace(Regex("\n{3,}"), "\n\n").trim()
         if (thread.isBlank()) return null
         if (thread.length > MAX_THREAD_CHARS) {
@@ -157,21 +198,22 @@ object Summarizer {
     /** 마지막 요약에서 원문에 없는 숫자 때문에 뺀 줄이 있으면 그 숫자들 (화면 안내용) */
     @Volatile var lastDropped: List<String> = emptyList()
 
-    suspend fun summarize(ctx: Context, post: Post, kind: String, sourceName: String, body: String): Summary? {
+    suspend fun summarize(ctx: Context, post: Post, kind: String, sourceName: String, body: String, format: String = "basic"): Summary? {
         if (!hasKey(ctx)) return null
         lastDropped = emptyList()
         val today = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date())
-        val system = system(kind, post.tags, Prefs(ctx).casualTone, today)
+        val lab = format != "basic"
+        val system = system(kind, post.tags, Prefs(ctx).casualTone, today, format)
         val input = buildInput(post, sourceName, body)
         fun all(s: Summary) = s.thread + "\n" + s.headline + "\n" + s.points.joinToString("\n")
-        var sum = parse(ask(ctx, system, input) ?: return null, post.title) ?: return null
-        var bad = unsupportedNumbers(all(sum), input)
+        var sum = parse(ask(ctx, system, input) ?: return null, post.title, lab) ?: return null
+        var bad = unsupportedNumbers(all(sum), input, lab)
         if (bad.isNotEmpty()) {
             // 지어낸 숫자가 있으면 한 번 더 요청
             val retry = ask(ctx, system, "$input\n\n[다시 쓰기] 방금 쓴 글에 본문에 없는 숫자(${bad.joinToString(", ")})가 있었다. 본문에 있는 숫자만 써서 처음부터 다시 써라.")
-                ?.let { parse(it, post.title) }
+                ?.let { parse(it, post.title, lab) }
             if (retry != null) {
-                val bad2 = unsupportedNumbers(all(retry), input)
+                val bad2 = unsupportedNumbers(all(retry), input, lab)
                 if (bad2.size <= bad.size) { sum = retry; bad = bad2 }
             }
         }

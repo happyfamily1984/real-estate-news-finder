@@ -387,4 +387,58 @@ object DealTools {
         lines += "※ ${period.label} 이전에 거래된 더 높은 가격이 있을 수 있" + e("음", "어요")
         return lines.joinToString("\n\n")
     }
+
+    // ---------- (실험실) 자금 계산: 이 집을 사려면 ----------
+    /**
+     * 취득세(지방교육세·농어촌특별세 포함) 대략값, 만원. 1주택 기준 표준 세율:
+     * 6억 이하 1%, 6억~9억 (가격(억)×2/3−3)%, 9억 초과 3%. 지방교육세는 취득세율의 10분의 1, 전용 85㎡ 초과면 농특세 0.2%
+     */
+    fun acquisitionTax(price: Long, area: Double): Long {
+        val rate = when {
+            price <= 60000 -> 1.0
+            price <= 90000 -> price / 10000.0 * 2 / 3 - 3
+            else -> 3.0
+        }
+        val total = rate + rate * 0.1 + (if (area > 85.0) 0.2 else 0.0)
+        return (price * total / 100).roundToLong()
+    }
+
+    /** 매매 중개보수 상한, 만원 (부가세 별도): 5천 미만 0.6%(25만 한도), 2억 미만 0.5%(80만 한도), 9억 미만 0.4%, 12억 미만 0.5%, 15억 미만 0.6%, 그 이상 0.7% */
+    fun brokerFee(price: Long): Long = when {
+        price < 5000 -> minOf((price * 0.006).roundToLong(), 25)
+        price < 20000 -> minOf((price * 0.005).roundToLong(), 80)
+        price < 90000 -> (price * 0.004).roundToLong()
+        price < 120000 -> (price * 0.005).roundToLong()
+        price < 150000 -> (price * 0.006).roundToLong()
+        else -> (price * 0.007).roundToLong()
+    }
+
+    data class Funding(val price: Long, val tax: Long, val fee: Long, val loan: Long, val savings: Long) {
+        /** 집값 + 취득세 + 중개보수 */
+        val total: Long get() = price + tax + fee
+        /** 부족한 돈 (음수면 남는 돈) */
+        val shortfall: Long get() = total - loan - savings
+    }
+
+    /** loanRatio: 집값 대비 대출 비율(%), loanCap: 대출 한도(만원, 0이면 없음) */
+    fun funding(price: Long, area: Double, savings: Long, loanRatio: Int, loanCap: Long = 0): Funding {
+        var loan = price * loanRatio / 100
+        if (loanCap > 0) loan = minOf(loan, loanCap)
+        return Funding(price, acquisitionTax(price, area), brokerFee(price), loan, savings)
+    }
+
+    /** 자금 계산 매수 루트형 글: [모은 돈]으로 [단지] 사는 법 / 단지 정보 / 어떻게 사냐면 … = 취득세·복비 포함 [총액] */
+    fun fundingText(aptNm: String, place: String, areaKey: Int, buildYear: Int?, dealCount: Int, f: Funding, loanRatio: Int, casual: Boolean): String {
+        fun e(c: String, p: String) = if (casual) c else p
+        val lines = mutableListOf<String>()
+        lines += "${shortWon(f.savings)}으로 $aptNm 사는 법"
+        lines += listOfNotNull("$aptNm ${areaKey}㎡", buildYear?.let { "${it}년 준공" }, "매매가 ${shortWon(f.price)}").joinToString(" / ") + "\n($place · 최근 1년 실거래 ${dealCount}건 평균)"
+        val gap = if (f.shortfall > 0) "- 부족한 돈: ${shortWon(f.shortfall)} → " + e("더 모으거나 다른 방법이 필요해", "더 모으거나 다른 방법이 필요해요")
+        else "- 남는 돈: ${shortWon(-f.shortfall)}"
+        lines += e("어떻게 사냐면", "어떻게 사냐면요") + "\n- 대출(집값의 ${loanRatio}%): ${shortWon(f.loan)}\n- 모은 돈: ${shortWon(f.savings)}\n$gap\n= 취득세·복비 포함 ${shortWon(f.total)} 필요"
+        lines += if (f.shortfall <= 0) e("계산해 보면 생각보다 가까워. 포기하지 마.", "계산해 보면 생각보다 가까워요. 포기하지 마세요.")
+        else e("숫자로 보면 얼마가 모자란지 보여. 포기하지 마.", "숫자로 보면 얼마가 모자란지 보여요. 포기하지 마세요.")
+        lines += "※ 취득세는 1주택 기준 대략 계산, 대출 한도는 사람마다 다름"
+        return lines.joinToString("\n\n")
+    }
 }

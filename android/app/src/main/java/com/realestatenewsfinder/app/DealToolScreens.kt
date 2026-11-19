@@ -428,3 +428,80 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
         )
     }
 }
+
+/** (실험실) 자금 계산: 단지·평형을 고르고 모은 돈·대출 비율을 넣으면, 세금·복비까지 얼마가 필요한지와 부족한 돈을 계산 */
+@Composable
+fun FundingScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -> Unit, onSent: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    val core = remember { DealCore.get(ctx) }
+    val regionName = remember { core.regions.get(target.lawdCd)?.optString("fullName").orEmpty() }
+    val place = listOf(regionName.substringAfter(' ', regionName), umdNm).filter { it.isNotBlank() }.joinToString(" ")
+    val today = remember { core.molit.today() }
+    var recent by remember { mutableStateOf<List<Deal>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var areaKey by remember { mutableStateOf<Int?>(null) }
+    var eok by remember { mutableStateOf("3") }
+    var ratio by remember { mutableIntStateOf(60) }
+    var capEok by remember { mutableStateOf("") }
+    LaunchedEffect(target) {
+        try {
+            val all = withContext(Dispatchers.IO) { core.molit.fetchYms("trade", target.lawdCd, DealTools.historyYms(today, 0)) }
+            val mine = all.filter { !it.canceled && DealTools.sameComplex(it, target.complexId, aptNm, umdNm) }
+            recent = mine
+            val areas = mine.groupBy(DealText::areaKey)
+            areaKey = listOf(84, 59).firstOrNull { it in areas.keys } ?: areas.maxByOrNull { it.value.size }?.key
+            if (mine.isEmpty()) error = "최근 1년 동안 이 단지의 매매 실거래가 없어서 계산할 수 없어요."
+        } catch (e: Exception) {
+            error = e.message ?: "실거래 자료를 받지 못했어요"
+        }
+    }
+    val mine = recent.orEmpty().filter { areaKey != null && DealTools.inBand(it.area, areaKey!!) }
+    val price = if (mine.isEmpty()) 0L else mine.map { it.price }.average().toLong()
+    val savings = ((eok.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 500.0) * 10000).toLong()
+    val cap = ((capEok.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 500.0) * 10000).toLong()
+    val f = remember(price, savings, ratio, cap, areaKey) { if (price > 0) DealTools.funding(price, mine.first().area, savings, ratio, cap) else null }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(f) { text = f?.let { DealTools.fundingText(aptNm, place, areaKey ?: 0, mine.firstNotNullOfOrNull { d -> d.buildYear }, mine.size, it, ratio, prefs.casualTone) } ?: "" }
+    val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
+    ThreadShareScreen(
+        title = "$aptNm · 자금 계산", cacheId = "funding-${target.complexId}", hint = "실거래 평균과 넣은 숫자로 계산한 글이에요. 세금·대출은 대략값이니 올리기 전에 확인해 주세요.",
+        text = text, onText = { text = it },
+        renderKey = f to areaKey,
+        render = f?.let { ff -> { DealCards.funding(ctx, aptNm, place, areaKey ?: 0, ff, ratio, today) } },
+        status = error?.let { "⚠ $it" } ?: if (recent == null) "최근 1년 실거래 받는 중…" else if (f == null) "평형을 골라주세요." else null,
+        onBack = onBack, onSent = onSent,
+    ) {
+        Label("🧪 실험실 · 평형 (전용면적)")
+        if (areas.isEmpty()) Text(if (error == null) "평형을 불러오는 중…" else "고를 평형이 없어요", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else PillRow { areas.forEach { (a, n) -> ChoicePill("${a}㎡ ($n)", areaKey == a) { areaKey = a } } }
+        Label("모은 돈")
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            OutlinedTextField(eok, { v -> if (v.length <= 5 && v.all { it.isDigit() || it == '.' }) eok = v }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.width(120.dp))
+            Spacer(Modifier.width(8.dp)); Text("억원", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        Label("대출 비율 (집값 대비)")
+        PillRow { listOf(0, 40, 50, 60, 70, 80).forEach { r -> ChoicePill(if (r == 0) "대출 없이" else "$r%", ratio == r) { ratio = r } } }
+        Label("대출 한도 (있으면)")
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            OutlinedTextField(capEok, { v -> if (v.length <= 5 && v.all { it.isDigit() || it == '.' }) capEok = v }, singleLine = true, placeholder = { Text("없음") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.width(120.dp))
+            Spacer(Modifier.width(8.dp)); Text("억원까지", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("취득세는 1주택 기준 표준 세율, 중개보수는 상한 요율로 계산해요. 실제 대출 가능액은 소득·지역 규제에 따라 달라요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** (실험실) 내 집 마련 타이밍 신호 3가지: 전국 지표에서 가격·매수 심리·전세를 뽑아 한 글과 추이 이미지로 */
+@Composable
+fun SignalShareScreen(stats: Stats, onBack: () -> Unit, onSent: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    val (first, used) = remember(stats) { StatText.signals(stats, prefs.casualTone, java.time.LocalDate.now(KST).year) }
+    var text by remember(stats) { mutableStateOf(first) }
+    ThreadShareScreen(
+        title = "🧪 타이밍 신호 3가지", cacheId = "signals", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 사라·기다려라 같은 권유는 넣지 않았어요.",
+        text = text, onText = { text = it },
+        renderKey = stats.updatedAt, render = { used.mapNotNull { StatCards.trend(ctx, it, Watermark.of(ctx)) } },
+        onBack = onBack, onSent = onSent,
+    )
+}

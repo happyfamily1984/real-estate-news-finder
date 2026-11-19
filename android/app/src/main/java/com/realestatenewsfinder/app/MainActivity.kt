@@ -193,7 +193,9 @@ fun App() {
     var dealShare by remember { mutableStateOf<DealShareArgs?>(null) }
     // 실거래 활용: 내 돈으로 살 수 있는 집, 과거 가격 비교(단지를 먼저 고름), 분양가 vs 실거래
     var dealTool by remember { mutableStateOf<String?>(null) }
-    var pickForHistory by remember { mutableStateOf(false) }
+    var pickFor by remember { mutableStateOf<String?>(null) } // 단지를 고르는 목적: "history"(과거 가격 비교), "funding"(자금 계산)
+    var fundingOf by remember { mutableStateOf<Triple<DealTarget, String, String>?>(null) }
+    var signalsOpen by remember { mutableStateOf(false) }
     var historyOf by remember { mutableStateOf<Triple<DealTarget, String, String>?>(null) }
     val dealFromNotification = MainActivity.pendingDeal.value
     LaunchedEffect(dealFromNotification) {
@@ -280,11 +282,12 @@ fun App() {
                 Tab.COMMUNITY -> HomeScreen(feedCommunity, error, loading, favIds, ::refresh, open, toExport, onBell = switchAccount, community = true)
                 Tab.STATS -> StatsScreen(
                     stats, statsError, statsLoading, ::refreshStats, onOpen = { statShare = it },
-                    onRegion = { regionShare = it }, onDealRegion = { pickForHistory = false; dealRegion = it }, onDealOpen = { dealComplex = it },
+                    onRegion = { regionShare = it }, onDealRegion = { pickFor = null; dealRegion = it }, onDealOpen = { dealComplex = it },
+                    onLab = { signalsOpen = true },
                     onDealTool = { id ->
-                        if (id == "history") {
+                        if (id == "history" || id == "funding") {
                             // 단지를 먼저 골라야 함: 마지막으로 본 지역의 단지 목록을 열고, 없으면 아래에서 지역을 고르라고 알림
-                            pickForHistory = true
+                            pickFor = id
                             val last = Prefs(ctx).dealRecent.firstOrNull()
                             if (last != null) dealRegion = last else Toast.makeText(ctx, "아래 '단지 찾기'에서 시·군·구를 고르면 단지를 선택할 수 있어요.", Toast.LENGTH_LONG).show()
                         } else dealTool = id
@@ -320,13 +323,15 @@ fun App() {
     regionShare?.let { r -> stats?.let { st -> key("r$r") { RegionShareScreen(st, r, onBack = { regionShare = null }, onSent = { regionShare = null }) } } }
     // 실거래: 단지 목록 → 단지 상세 → 스레드 내보내기 (위에 겹쳐 띄워서 뒤로가기로 한 단계씩)
     dealRegion?.let { code -> key("dr$code") {
-        ComplexListScreen(code, onBack = { dealRegion = null; pickForHistory = false }, note = if (pickForHistory) "과거 가격과 비교할 단지를 고르세요" else null) { t, aptNm, umdNm ->
-            if (pickForHistory) historyOf = Triple(t, aptNm, umdNm) else dealComplex = t
+        ComplexListScreen(code, onBack = { dealRegion = null; pickFor = null }, note = when (pickFor) { "history" -> "과거 가격과 비교할 단지를 고르세요"; "funding" -> "자금 계산할 단지를 고르세요"; else -> null }) { t, aptNm, umdNm ->
+            when (pickFor) { "history" -> historyOf = Triple(t, aptNm, umdNm); "funding" -> fundingOf = Triple(t, aptNm, umdNm); else -> dealComplex = t }
         }
     } }
     dealComplex?.let { t -> key("dc" + t.toUri()) {
         ComplexDetailScreen(t, onBack = { dealComplex = null }, onHistory = { aptNm, umdNm -> historyOf = Triple(t, aptNm, umdNm) }) { aptNm, umdNm, type, period, fresh -> dealShare = DealShareArgs(t, aptNm, umdNm, type, period, fresh) }
     } }
+    fundingOf?.let { (t, aptNm, umdNm) -> key("df" + t.complexId) { FundingScreen(t, aptNm, umdNm, onBack = { fundingOf = null }, onSent = { fundingOf = null }) } }
+    if (signalsOpen) stats?.let { st -> SignalShareScreen(st, onBack = { signalsOpen = false }, onSent = { signalsOpen = false }) }
     historyOf?.let { (t, aptNm, umdNm) -> key("dh" + t.complexId) { HistoryScreen(t, aptNm, umdNm, onBack = { historyOf = null }, onSent = { historyOf = null }) } }
     when (dealTool) {
         "budget" -> BudgetScreen(onBack = { dealTool = null }, onSent = { dealTool = null })

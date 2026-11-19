@@ -163,6 +163,8 @@ object StatCards {
             val NIGHT = Theme(0xFF0A1024.toInt(), 0xFF26355F.toInt(), 0xFFEEF0F6.toInt(), 0xFFF8F9FC.toInt(), 0xFFF5C451.toInt(), 0xFF141C36.toInt(), 0xFF3A4A7A.toInt(), style = 1, filledTiles = true)
             /** 분양가 vs 실거래가: 주황·분홍 + 'VS' 표지 */
             val SUNSET = Theme(0xFFB5360C.toInt(), 0xFFF2587C.toInt(), 0xFFFFF1EA.toInt(), 0xFFFFF9F6.toInt(), 0xFFFFF3B0.toInt(), 0xFFA5340F.toInt(), 0xFFE5633A.toInt(), style = 2, badge = "VS")
+            /** (실험실) 자금 계산: 청회색 + '계산' 표지 */
+            val PLAN = Theme(0xFF12324A.toInt(), 0xFF2F7FA8.toInt(), 0xFFEAF4F9.toInt(), 0xFFF6FBFD.toInt(), 0xFFFFE38A.toInt(), 0xFF173B55.toInt(), 0xFF2C6E92.toInt(), style = 2, badge = "계산")
             /** 최고 실거래 단지: 검정 + 금색, 가운데 정렬 */
             val GOLD = Theme(0xFF111111.toInt(), 0xFF3B2F12.toInt(), 0xFFF7F3E8.toInt(), 0xFFFCFAF4.toInt(), 0xFFF2C14E.toInt(), 0xFF1B1B1B.toInt(), 0xFF6B5420.toInt(), style = 1, filledTiles = true)
         }

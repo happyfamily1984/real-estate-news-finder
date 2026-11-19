@@ -103,6 +103,15 @@ class AndroidTest {
         compose.onRoot().captureRoboImage("build/screens/stats.png")
     }
 
+    @Test
+    fun labSignals() {
+        val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
+        assertTrue(StatText.signals(stats, true, 2026).second.isNotEmpty())
+        compose.setContent { AppTheme(dark = false) { SignalShareScreen(stats, {}, {}) } }
+        compose.waitUntil(15000) { compose.onAllNodes(androidx.compose.ui.test.hasText("내 집 마련 타이밍", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onRoot().captureRoboImage("build/screens/lab-signals.png")
+    }
+
     // ----- 지역별 통계 · 실거래 -----
     private val mark = Watermark.Mark("부동산 알려주는 스레드", "@buals_zip")
     private fun save(name: String, b: Bitmap) { File("build/screens").mkdirs(); File("build/screens/$name.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
@@ -195,6 +204,7 @@ class AndroidTest {
                         2 -> ComplexDetailScreen(target, {}) { _, _, _, _, _ -> }
                         4 -> BudgetScreen({}, {})
                         5 -> HistoryScreen(target, "래미안슈르", "원문동", {}, {})
+                        7 -> FundingScreen(target, "래미안슈르", "원문동", {}, {})
                         else -> DealShareScreen("41290", id, "래미안슈르", "원문동", "trade", DealPeriod.Y1, core.notificationDeals(note.getString("id")), {}, {})
                     }
                 }
@@ -232,6 +242,10 @@ class AndroidTest {
             Prefs(app).dealArea = "41290"
             screen = 4; shot("tool-budget-screen", "84㎡ 아파트")
             screen = 5; shot("tool-history-screen", "가격 비교")
+            // 실험실: 자금 계산
+            val fund = DealTools.funding(152000, 84.9, 50000, 60)
+            DealCards.funding(app, "래미안슈르", "과천시 원문동", 84, fund, 60, today, mark).forEachIndexed { i, b -> save("lab-funding-${i + 1}", b) }
+            screen = 7; shot("lab-funding-screen", "사는 법")
         } finally {
             DealCore.replace(null)
         }

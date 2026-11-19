@@ -103,4 +103,16 @@ class StatsTest {
         // 예전 형식(parents 없음)도 그대로 읽힘
         assertTrue(Stats.parse(json).parents.isEmpty())
     }
+
+    // ----- (실험실) 타이밍 신호 -----
+    @Test
+    fun timingSignals() {
+        val (text, used) = StatText.signals(Stats.parse(json), casual = true, year = 2026)
+        assertEquals(listOf("kb-sale-wk", "kb-buyer-wk"), used.map { it.id })
+        assertTrue(text.startsWith("2026년 내 집 마련 타이밍.\n가격은 오르는데 사려는 사람은 많지 않아."))
+        assertTrue(text.contains("지금 봐야 할 신호 2가지\n1. 매매가: 전국 +0.07%") && text.contains("(서울 +0.10%)"))
+        assertTrue(text.contains("2. 매수 심리: 매수우위지수 39.5") && text.contains("100 아래라 팔려는 사람이 더 많음"))
+        assertTrue(text.endsWith("너는 지금 사야 한다고 봐, 기다려야 한다고 봐?"))
+        assertTrue(StatText.signals(Stats.parse("""{"version":1,"sido":[],"series":[]}"""), true, 2026).second.isEmpty())
+    }
 }

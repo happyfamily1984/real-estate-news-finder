@@ -382,4 +382,34 @@ object DealCards {
         c.drawText("자료 : 국토교통부 실거래가 (단지별 최고가 한 건. 해제 거래 제외)", StatCards.PAD + 18f * F, area.bottom + 92f * F, cap)
         return listOf(bmp)
     }
+
+    // ---------- (실험실) 자금 계산 ----------
+    fun funding(ctx: Context, aptNm: String, place: String, areaKey: Int, f: DealTools.Funding, loanRatio: Int, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val lack = f.shortfall > 0
+        val tiles = listOf(StatCards.Tile("매매가", short(f.price), StatCards.INK), StatCards.Tile("대출", short(f.loan), BLUE), StatCards.Tile(if (lack) "부족한 돈" else "남는 돈", short(abs(f.shortfall)), if (lack) RED else 0xFF12A150.toInt()))
+        val base = StatCards.frameCustom(ctx, c, "${areaKey}㎡ · 최근 1년 실거래 평균", aptNm, "${short(f.savings)}으로 사는 법", "$place · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark, StatCards.Theme.PLAN)
+        val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
+        val inner = StatCards.panel(c, area, "얼마가 필요하고 어떻게 채우나")
+        val rows = listOf(
+            Triple("매매가", short(f.price), StatCards.INK), Triple("취득세 (1주택 기준 대략)", "+" + short(f.tax), StatCards.GRAY), Triple("중개보수 (상한)", "+" + short(f.fee), StatCards.GRAY),
+            Triple("필요한 돈 합계", short(f.total), StatCards.themeDark), Triple("대출 (집값의 $loanRatio%)", "-" + short(f.loan), BLUE), Triple("모은 돈", "-" + short(f.savings), BLUE),
+            Triple(if (lack) "부족한 돈" else "남는 돈", short(abs(f.shortfall)), if (lack) RED else 0xFF12A150.toInt()),
+        )
+        val rowH = inner.height() / rows.size
+        rows.forEachIndexed { k, (label, value, color) ->
+            val cy = inner.top + rowH * k + rowH / 2
+            val strong = k == 3 || k == rows.size - 1
+            if (strong) c.drawRoundRect(RectF(inner.left - 8f, cy - rowH * 0.42f, inner.right + 8f, cy + rowH * 0.42f), 12f, 12f, StatCards.fill(if (k == 3) 0x142C6E92 else if (lack) 0x14E5262B else 0x1412A150))
+            c.drawText(label, inner.left + 10f * F, cy + 12f * F, StatCards.text((if (strong) 38f else 34f) * F, StatCards.INK, bold = strong))
+            val vp = StatCards.text((if (strong) 50f else 40f) * F, color)
+            c.drawText(value, inner.right - 10f * F - vp.measureText(value), cy + 14f * F, vp)
+            if (!strong && k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
+        }
+        val cap = StatCards.text(29f * F, StatCards.GRAY, bold = false)
+        c.drawText("취득세·중개보수는 대략 계산. 대출 한도는 소득·규제에 따라 사람마다 다름", StatCards.PAD + 18f * F, area.bottom + 48f * F, cap)
+        c.drawText("자료 : 국토교통부 실거래가 (최근 1년 평균)", StatCards.PAD + 18f * F, area.bottom + 92f * F, cap)
+        return listOf(bmp)
+    }
 }
