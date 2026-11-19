@@ -208,7 +208,7 @@ val defaultHttp = HttpGet { url, headers ->
 }
 
 /**
- * 국토부 API 호출 + 캐시 (최근 2개월: 1시간, 이전 달: 7일 디스크 캐시)
+ * 국토부 API 호출 + 캐시 (이번 달·지난달: 6시간, 이전 달: 7일. 둘 다 디스크에 저장)
  * 데이터 경로: 개인 API 키가 있으면 국토부 직접 호출, 없으면 중계 서버(proxy) 경유
  */
 class MolitClient(
@@ -270,36 +270,55 @@ class MolitClient(
         return Molit.assignKeys(deals)
     }
 
+    companion object {
+        const val OLD_TTL = 7 * 24 * 3600 * 1000L
+        const val RECENT_TTL = 6 * 3600 * 1000L
+    }
+
     private fun diskFile(ck: String) = cacheDir?.let { File(it, "molit/${ck.replace(':', '_')}.json") }
 
-    fun fetchMonth(api: String, lawdCd: String, ym: String, force: Boolean = false): List<Deal> {
+    /**
+     * 한 시군구의 한 달 거래. 받은 자료는 임시 저장 공간(캐시)에 두고 다시 씀 → 국토부 호출 횟수를 줄임.
+     *  - 지난 달들(이번 달·지난달 제외): 7일. 신고가 끝난 달이라 거의 바뀌지 않음
+     *  - 이번 달·지난달: 6시간. 새 신고가 계속 들어오므로 짧게 (앱을 껐다 켜도 유지)
+     * force: 캐시를 무시하고 새로 받음 (새 실거래 알림 확인용 → 알림은 늘 최신 자료로)
+     * memory: false면 메모리에 올려 두지 않음 (5년치처럼 양이 많을 때)
+     */
+    fun fetchMonth(api: String, lawdCd: String, ym: String, force: Boolean = false, memory: Boolean = true): List<Deal> {
         val ck = "$api:$lawdCd:$ym"
         val recent = ym in Molit.recentYms(2, today())
-        val ttl = if (recent) 60 * 60 * 1000L else 7 * 24 * 3600 * 1000L
+        val ttl = if (recent) RECENT_TTL else OLD_TTL
         val now = clock()
         if (!force) {
             mem[ck]?.let { if (now - it.first < ttl) return it.second }
-            if (!recent) diskFile(ck)?.takeIf { it.exists() }?.let { f ->
+            diskFile(ck)?.takeIf { it.exists() }?.let { f ->
                 runCatching {
                     val o = JSONObject(f.readText())
                     if (now - o.getLong("at") < ttl) {
                         val arr = o.getJSONArray("deals")
                         val deals = (0 until arr.length()).map { Deal.fromJson(arr.getJSONObject(it)) }
-                        mem[ck] = o.getLong("at") to deals
+                        if (memory) mem[ck] = o.getLong("at") to deals
                         return deals
                     }
                 }
             }
         }
         val deals = fetchLive(api, lawdCd, ym)
-        mem[ck] = now to deals
-        if (!recent) diskFile(ck)?.let { f ->
+        if (memory) mem[ck] = now to deals
+        diskFile(ck)?.let { f ->
             runCatching {
                 f.parentFile?.mkdirs()
                 f.writeText(JSONObject().put("at", now).put("deals", JSONArray(deals.map { it.toJson() })).toString())
             }
         }
         return deals
+    }
+
+    /** 기한이 지난 캐시 파일 지우기 (저장 공간이 계속 불어나지 않게). 앱을 켤 때 한 번 */
+    fun cleanCache() {
+        val dir = cacheDir?.let { File(it, "molit") } ?: return
+        val now = clock()
+        runCatching { dir.listFiles()?.forEach { f -> if (now - f.lastModified() > OLD_TTL) f.delete() } }
     }
 
     /** 지정한 달들을 한꺼번에 (과거 가격 비교용). 지난 달 자료는 7일 동안 디스크에 캐시됨 */
