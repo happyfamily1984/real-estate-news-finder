@@ -59,7 +59,7 @@ private fun valueColor(s: StatSeries, v: Double?): Color = when {
 fun StatsScreen(
     stats: Stats?, error: String?, loading: Boolean, onRefresh: () -> Unit, onOpen: (StatSeries) -> Unit,
     onRegion: (String) -> Unit = {}, onDealRegion: (String) -> Unit = {}, onDealOpen: (DealTarget) -> Unit = {},
-    onDealTool: (String) -> Unit = {},
+    onDealTool: (String) -> Unit = {}, onLab: (String) -> Unit = {},
     mode: Int = 0, onMode: (Int) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -81,6 +81,19 @@ fun StatsScreen(
                 LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
                     if (error != null) item { Text("⚠ $error", Modifier.padding(horizontal = 20.dp, vertical = 6.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }
                     if (stats == null) item { EmptyText(if (error == null) "불러오는 중…" else "통계를 받지 못했어요. 아래로 당겨 다시 시도하세요.") }
+                    if (stats != null) item {
+                        val shape = RoundedCornerShape(20.dp)
+                        Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 5.dp).fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)).clickable { onLab("signals") }.padding(start = 16.dp, top = 13.dp, bottom = 13.dp, end = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("🧪 실험실 · 내 집 마련 타이밍 신호 3가지", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Text("매매가·매수 심리·전세를 한 글로", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     items(stats?.series.orEmpty(), key = { it.id }) { s -> StatCard(s, stats?.sido.orEmpty()) { onOpen(s) } }
                     if (stats != null) item {
                         Text(

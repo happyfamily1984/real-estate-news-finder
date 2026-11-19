@@ -100,6 +100,18 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
                 }
             }
         }
+        item {
+            Text("🧪 실험실", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 8.dp))
+            SoftCard(onClick = { onTool("funding") }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("이 집 사려면 얼마 필요할까", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("단지를 고르고 모은 돈·대출을 넣으면 세금·복비까지 계산", fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted)
+                }
+            }
+        }
         if (subs.isNotEmpty()) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, top = 4.dp)) {

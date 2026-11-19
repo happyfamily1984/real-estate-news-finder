@@ -290,4 +290,19 @@ class DealsTest {
         client().fetchMonth("trade", "11680", "202611", force = true); assertEquals(5, calls)
         dir.deleteRecursively()
     }
+
+    // ----- (실험실) 자금 계산 -----
+    @Test fun fundingMath() {
+        assertEquals(550L, DealTools.acquisitionTax(50000, 84.9))      // 5억: 1% + 0.1%
+        assertEquals(2053L, DealTools.acquisitionTax(80000, 84.9))     // 8억: 2.33% + 0.23%
+        assertEquals(4200L, DealTools.acquisitionTax(120000, 114.0))   // 12억, 85㎡ 초과: 3% + 0.3% + 0.2%
+        assertEquals(listOf(25L, 80L, 320L, 500L, 780L, 1400L), listOf(4500L, 19000L, 80000L, 100000L, 130000L, 200000L).map(DealTools::brokerFee))
+        val f = DealTools.funding(80000, 84.9, 30000, 60)
+        assertEquals(48000L, f.loan); assertEquals(82373L, f.total); assertEquals(4373L, f.shortfall)
+        assertEquals(40000L, DealTools.funding(80000, 84.9, 30000, 60, 40000).loan) // 한도
+        val t = DealTools.fundingText("가나아파트", "과천시 원문동", 84, 2008, 12, f, 60, true)
+        assertTrue(t.startsWith("3억으로 가나아파트 사는 법"))
+        assertTrue(t.contains("2008년 준공") && t.contains("대출(집값의 60%): 4.8억") && t.contains("부족한 돈") && t.contains("취득세·복비 포함"))
+        assertTrue(DealTools.fundingText("가나아파트", "과천시", 84, null, 3, DealTools.funding(80000, 84.9, 50000, 60), 60, false).contains("남는 돈"))
+    }
 }

@@ -120,4 +120,23 @@ class SummarizerTest {
         // 저장했다가 다시 읽어도 유지
         assertEquals(post.attach, PostStore.fromJson(PostStore.toJson(post)).attach)
     }
+
+    // ----- (실험실) 글 형식 -----
+    @Test
+    fun labFormats() {
+        assertEquals(listOf("basic", "qa", "debate", "checklist"), Summarizer.LAB_FORMATS.keys.toList())
+        val basic = Summarizer.system("news", emptyList(), casual = true)
+        assertEquals(basic, Summarizer.system("news", emptyList(), casual = true, format = "없는형식"))
+        val qa = Summarizer.system("gov", emptyList(), casual = true, format = "qa")
+        assertTrue(qa.contains("문답형") && qa.contains("Q. ") && qa.contains("하나씩 답해줄게.") && !qa.contains("촌철살인"))
+        assertTrue(Summarizer.system("community", emptyList(), casual = false, format = "debate").contains("어느 쪽이 옳다고 판단하지 않는다"))
+        assertTrue(Summarizer.system("news", emptyList(), casual = true, format = "checklist").contains("✅"))
+        // 번호·글머리 기호를 지우지 않음
+        val raw = "[스레드]\n요즘 전세 사기 수법 2가지\n\n1. 깡통전세: 보증금이 집값보다 큼\n2. 이중계약: 같은 집을 두 번 계약\n\n- 주의: 등기부 확인\n[카드]\n- 수법: 깡통전세"
+        assertTrue(Summarizer.parse(raw, "t", keepMarks = true)!!.thread.contains("1. 깡통전세") )
+        assertTrue(!Summarizer.parse(raw, "t")!!.thread.contains("1. 깡통전세"))
+        // 번호로 쓴 한 자리 숫자는 지어낸 숫자로 보지 않음
+        assertEquals(emptyList<String>(), Summarizer.unsupportedNumbers("수법 2가지\n1. 깡통전세", "깡통전세와 이중계약", lenient = true))
+        assertEquals(listOf("30"), Summarizer.unsupportedNumbers("1. 30% 올랐대", "올랐다", lenient = true))
+    }
 }

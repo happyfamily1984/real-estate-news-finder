@@ -57,6 +57,8 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     // 이미 스레드로 보낸 글인지 (중복 업로드 막기). 보낼 때 기록하고, 다시 올리려 하면 한 번 물어봄
     LaunchedEffect(Unit) { UploadLog.load(ctx) }
     val uploadedAt = UploadLog.sent[post.id]
+    // 실험실: 글 형식 (기본 / 문답형 / 찬반 질문형 / 체크리스트형). 바꾸면 그 형식으로 다시 요약
+    var labFormat by remember { mutableStateOf("basic") }
     var askAgain by remember { mutableStateOf(false) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -117,14 +119,14 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val scanEnded = scan !is ScanState.Loading
 
     // 원문을 읽으면 자동으로 요약 (Gemini → Groq → OpenRouter). '다시 요약'을 누르면 재실행
-    LaunchedEffect(scanEnded, summaryRun) {
+    LaunchedEffect(scanEnded, summaryRun, labFormat) {
         if (!scanEnded) return@LaunchedEffect
-        if (summaryRun == 0 && summaryState == "done") return@LaunchedEffect
+        if (summaryRun == 0 && summaryState == "done" && labFormat == "basic") return@LaunchedEffect
         if (!Summarizer.hasKey(ctx)) { summaryState = "AI 요약을 쓰려면 설정에서 무료 AI 키(Gemini 등)를 넣어주세요. 지금은 제목과 기사 앞부분만 들어가요."; return@LaunchedEffect }
         val body = done?.text.orEmpty()
         if (body.length < 80 && post.summary.isNullOrBlank() && post.details.isEmpty()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
         summaryState = "working"
-        val sum = Summarizer.summarize(ctx, post, kind, sourceName, body)
+        val sum = Summarizer.summarize(ctx, post, kind, sourceName, body, labFormat)
         if (sum != null) {
             // 표지 제목은 기사 제목 그대로 둠 (AI가 주제를 바꾸지 못하게)
             // 공고(청약·LH)는 카드 내용을 상세 페이지에서 뽑은 정보 그대로 둠 (AI가 줄이거나 바꾸지 않게)
@@ -299,6 +301,11 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             )
                             else -> Text(summaryState, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.error)
                         }
+                        Spacer(Modifier.height(8.dp))
+                        Text("🧪 실험실 · 글 형식", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(4.dp))
+                        PillRow { Summarizer.LAB_FORMATS.forEach { (id, label) -> ChoicePill(label, labFormat == id) { if (summaryState != "working") labFormat = id } } }
+                        Text("문답형은 제도·대출 글, 찬반 질문형은 입장이 갈리는 글, 체크리스트형은 사기·피해 글에 맞아요. 내용이 안 맞으면 기본 형식으로 써요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(enabled = scanEnded && summaryState != "working", onClick = { summaryRun++ }) {

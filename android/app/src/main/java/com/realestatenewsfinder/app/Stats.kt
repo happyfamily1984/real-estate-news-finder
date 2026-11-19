@@ -253,6 +253,45 @@ object StatText {
         return lines
     }
 
+    /**
+     * (실험실) 내 집 마련 타이밍 신호 3가지: 가격(매매가 변동률)·심리(매수우위/매매수급 지수)·전세(전세가 변동률)를 한 글로.
+     * 행동을 권하지 않고, 숫자와 방향만 보여준 뒤 질문으로 끝냄. 반환: (글, 이미지에 쓸 지표들)
+     */
+    fun signals(stats: Stats, casual: Boolean, year: Int): Pair<String, List<StatSeries>> {
+        fun e(c: String, p: String) = if (casual) c else p
+        fun find(vararg ids: String) = ids.firstNotNullOfOrNull { id -> stats.series.firstOrNull { it.id == id && it.region("전국")?.latest != null } }
+        val sale = find("reb-sale-wk", "kb-sale-wk")
+        val mood = find("kb-buyer-wk", "reb-buy-supply-wk")
+        val jeonse = find("reb-jeonse-wk", "kb-jeonse-wk")
+        val used = listOfNotNull(sale, mood, jeonse)
+        if (used.isEmpty()) return "통계 자료가 아직 없" + e("음", "어요") to emptyList()
+        fun streakOf(s: StatSeries, r: StatRegion): String {
+            val u = unit(s)
+            val k = if (s.kind == "change") Insight.signStreak(r.values, eps(s)) else Insight.moveStreak(r.values, eps(s))
+            return if (abs(k) >= 2) ", ${abs(k)}$u${if (s.kind == "change" && abs(k) >= r.values.size) " 넘게" else ""} 연속 " + (if (k > 0) "상승" else "하락") else ""
+        }
+        val signals = mutableListOf<String>()
+        sale?.let { s -> val r = s.region("전국")!!
+            signals += "매매가: 전국 ${s.fmt(r.latest)}${streakOf(s, r)}" + (s.region("서울")?.latest?.let { " (서울 ${s.fmt(it)})" } ?: "") }
+        mood?.let { s -> val r = s.region("전국")!!; val v = r.latest!!
+            val side = if (v >= 100) "100 위라 사려는 사람이 더 많음" else "100 아래라 팔려는 사람이 더 많음"
+            signals += "매수 심리: ${s.title} ${s.fmt(v)}${streakOf(s, r)} ($side)" }
+        jeonse?.let { s -> val r = s.region("전국")!!
+            signals += "전세: 전국 ${s.fmt(r.latest)}${streakOf(s, r)}" + (s.region("서울")?.latest?.let { " (서울 ${s.fmt(it)})" } ?: "") }
+        val up = (sale?.region("전국")?.latest ?: 0.0) > 0
+        val strong = (mood?.region("전국")?.latest ?: 100.0) >= 100
+        val hook = when {
+            up && strong -> e("가격도 오르고 사려는 사람도 많은 장이야.", "가격도 오르고 사려는 사람도 많은 장이에요.")
+            up && !strong -> e("가격은 오르는데 사려는 사람은 많지 않아.", "가격은 오르는데 사려는 사람은 많지 않아요.")
+            !up && strong -> e("가격은 주춤한데 사려는 사람은 늘고 있어.", "가격은 주춤한데 사려는 사람은 늘고 있어요.")
+            else -> e("가격도 매수 심리도 약한 장이야.", "가격도 매수 심리도 약한 장이에요.")
+        }
+        val lines = mutableListOf("${year}년 내 집 마련 타이밍.\n$hook")
+        lines += "지금 봐야 할 신호 ${signals.size}가지\n" + signals.mapIndexed { k, t -> "${k + 1}. $t" }.joinToString("\n")
+        lines += e("너는 지금 사야 한다고 봐, 기다려야 한다고 봐?", "지금 사야 한다고 보세요, 기다려야 한다고 보세요?")
+        return lines.joinToString("\n\n") to used
+    }
+
     // ---------- 지수 (수급·매수우위·전망: 기준선 100) ----------
     private fun levelThread(s: StatSeries, head: StatRegion, sido: List<String>, casual: Boolean): List<String> {
         fun e(c: String, p: String) = if (casual) c else p
