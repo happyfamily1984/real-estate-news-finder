@@ -70,27 +70,27 @@ object DealTools {
         return BudgetResult(all.filter { it.avg <= budget }.sortedByDescending { it.avg }, all.filter { it.avg > budget }.sortedBy { it.avg }, excluded)
     }
 
-    private val BUDGET_ASK = listOf("이 중에 어디가 제일 좋아 보여?", "마음에 드는 단지 있어?", "여기서 하나만 고른다면 어디?", "나라면 몇 번 고를지 댓글로 알려줘", "살아본 곳 있으면 후기 좀 알려줘", "예산 같으면 어디로 갈 것 같아?")
-    private val BUDGET_ASK_POLITE = listOf("이 중에 어디가 제일 좋아 보이나요?", "마음에 드는 단지 있으세요?", "여기서 하나만 고른다면 어디인가요?", "몇 번을 고르실지 댓글로 알려주세요", "살아보신 곳 있으면 후기 부탁드려요", "같은 예산이면 어디로 가시겠어요?")
-
     /**
-     * 짧은 글: 지역·예산 한 줄, 단지 이름만 번호 붙여 나열, 마지막에 한마디(seed에 따라 바뀜).
-     * label: "인천 미추홀구" 또는 "서울"
+     * 예산별 단지 목록형 글:
+     *   [금액]만 모아보자. / [지역]에서 [금액]으로 살 수 있는 [평형] 아파트 TOP N / 1~5. 단지 (평형, 가격) / 저장해두고 임장 가봐. 너는 몇 번이 제일 끌려?
+     * label: "인천 미추홀구" 또는 "서울". 가격은 단지별 실거래 평균. seed에 따라 첫 줄 표현이 바뀜
      */
     fun budgetText(label: String, band: Int, budget: Long, r: BudgetResult, casual: Boolean, seed: Int = 0): String {
         fun e(c: String, p: String) = if (casual) c else p
-        val lines = mutableListOf<String>()
-        lines += "$label ${won(budget)}으로 살 수 있는 ${band}㎡ 아파트"
-        if (r.total == 0) { lines += "최근 거래된 ${band}㎡ 아파트가 없" + e("음", "어요"); return lines.joinToString("\n\n") }
+        val money = shortWon(budget)
+        if (r.total == 0) return "$label ${band}㎡, 최근 거래된 아파트가 없" + e("음", "어요")
         if (r.items.isEmpty()) {
             val c = r.over.first()
-            lines += "이 예산으로는 살 수 있는 곳이 없" + e("음", "어요") + "\n가장 싼 곳이 ${c.aptNm} ${won(c.avg)}"
-            return lines.joinToString("\n\n")
+            return "$label ${band}㎡ 아파트, ${money}으로는 아직 없" + e("음", "어요") + "\n\n가장 싼 곳이 ${c.aptNm} (${band}㎡, ${shortWon(c.avg)})"
         }
-        val show = r.items.take(10)
-        lines += show.mapIndexed { k, i -> "${k + 1}. ${i.aptNm}" }.joinToString("\n") + (if (r.items.size > show.size) "\n외 ${r.items.size - show.size}곳" else "")
-        val asks = if (casual) BUDGET_ASK else BUDGET_ASK_POLITE
-        lines += asks[Math.floorMod(seed, asks.size)]
+        val show = r.items.take(5)
+        val hooks = if (casual) listOf("${money}만 모아보자.", "${money}으로 어디까지 갈 수 있을까.", "예산 $money, 선택지는 이만큼 있어.")
+        else listOf("${money}만 모아봐요.", "${money}으로 어디까지 갈 수 있을까요.", "예산 $money, 선택지는 이만큼 있어요.")
+        val who = if (band <= 60) "신혼부부나 1~2인 가구라면" else "아이 있는 3~4인 가족이라면"
+        val lines = mutableListOf<String>()
+        lines += hooks[Math.floorMod(seed, hooks.size)] + "\n${label}에서 ${money}으로 살 수 있는 ${band}㎡ 아파트 TOP ${show.size}"
+        lines += show.mapIndexed { k, i -> "${k + 1}. ${i.aptNm} (${band}㎡, ${shortWon(i.avg)})" }.joinToString("\n")
+        lines += if (casual) "$who 저장해두고 임장 가봐.\n너는 몇 번이 제일 끌려?" else "$who 저장해두고 임장 가보세요.\n몇 번이 제일 끌리세요?"
         return lines.joinToString("\n\n")
     }
 
@@ -174,7 +174,6 @@ object DealTools {
         return null
     }
 
-    /** 짧은 글: 시점별 금액 → 변화(물가 한 가지와 견줌) → 맨 밑 한줄평 */
     /**
      * 맨 밑 한줄평: 가장 오래된 시점 대비 몇 배가 됐는지, 최근에 속도가 꺾였는지에 따라 (여러 표현 중 seed로 고름)
      * past: 값이 있는 과거 시점들
@@ -200,33 +199,32 @@ object DealTools {
         return list[Math.floorMod(seed, list.size)]
     }
 
-    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean, compare: PriceCompare? = null, seed: Int = 0): String {
+    /**
+     * 과거 대비 현재 비교형 글:
+     *   [지역] 아파트 [과거 연도] vs [현재 연도] 가격 비교 / [단지] [평형] / 연도: 가격 … / 안 산 게 아니라 못 산 시간이… / 그런데 진짜 중요한 건 이거야. → [한줄 해석]
+     * thisYear: 올해. compare(물가 비교)는 더 쓰지 않음(인위적이라 뺌) — 인자는 호환을 위해 남김
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun historyText(aptNm: String, place: String, areaKey: Int, points: List<HistoryPoint>, casual: Boolean, compare: PriceCompare? = null, seed: Int = 0, thisYear: Int = LocalDate.now(KST).year): String {
         fun e(c: String, p: String) = if (casual) c else p
         val now = points.firstOrNull { it.yearsAgo == 0 }
-        val lines = mutableListOf<String>()
-        lines += "$aptNm ${areaKey}㎡ 실거래가 ($place)"
-        if (now == null || !now.ok) {
-            lines += "최근 1년 동안 ${areaKey}㎡ 매매 실거래가 없어서 비교할 수 없" + e("음", "어요")
-            return lines.joinToString("\n\n")
-        }
+        if (now == null || !now.ok) return "$aptNm ${areaKey}㎡ ($place)\n\n최근 1년 동안 매매 실거래가 없어서 비교할 수 없" + e("음", "어요")
         val past = points.filter { it.yearsAgo > 0 && it.ok }.sortedByDescending { it.yearsAgo }
-        if (past.isEmpty()) {
-            lines += "지금 ${won(now.avg)}\n비교할 과거 거래 기록이 없" + e("음", "어요")
-            return lines.joinToString("\n\n")
-        }
-        lines += (past.map { "${it.label} ${won(it.avg)}" } + "지금 ${won(now.avg)}").joinToString("\n")
-        fun housePct(p: HistoryPoint) = (now.avg - p.avg) * 100.0 / p.avg
-        fun times(p: HistoryPoint) = String.format("%.1f", now.avg.toDouble() / p.avg)
-        if (compare != null) {
-            val p = compare.point
-            val h = housePct(p)
-            lines += compare.line + "\n같은 기간 이 집은 ${String.format("%+.0f%%", h)}" + (if (h > 0) " (${times(p)}배)" else "")
+        if (past.isEmpty()) return "$aptNm ${areaKey}㎡ ($place)\n\n${thisYear}년: ${won(now.avg)}\n비교할 과거 거래 기록이 없" + e("음", "어요")
+        val old = past.first()
+        val lines = mutableListOf<String>()
+        lines += "$place 아파트 ${thisYear - old.yearsAgo}년 vs ${thisYear}년 가격 비교"
+        lines += "$aptNm ${areaKey}㎡\n" + (past.map { "${thisYear - it.yearsAgo}년: ${won(it.avg)}" } + "${thisYear}년: ${won(now.avg)}").joinToString("\n")
+        val rose = now.avg > old.avg
+        val gapLine = if (rose) {
+            if (casual) listOf("안 산 게 아니라 못 산 시간이 이렇게 큰 차이를 만들었어.", "그때 망설인 ${old.yearsAgo}년이 이만큼의 차이가 됐어.", "${old.yearsAgo}년 사이에 ${shortWon(now.avg - old.avg)}이 벌어졌어.")
+            else listOf("안 산 게 아니라 못 산 시간이 이렇게 큰 차이를 만들었어요.", "그때 망설인 ${old.yearsAgo}년이 이만큼의 차이가 됐어요.", "${old.yearsAgo}년 사이에 ${shortWon(now.avg - old.avg)}이 벌어졌어요.")
         } else {
-            val p = past.first()
-            lines += "${p.yearsAgo}년 사이 ${String.format("%+.0f%%", housePct(p))}" + (if (now.avg > p.avg) " (${times(p)}배)" else "")
+            if (casual) listOf("${old.yearsAgo}년을 들고 있었는데 오히려 내렸어.", "이번엔 기다린 사람이 이긴 경우야.")
+            else listOf("${old.yearsAgo}년을 들고 있었는데 오히려 내렸어요.", "이번엔 기다린 사람이 이긴 경우예요.")
         }
-        // 맨 밑 한줄평
-        historyVerdict(now, past, seed)?.let { lines += it }
+        val verdict = historyVerdict(now, past, seed)
+        lines += gapLine[Math.floorMod(seed, gapLine.size)] + (verdict?.let { "\n" + e("그런데 진짜 중요한 건 이거야.", "그런데 진짜 중요한 건 이거예요.") + "\n→ $it" } ?: "")
         return lines.joinToString("\n\n")
     }
 

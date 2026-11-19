@@ -230,8 +230,8 @@ class AndroidTest {
             screen = 6; shot("deal-share", "최근 래미안슈르 실거래 발생")
             Prefs(app).dealRecent = listOf("41290")
             Prefs(app).dealArea = "41290"
-            screen = 4; shot("tool-budget-screen", "살 수 있는 84㎡ 아파트")
-            screen = 5; shot("tool-history-screen", "실거래가 (과천시 원문동)")
+            screen = 4; shot("tool-budget-screen", "84㎡ 아파트")
+            screen = 5; shot("tool-history-screen", "가격 비교")
         } finally {
             DealCore.replace(null)
         }

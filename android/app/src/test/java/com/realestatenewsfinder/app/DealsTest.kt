@@ -131,12 +131,12 @@ class DealsTest {
         assertEquals(listOf("가" to 95000L, "다" to 70000L), r.items.map { it.aptNm to it.avg }) // 예산에 가까운 순, 해제 거래·다른 평형 제외
         assertEquals(listOf("나"), r.over.map { it.aptNm })
         assertEquals(100000L, r.items[0].last.price)
-        // 글은 짧게: 지역·예산 한 줄, 단지 이름만, 마지막에 한마디
+        // 예산별 단지 목록형: 금액 → 지역·평형 TOP N → 단지(평형, 가격) → 임장·질문
         val text = DealTools.budgetText("경기 과천시", 84, 100000, r, casual = true, seed = 0)
-        assertEquals(listOf("경기 과천시 10억원으로 살 수 있는 84㎡ 아파트", "1. 가\n2. 다", "이 중에 어디가 제일 좋아 보여?"), text.split("\n\n"))
-        assertTrue(DealTools.budgetText("서울", 84, 100000, r, casual = true, seed = 1).endsWith("마음에 드는 단지 있어?"))
+        assertEquals(listOf("10억만 모아보자.\n경기 과천시에서 10억으로 살 수 있는 84㎡ 아파트 TOP 2", "1. 가 (84㎡, 9.5억)\n2. 다 (84㎡, 7억)", "아이 있는 3~4인 가족이라면 저장해두고 임장 가봐.\n너는 몇 번이 제일 끌려?"), text.split("\n\n"))
+        assertTrue(DealTools.budgetText("서울", 59, 100000, r, casual = true, seed = 1).let { it.startsWith("10억으로 어디까지 갈 수 있을까.") && it.contains("신혼부부나 1~2인 가구라면 저장해두고") })
         val none = DealTools.budgetText("경기 과천시", 84, 50000, DealTools.budget(deals, 84, 50000), casual = true)
-        assertTrue(none, none.contains("이 예산으로는 살 수 있는 곳이 없음") && none.contains("가장 싼 곳이 다 7억원"))
+        assertTrue(none, none.contains("5억으로는 아직 없음") && none.contains("가장 싼 곳이 다 (84㎡, 7억)"))
         // 시도 전체일 때는 단지 옆에 구 이름
         assertEquals("강남구 원문동", DealTools.budget(deals, 84, 100000, guOf = mapOf("가" to "강남구")).items[0].umdNm)
         // 아파트만 보기: 빌라형 이름, 4층 이하, 거래가 거의 없는 곳은 뺌
@@ -177,15 +177,11 @@ class DealsTest {
         val p30 = DealTools.historyPoint(today, 30, null, "가", "가", "원문동", 84, 1990)
         assertEquals("실거래가 공개(2006년) 전이라 자료 없음", p30.reason)
         assertEquals(9.6, DealTools.cagr(190000, 76000, 10)!!, 0.05)
-        // 글은 금액만 간단히 + 물가 한 가지와 견줌
-        val dine = mapOf("자장면" to mapOf(2016 to 4800, 2026 to 7600), "김밥" to mapOf(2016 to 2000, 2025 to 3600), "냉면" to mapOf(2020 to 9000, 2026 to 12000))
-        val cmp = DealTools.priceCompare(listOf(now, p10, p20, p30), dine, 2026, seed = 1)!!
-        assertEquals("10년 사이 짜장면 한 그릇 4,800원 → 7,600원 (+58%)", cmp.line)
-        assertEquals("10년 사이 김밥 한 줄 2,000원 → 3,600원 (+80%)", DealTools.priceCompare(listOf(now, p10), dine, 2026, seed = 0)!!.line) // 올해 값이 없으면 작년 값
-        assertEquals(null, DealTools.priceCompare(listOf(now, p20), dine, 2026))
-        val text = DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10, p20, p30), casual = true, compare = cmp)
-        assertEquals(listOf("가 84㎡ 실거래가 (과천시 원문동)", "10년 전 7억 6,000만원\n지금 19억원", "10년 사이 짜장면 한 그릇 4,800원 → 7,600원 (+58%)\n같은 기간 이 집은 +150% (2.5배)", "10년에 2.5배. 월급으로는 못 따라갈 속도"), text.split("\n\n"))
-        assertTrue(DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10), casual = true).contains("10년 사이 +150% (2.5배)\n\n"))
+        // 과거 대비 현재 비교형: 연도 vs 연도 → 연도별 가격 → 한마디 → 해석 한 줄
+        val text = DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p10, p20, p30), casual = true, thisYear = 2026)
+        assertEquals(listOf("과천시 원문동 아파트 2016년 vs 2026년 가격 비교", "가 84㎡\n2016년: 7억 6,000만원\n2026년: 19억원",
+            "안 산 게 아니라 못 산 시간이 이렇게 큰 차이를 만들었어.\n그런데 진짜 중요한 건 이거야.\n→ 10년에 2.5배. 월급으로는 못 따라갈 속도"), text.split("\n\n"))
+        assertTrue(DealTools.historyText("가", "과천시 원문동", 84, listOf(now, p20), casual = true, thisYear = 2026).contains("비교할 과거 거래 기록이 없음"))
         // 맨 밑 한줄평: 오른 정도와 최근 흐름에 따라, seed로 표현이 바뀜
         fun pt(y: Int, avg: Long) = DealTools.HistoryPoint(y, if (y == 0) "지금" else "${y}년 전", "", 3, avg, avg, avg)
         assertEquals("두 배가 되는 데 10년이면 충분했음", DealTools.historyVerdict(now, listOf(p10), seed = 1))
