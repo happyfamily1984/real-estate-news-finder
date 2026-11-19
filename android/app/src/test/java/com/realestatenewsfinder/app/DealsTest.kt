@@ -247,4 +247,23 @@ class DealsTest {
         assertEquals(null, DineOut.selected("<html></html>"))
         assertTrue(DineOut.parse("<table><tr><td>없음</td></tr></table>").isEmpty())
     }
+
+    // ----- 지역별 최고 실거래 단지 -----
+    @Test fun topComplexes() {
+        val deals = listOf(t("가", 300000, area = 120.0), t("가", 200000), t("나", 250000), t("다", 180000, area = 59.9), t("라", 900000).copy(canceled = true),
+            Deal("jeonse", "마", "마", "원문동", "1", 2015, 84.9, 5, "2026-10-01", deposit = 990000, key = "j"))
+        val all = DealTools.topDeals(deals, 0, 10)
+        assertEquals(listOf("가" to 300000L, "나" to 250000L, "다" to 180000L), all.map { it.deal.aptNm to it.price }) // 단지마다 최고가 한 건, 해제·전세 제외
+        assertEquals(listOf("나", "가"), DealTools.topDeals(deals, 84, 10).map { it.deal.aptNm })
+        // 달을 나눠 받을 때: 지금까지 결과와 합쳐도 같은 답
+        val merged = DealTools.topDeals(deals.drop(2), 0, 10, DealTools.topDeals(deals.take(2), 0, 10))
+        assertEquals(all.map { it.deal.key }, merged.map { it.deal.key })
+        assertEquals(2, DealTools.topDeals(deals, 0, 2).size)
+        val text = DealTools.topText("경기 과천시", 0, DealPeriod.Y5, all, casual = true, seed = 0).split("\n\n")
+        assertEquals("경기 과천시 대장 아파트, 실거래가로 줄 세워봄 (최근 5년 최고가)", text[0])
+        assertEquals("1. 가 30억 (120㎡)\n2. 나 25억 (84㎡)\n3. 다 18억 (59㎡)", text[1])
+        assertTrue(text[2], text[2].startsWith("1위와 3위 차이 12억\n"))
+        assertEquals("1. 나 25억\n2. 가 20억", DealTools.topText("서울", 84, DealPeriod.Y5, DealTools.topDeals(deals, 84, 10), true).split("\n\n")[1])
+        assertTrue(DealTools.topText("서울", 84, DealPeriod.Y5, emptyList(), true).contains("매매 실거래가 없음"))
+    }
 }

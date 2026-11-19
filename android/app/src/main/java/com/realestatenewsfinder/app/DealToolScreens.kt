@@ -12,6 +12,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -322,5 +323,110 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
         Label("실거래 기간")
         PillRow { TOOL_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
         Text("최근 10년 안에 지어진 단지만, 청약홈에 분양가가 남아 있는 최근 5년 분양 단지를 비교해요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * 지역별 최고 실거래 단지에 쓰는 자료: 시군구 하나의 기간 내 '단지별 최고가 거래' 상위권.
+ * 5년이면 달마다 한 번씩 60번 넘게 받아야 해서, 받은 거래를 다 들고 있지 않고 달마다 추려 가며 모으고, 결과만 7일 동안 저장해 둠
+ */
+object TopDeals {
+    private const val KEEP = 30
+    private const val TTL = 7 * 24 * 3600_000L
+
+    private fun file(ctx: Context, code: String, months: Int) = File(ctx.cacheDir, "top/${code}_$months.json")
+
+    /** 평형(0·59·84) → 그 시군구의 상위 단지들 */
+    suspend fun load(ctx: Context, core: DealCore, code: String, period: DealPeriod, onProgress: (Int, Int) -> Unit = { _, _ -> }): Map<Int, List<DealTools.TopItem>> = withContext(Dispatchers.IO) {
+        val f = file(ctx, code, period.months)
+        runCatching {
+            val o = org.json.JSONObject(f.readText())
+            if (System.currentTimeMillis() - o.getLong("at") < TTL) {
+                return@withContext DealTools.TOP_BANDS.associateWith { b -> o.getJSONArray("$b").objects().map { DealTools.TopItem(Deal.fromJson(it)) } }
+            }
+        }
+        val today = core.molit.today()
+        val since = period.since(today)
+        val yms = Molit.recentYms(period.fetchMonths, today)
+        var best = DealTools.TOP_BANDS.associateWith { emptyList<DealTools.TopItem>() }
+        var failed = 0
+        yms.chunked(4).forEachIndexed { k, chunk ->
+            // 네 달씩 동시에 받음. 실패하면 한 번 더 시도
+            val got = kotlinx.coroutines.coroutineScope {
+                chunk.map { ym -> async { runCatching { core.molit.fetchLive("trade", code, ym) }.getOrElse { runCatching { core.molit.fetchLive("trade", code, ym) }.getOrNull() } } }.map { it.await() }
+            }
+            failed += got.count { it == null }
+            val deals = got.filterNotNull().flatten().filter { it.date >= since }
+            best = best.mapValues { (b, prev) -> DealTools.topDeals(deals, b, KEEP, prev) }
+            onProgress(minOf((k + 1) * 4, yms.size), yms.size)
+        }
+        // 많이 빠졌으면(접속 문제) 저장하지 않고 알림 → 다음에 다시 받음
+        if (failed > yms.size / 4) throw Exception("실거래 자료를 다 받지 못했어요 (${failed}개월 실패). 잠시 후 다시 시도해 주세요.")
+        if (failed == 0) runCatching {
+            f.parentFile?.mkdirs()
+            val o = org.json.JSONObject().put("at", System.currentTimeMillis())
+            best.forEach { (b, list) -> o.put("$b", org.json.JSONArray(list.map { it.deal.toJson() })) }
+            f.writeText(o.toString())
+        }
+        best
+    }
+}
+
+private val TOP_PERIODS = listOf(DealPeriod.Y1, DealPeriod.Y3, DealPeriod.Y5)
+
+/** 지역별 최고 실거래 단지: 지역(시군구 또는 시도 전체)·기간(기본 5년)·평형을 고르면 단지별 최고가 1~10위 */
+@Composable
+fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { Prefs(ctx) }
+    val core = remember { DealCore.get(ctx) }
+    var band by remember { mutableIntStateOf(0) }
+    var areaKey by remember { mutableStateOf(prefs.dealArea.ifBlank { prefs.dealRecent.firstOrNull().orEmpty() }) }
+    val area = remember(areaKey) { DealArea.of(core, areaKey) }
+    var period by remember { mutableStateOf(DealPeriod.Y5) }
+    var byBand by remember { mutableStateOf<Map<Int, List<DealTools.TopItem>>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableStateOf("실거래 받는 중…") }
+    val today = remember { core.molit.today() }
+    LaunchedEffect(areaKey, period) {
+        byBand = null; error = null
+        val a = area ?: return@LaunchedEffect
+        try {
+            var merged = DealTools.TOP_BANDS.associateWith { emptyList<DealTools.TopItem>() }
+            a.codes.forEachIndexed { k, code ->
+                val gu = a.guName[code].orEmpty()
+                val one = TopDeals.load(ctx, core, code, period) { done, total ->
+                    progress = "최근 ${period.label} 실거래 받는 중… " + (if (a.all) "$gu (${k + 1}/${a.codes.size}) " else "") + "${done}/${total}개월"
+                }
+                // 시도 전체는 시군구마다 상위권만 모아 합침
+                merged = merged.mapValues { (b, prev) -> (prev + one[b].orEmpty().map { it.copy(gu = gu) }).sortedByDescending { it.price }.take(30) }
+            }
+            byBand = merged
+            prefs.dealArea = a.key
+        } catch (e: Exception) {
+            error = e.message ?: "실거래 자료를 받지 못했어요"
+        }
+    }
+    val items = byBand?.get(band)?.take(10)
+    val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(items, period) { text = items?.let { DealTools.topText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed) } ?: "" }
+    ThreadShareScreen(
+        title = "지역별 최고 실거래 단지", cacheId = "top", hint = "국토부 실거래 최고가로 뽑은 순위예요. 자유롭게 고쳐 쓰세요.",
+        text = text, onText = { text = it },
+        renderKey = Triple(items, band, period),
+        render = items?.let { list -> { DealCards.top(ctx, area?.cardPlace.orEmpty(), band, period, list, today) } },
+        status = when { area == null -> "지역을 골라주세요."; error != null -> "⚠ $error"; items == null -> progress; items.isEmpty() -> "이 기간에 매매 실거래가 없어요."; else -> null },
+        onBack = onBack, onSent = onSent,
+    ) {
+        RegionSelect(area) { areaKey = it }
+        Label("기간")
+        PillRow { TOP_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
+        Label("평형")
+        PillRow { DealTools.TOP_BANDS.forEach { b -> ChoicePill(if (b == 0) "전체" else "${b}㎡", band == b) { band = b } } }
+        Text(
+            "단지마다 기간 안에서 가장 비싸게 거래된 한 건을 기준으로 순위를 매겨요. 5년치는 달마다 따로 받아서 처음에는 오래 걸리고(시도 전체는 몇 분), 한 번 받으면 7일 동안 저장해 둬요.",
+            fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

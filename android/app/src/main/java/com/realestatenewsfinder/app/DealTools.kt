@@ -340,4 +340,51 @@ object DealTools {
         lines += "$fact\n$verdict"
         return lines.joinToString("\n\n")
     }
+
+    // ---------- 지역별 최고 실거래 단지 ----------
+    /** 고를 수 있는 평형: 0 = 전체 */
+    val TOP_BANDS = listOf(0, 59, 84)
+
+    /** 단지 하나의 기간 내 최고가 거래 */
+    data class TopItem(val deal: Deal, val gu: String = "") {
+        val price: Long get() = deal.price
+    }
+
+    /**
+     * 거래들에서 단지별 최고가 거래를 뽑아 비싼 순으로 n곳. band가 0이면 평형 구분 없이, 59·84면 그 평형만.
+     * 해제된 거래는 뺌. 많은 달을 나눠 받을 때는 지금까지의 결과(prev)와 합쳐 가며 호출 → 거래 전체를 들고 있지 않아도 됨
+     */
+    fun topDeals(deals: List<Deal>, band: Int, n: Int, prev: List<TopItem> = emptyList(), gu: String = ""): List<TopItem> {
+        val best = HashMap<String, TopItem>()
+        for (t in prev) best[t.deal.complexId] = t
+        for (d in deals) {
+            if (d.type != "trade" || d.canceled || d.price <= 0) continue
+            if (band != 0 && !inBand(d.area, band)) continue
+            val cur = best[d.complexId]
+            if (cur == null || d.price > cur.price) best[d.complexId] = TopItem(d, gu)
+        }
+        return best.values.sortedByDescending { it.price }.take(n)
+    }
+
+    /**
+     * 짧은 글: 맨 위 한마디 → 1~10위 단지와 최고가 → 마지막 한 줄. label: "경기" 또는 "서울 강남구"
+     */
+    fun topText(label: String, band: Int, period: DealPeriod, items: List<TopItem>, casual: Boolean, seed: Int = 0): String {
+        fun e(c: String, p: String) = if (casual) c else p
+        val what = if (band == 0) "" else " ${band}㎡"
+        if (items.isEmpty()) return "$label$what, 최근 ${period.label} 동안 매매 실거래가 없" + e("음", "어요")
+        fun pick(list: List<String>, salt: Int = 0) = list[Math.floorMod(seed + salt, list.size)]
+        val lines = mutableListOf<String>()
+        lines += pick(listOf("$label$what 대장 아파트, 실거래가로 줄 세워봄", "$label$what 에서 제일 비싸게 팔린 아파트 순위", "$label$what 집값 꼭대기에는 누가 있을까")).replace("$what 에서", "${what}에서") +
+            " (최근 ${period.label} 최고가)"
+        val show = items.take(10)
+        lines += show.mapIndexed { k, t -> "${k + 1}. ${t.deal.aptNm} ${shortWon(t.price)}" + (if (band == 0) " (${t.deal.area.toInt()}㎡)" else "") }.joinToString("\n")
+        if (show.size >= 3) {
+            val gap = show.first().price - show.last().price
+            val tail = if (casual) listOf("같은 지역 맞나 싶은 격차", "순위표만 봐도 어디가 대장인지 보임", "이 중에 살아보고 싶은 곳 있어?", "1위는 당분간 안 바뀔 듯")
+            else listOf("같은 지역이 맞나 싶은 격차예요", "순위표만 봐도 어디가 대장인지 보여요", "이 중에 살아보고 싶은 곳 있으세요?", "1위는 당분간 안 바뀔 것 같아요")
+            lines += "1위와 ${show.size}위 차이 ${shortWon(gap)}\n" + pick(tail, 1)
+        }
+        return lines.joinToString("\n\n")
+    }
 }

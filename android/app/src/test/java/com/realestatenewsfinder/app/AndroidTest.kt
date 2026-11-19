@@ -219,6 +219,11 @@ class AndroidTest {
             assertEquals(listOf("과천자이"), matches.map { it.aptNm }) // 래미안슈르는 2008년 준공이라 10년 이내가 아님
             DealCards.presale(app, "과천시", 84, DealPeriod.Y1, matches, today, mark).forEachIndexed { i, b -> save("tool-presale-${i + 1}", b) }
 
+            // 지역별 최고 실거래 단지 카드
+            val five = core.molit.fetchMonths("trade", "41290", 13)
+            val topItems = DealTools.topDeals(five, 0, 10).map { it.copy(gu = "과천시") } + (1..8).map { k -> DealTools.TopItem(five.first().copy(aptNm = "가상단지$k", price = 120000L - k * 7000, complexId = "x$k"), "과천시") }
+            DealCards.top(app, "경기 전체", 0, DealPeriod.Y5, topItems, today, mark).forEachIndexed { i, b -> save("tool-top-${i + 1}", b) }
+
             shot("deal-home", "알림 받는 단지")
             screen = 1; shot("deal-complexes", "과천자이")
             screen = 2; shot("deal-detail", "최근 1년 매매 실거래")
