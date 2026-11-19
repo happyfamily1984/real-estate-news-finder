@@ -50,6 +50,7 @@ object DealCards {
         StatCards.frameCustom(
             ctx, c, "${i.label} 실거래 · 최근 ${i.period.label}", i.aptNm, title2,
             "${i.place} · ${i.today.monthValue}/${i.today.dayOfMonth} 기준", tiles, mark,
+            if (i.newKeys.isNotEmpty()) StatCards.Theme.ALERT else StatCards.Theme.INDIGO,
         )
 
     private fun caption(c: Canvas, top: Float, extra: String = "") {
@@ -230,7 +231,7 @@ object DealCards {
         val c = Canvas(bmp)
         val tiles = if (r.items.isEmpty()) listOf(StatCards.Tile("가능한 단지", "0곳", StatCards.INK), StatCards.Tile("가장 싼 곳", short(r.over.first().avg), RED))
         else listOf(StatCards.Tile("가능한 단지", "${r.items.size}곳", StatCards.INK), StatCards.Tile("가장 비싼 곳", short(r.items.first().avg), RED), StatCards.Tile("가장 싼 곳", short(r.items.last().avg), BLUE))
-        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 최근 ${period.label} 실거래", place, "${short(budget)}으로 살 수 있는 아파트", "거래된 ${r.total}개 단지 중 ${r.items.size}곳 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 최근 ${period.label} 실거래", place, "${short(budget)}으로 살 수 있는 아파트", "거래된 ${r.total}개 단지 중 ${r.items.size}곳 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark, StatCards.Theme.GREEN)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val rows = r.items.ifEmpty { r.over }.take(11)
         val inner = StatCards.panel(c, area, if (r.items.isEmpty()) "예산을 넘는 가장 싼 단지" else "살 수 있는 아파트")
@@ -239,11 +240,11 @@ object DealCards {
         rows.forEachIndexed { k, it ->
             val cy = inner.top + rowH * k + rowH / 2
             val num = "${k + 1}"
-            c.drawCircle(inner.left + 22f * F, cy, 20f * F, StatCards.fill(if (k < 3) StatCards.NAVY else 0xFFB8C4DA.toInt()))
+            c.drawCircle(inner.left + 22f * F, cy, 20f * F, StatCards.fill(if (k < 3) StatCards.themeDark else 0xFFB5C9BC.toInt()))
             val np = StatCards.text(24f * F, 0xFFFFFFFF.toInt())
             c.drawText(num, inner.left + 22f * F - np.measureText(num) / 2, cy + 9f * F, np)
             val pv = short(it.avg)
-            val pp = StatCards.text(size * 1.1f, if (r.items.isEmpty()) RED else StatCards.NAVY)
+            val pp = StatCards.text(size * 1.1f, if (r.items.isEmpty()) RED else StatCards.themeDark)
             val priceW = pp.measureText(pv)
             c.drawText(pv, inner.right - priceW, cy + size * 0.1f, pp)
             val nameMax = inner.width() - 70f * F - priceW - 24f * F
@@ -266,7 +267,7 @@ object DealCards {
         val oldest = order.firstOrNull { it.ok && it.yearsAgo > 0 }
         val tiles = mutableListOf(StatCards.Tile("지금", short(now.avg), RED))
         order.filter { it.ok && it.yearsAgo > 0 }.sortedBy { it.yearsAgo }.take(2).forEach { tiles += StatCards.Tile(it.label, short(it.avg), BLUE) }
-        val area = StatCards.frameCustom(ctx, c, "매매 실거래 · ${areaKey}㎡", aptNm, "그때와 지금", "$place · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val area = StatCards.frameCustom(ctx, c, "매매 실거래 · ${areaKey}㎡", aptNm, "그때와 지금", "$place · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark, StatCards.Theme.NIGHT)
         val inner = StatCards.panel(c, area, "실거래 평균가 변화")
         val rowH = inner.height() / order.size
         val maxV = order.maxOf { it.avg }.coerceAtLeast(1)
@@ -313,7 +314,7 @@ object DealCards {
         val meanDiff = matches.map { it.diff }.average().roundToLong()
         val tiles = if (matches.size == 1) listOf(StatCards.Tile("분양가", short(top.presale), BLUE), StatCards.Tile("최근 실거래", short(top.avg), RED), StatCards.Tile("차이", signed(top.diff), color(top.diff)))
         else listOf(StatCards.Tile("비교 단지", "${matches.size}곳", StatCards.INK), StatCards.Tile("평균 차이", signed(meanDiff), color(meanDiff)), StatCards.Tile("가장 큰 차이", signed(top.diff), color(top.diff)))
-        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 10년 이내 단지", place, "분양가 vs 실거래가", "실거래 최근 ${period.label} 평균 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val base = StatCards.frameCustom(ctx, c, "${band}㎡ · 10년 이내 단지", place, "분양가 vs 실거래가", "실거래 최근 ${period.label} 평균 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark, StatCards.Theme.SUNSET)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val inner = StatCards.panel(c, area, "분양가 → 최근 실거래가")
         val rows = matches.take(6)
@@ -353,7 +354,7 @@ object DealCards {
             rows.getOrNull(4)?.let { StatCards.Tile("5위", short(it.price), StatCards.NAVY) },
             rows.getOrNull(9)?.let { StatCards.Tile("10위", short(it.price), BLUE) },
         )
-        val base = StatCards.frameCustom(ctx, c, "매매 실거래 · 최근 ${period.label}" + (if (band == 0) "" else " · ${band}㎡"), place, "최고 실거래 단지", "최근 ${period.label}간 실거래가 기준 · ${today.monthValue}/${today.dayOfMonth}", tiles, mark)
+        val base = StatCards.frameCustom(ctx, c, "매매 실거래 · 최근 ${period.label}" + (if (band == 0) "" else " · ${band}㎡"), place, "최고 실거래 단지", "최근 ${period.label}간 실거래가 기준 · ${today.monthValue}/${today.dayOfMonth}", tiles, mark, StatCards.Theme.GOLD)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val inner = StatCards.panel(c, area, "최고가 순위 1~${rows.size}위")
         val rowH = inner.height() / rows.size.coerceAtLeast(8)
@@ -362,11 +363,12 @@ object DealCards {
             val d = t.deal
             val cy = inner.top + rowH * k + rowH / 2
             val num = "${k + 1}"
-            c.drawCircle(inner.left + 22f * F, cy, 20f * F, StatCards.fill(if (k < 3) RED else StatCards.NAVY))
+            val medal = intArrayOf(0xFFE2A400.toInt(), 0xFF9AA5B1.toInt(), 0xFFB8733A.toInt())
+            c.drawCircle(inner.left + 22f * F, cy, (if (k < 3) 23f else 19f) * F, StatCards.fill(if (k < 3) medal[k] else 0xFF2B2B2B.toInt()))
             val np = StatCards.text(24f * F, 0xFFFFFFFF.toInt())
             c.drawText(num, inner.left + 22f * F - np.measureText(num) / 2, cy + 9f * F, np)
             val pv = short(t.price)
-            val pp = StatCards.text(size * 1.15f, if (k < 3) RED else StatCards.NAVY)
+            val pp = StatCards.text(size * 1.15f, if (k == 0) 0xFFB07D00.toInt() else 0xFF1B1B1B.toInt())
             val pw = pp.measureText(pv)
             c.drawText(pv, inner.right - pw, cy + size * 0.12f, pp)
             val maxW = inner.width() - 70f * F - pw - 24f * F
