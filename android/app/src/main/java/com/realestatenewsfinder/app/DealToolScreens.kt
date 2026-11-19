@@ -338,7 +338,9 @@ object TopDeals {
     private fun file(ctx: Context, code: String, months: Int) = File(ctx.cacheDir, "top/${code}_$months.json")
 
     /** 평형(0·59·84) → 그 시군구의 상위 단지들 */
-    suspend fun load(ctx: Context, core: DealCore, code: String, period: DealPeriod, onProgress: (Int, Int) -> Unit = { _, _ -> }): Map<Int, List<DealTools.TopItem>> = withContext(Dispatchers.IO) {
+    suspend fun load(ctx: Context, core: DealCore, code: String, period: DealPeriod, keepMonths: Boolean = true, onProgress: (Int, Int) -> Unit = { _, _ -> }): Map<Int, List<DealTools.TopItem>> = withContext(Dispatchers.IO) {
+        // keepMonths: 달별 원자료를 공용 캐시에 저장할지. false면 받아서 추리기만 함
+        fun month(ym: String) = if (keepMonths) core.molit.fetchMonth("trade", code, ym, memory = false) else core.molit.fetchLive("trade", code, ym)
         val f = file(ctx, code, period.months)
         runCatching {
             val o = org.json.JSONObject(f.readText())
@@ -354,7 +356,7 @@ object TopDeals {
         yms.chunked(4).forEachIndexed { k, chunk ->
             // 네 달씩 동시에 받음. 실패하면 한 번 더 시도
             val got = kotlinx.coroutines.coroutineScope {
-                chunk.map { ym -> async { runCatching { core.molit.fetchMonth("trade", code, ym, memory = false) }.getOrElse { runCatching { core.molit.fetchMonth("trade", code, ym, memory = false) }.getOrNull() } } }.map { it.await() }
+                chunk.map { ym -> async { runCatching { month(ym) }.getOrElse { runCatching { month(ym) }.getOrNull() } } }.map { it.await() }
             }
             failed += got.count { it == null }
             val deals = got.filterNotNull().flatten().filter { it.date >= since }
@@ -384,9 +386,9 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     var band by remember { mutableIntStateOf(0) }
     var areaKey by remember { mutableStateOf(prefs.dealArea.ifBlank { prefs.dealRecent.firstOrNull().orEmpty() }) }
     val area = remember(areaKey) { DealArea.of(core, areaKey) }
-    var picked by remember { mutableStateOf(DealPeriod.Y5) }
-    // 시도 전체는 받아야 할 양이 너무 많아서(국토부 하루 호출 한도) 1년으로 고정
-    val period = if (area?.all == true) DealPeriod.Y1 else picked
+    // 기간: 시·군·구 하나는 5년이 기본, 시도 전체는 받을 양이 많아 1년이 기본 (3년·5년도 고를 수 있음)
+    var picked by remember(area?.all) { mutableStateOf(if (area?.all == true) DealPeriod.Y1 else DealPeriod.Y5) }
+    val period = picked
     var byBand by remember { mutableStateOf<Map<Int, List<DealTools.TopItem>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf("실거래 받는 중…") }
@@ -398,7 +400,8 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
             var merged = DealTools.TOP_BANDS.associateWith { emptyList<DealTools.TopItem>() }
             a.codes.forEachIndexed { k, code ->
                 val gu = a.guName[code].orEmpty()
-                val one = TopDeals.load(ctx, core, code, period) { done, total ->
+                // 시도 전체를 3년·5년으로 볼 때는 달별 원자료를 기기에 저장하지 않음 (파일이 수천 개라 저장 공간이 불어남). 순위 결과만 7일 저장
+                val one = TopDeals.load(ctx, core, code, period, keepMonths = !(a.all && period.months > 12)) { done, total ->
                     progress = "최근 ${period.label} 실거래 받는 중… " + (if (a.all) "$gu (${k + 1}/${a.codes.size}) " else "") + "${done}/${total}개월"
                 }
                 // 시도 전체는 시군구마다 상위권만 모아 합침
@@ -424,10 +427,11 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     ) {
         RegionSelect(area) { areaKey = it }
         Label("기간")
-        if (area?.all == true) {
-            PillRow { ChoicePill("1년", true) {} }
-            Text("시도 전체는 최근 1년만 볼 수 있어요. 3년·5년은 시·군·구를 하나 골라야 해요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else PillRow { TOP_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { picked = p } } }
+        PillRow { TOP_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { picked = p } } }
+        if (area?.all == true && period.months > 12) Text(
+            "시도 전체 ${period.label}은 처음에 몇 분 걸리고 국토부 하루 조회 한도를 많이 써요. 하루에 한두 곳만 돌리는 걸 권해요. 한 번 받으면 7일 동안은 바로 나와요.",
+            fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.error,
+        )
         Label("평형")
         PillRow { DealTools.TOP_BANDS.forEach { b -> ChoicePill(if (b == 0) "전체" else "${b}㎡", band == b) { band = b } } }
         Text(

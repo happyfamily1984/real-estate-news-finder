@@ -120,42 +120,140 @@ object StatCards {
     data class Tile(val label: String, val value: String, val color: Int)
 
     /** 통계 지표용 틀: 제목·기준일·지역 세 곳의 최신 값 */
-    private fun frame(ctx: Context, c: Canvas, s: StatSeries, pill: String, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, label: (String) -> String = { it }): RectF {
+    private fun frame(ctx: Context, c: Canvas, s: StatSeries, pill: String, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, label: (String) -> String = { it }, theme: Theme = Theme.BLUE): RectF {
         val (l1, l2) = titleLines(s)
         val tiles = names.mapNotNull { s.region(it) }.filter { it.latest != null }.take(3).map { Tile(label(it.name), s.fmt(it.latest), colorOf(s, it.latest!!)) }
-        return frameCustom(ctx, c, pill, l1, l2, "${s.source} · ${s.dateLabel} 기준 · ${s.cycle}", tiles, mark)
+        return frameCustom(ctx, c, pill, l1, l2, "${s.source} · ${s.dateLabel} 기준 · ${s.cycle}", tiles, mark, theme)
     }
 
-    /** 배경·머리(알약, 흰 제목, 노란 제목, 기준 줄)·큰 숫자 칸·바닥. 반환: 그래프 판을 놓을 영역 */
-    internal fun frameCustom(ctx: Context, c: Canvas, pill: String, l1: String, l2: String, sub: String, tiles: List<Tile>, mark: Watermark.Mark): RectF {
-        // 바탕
-        c.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, 0f, H.toFloat(), 0xFFEAF2FF.toInt(), 0xFFF6F9FF.toInt(), Shader.TileMode.CLAMP) })
-        // 머리: 남색 그라데이션 + 아파트 그림
-        val headH = 372f * F
-        c.drawRect(0f, 0f, W.toFloat(), headH, Paint().apply { shader = LinearGradient(0f, 0f, W.toFloat(), headH, 0xFF061F5C.toInt(), 0xFF1E6BE0.toInt(), Shader.TileMode.CLAMP) })
-        asset(ctx, R.drawable.stat_header)?.let { b -> c.drawBitmap(b, null, RectF(W - b.width * F, 0f, W.toFloat(), b.height * F), Paint(Paint.FILTER_BITMAP_FLAG)) }
-        // 머리 아래 물결 (밝은 바탕이 왼쪽에서 살짝 올라옴)
-        val wave = Path().apply { moveTo(0f, headH - 70f); quadTo(W * 0.30f, headH + 26f, W * 0.62f, headH - 14f); quadTo(W * 0.85f, headH - 34f, W.toFloat(), headH - 6f); lineTo(W.toFloat(), headH + 2f); lineTo(0f, headH + 2f); close() }
-        c.drawPath(wave, fill(0xFFEAF2FF.toInt()))
-        // 집 아이콘
-        val hx = 112f * F; val hy = 112f * F; val hs = 62f * F
+    /**
+     * 카드 디자인. 자료 종류마다 색·머리 모양·숫자 칸·바닥을 달리해서 한눈에 구분되게 함.
+     *  style 0: 사진 머리(집 아이콘 + 아파트 사진) — 전국 지표, 지역별, 실거래
+     *  style 1: 가운데 정렬 머리(사진 없이 큰 제목과 무늬) — 그때와 지금, 최고 실거래 단지
+     *  style 2: 왼쪽 제목 + 오른쪽 큰 동그라미 표지 — 살 수 있는 아파트, 분양가 vs 실거래가
+     */
+    class Theme(
+        val headA: Int, val headB: Int,
+        /** 바탕(위·아래) */
+        val bgA: Int, val bgB: Int,
+        /** 둘째 줄 제목(강조) 색 */
+        val accent: Int,
+        /** 판 머리띠·점·순위 동그라미 색 */
+        val dark: Int, val mid: Int,
+        val style: Int = 0,
+        /** 사진 색조 돌리기(도). null이면 그대로, gray면 흑백 */
+        val hue: Float? = null, val gray: Boolean = false,
+        /** style 2의 동그라미 안 글자 */
+        val badge: String = "",
+        /** 숫자 칸을 진한 색으로 채움 */
+        val filledTiles: Boolean = false,
+    ) {
+        companion object {
+            /** 전국 지표: 파랑 (처음 디자인) */
+            val BLUE = Theme(0xFF061F5C.toInt(), 0xFF1E6BE0.toInt(), 0xFFEAF2FF.toInt(), 0xFFF6F9FF.toInt(), 0xFFFFD84D.toInt(), 0xFF0B2A6F.toInt(), 0xFF2A62C9.toInt())
+            /** 지역별 지표: 청록 */
+            val TEAL = Theme(0xFF064E4B.toInt(), 0xFF14B8A6.toInt(), 0xFFE6FAF6.toInt(), 0xFFF4FDFB.toInt(), 0xFFFDE68A.toInt(), 0xFF0F5F59.toInt(), 0xFF1BA395.toInt(), hue = -48f)
+            /** 실거래 요약: 남보라 */
+            val INDIGO = Theme(0xFF1E1B6B.toInt(), 0xFF6D5BF5.toInt(), 0xFFEFEDFF.toInt(), 0xFFF8F7FF.toInt(), 0xFFFFE28A.toInt(), 0xFF2B2380.toInt(), 0xFF5B4BD6.toInt(), hue = 28f)
+            /** 새 실거래: 빨강 (속보 느낌) */
+            val ALERT = Theme(0xFF7A0C1E.toInt(), 0xFFF0445C.toInt(), 0xFFFFEEF0.toInt(), 0xFFFFF8F9.toInt(), 0xFFFFE08A.toInt(), 0xFF8E1226.toInt(), 0xFFD9364F.toInt(), hue = 125f)
+            /** 살 수 있는 아파트: 초록 + '₩' 표지 */
+            val GREEN = Theme(0xFF064E2B.toInt(), 0xFF22B866.toInt(), 0xFFE9F9EF.toInt(), 0xFFF6FDF8.toInt(), 0xFFFFF08A.toInt(), 0xFF0B5E34.toInt(), 0xFF1E9E57.toInt(), style = 2, badge = "₩")
+            /** 그때와 지금: 짙은 남색 + 금색, 가운데 정렬 */
+            val NIGHT = Theme(0xFF0A1024.toInt(), 0xFF26355F.toInt(), 0xFFEEF0F6.toInt(), 0xFFF8F9FC.toInt(), 0xFFF5C451.toInt(), 0xFF141C36.toInt(), 0xFF3A4A7A.toInt(), style = 1, filledTiles = true)
+            /** 분양가 vs 실거래가: 주황·분홍 + 'VS' 표지 */
+            val SUNSET = Theme(0xFFB5360C.toInt(), 0xFFF2587C.toInt(), 0xFFFFF1EA.toInt(), 0xFFFFF9F6.toInt(), 0xFFFFF3B0.toInt(), 0xFFA5340F.toInt(), 0xFFE5633A.toInt(), style = 2, badge = "VS")
+            /** 최고 실거래 단지: 검정 + 금색, 가운데 정렬 */
+            val GOLD = Theme(0xFF111111.toInt(), 0xFF3B2F12.toInt(), 0xFFF7F3E8.toInt(), 0xFFFCFAF4.toInt(), 0xFFF2C14E.toInt(), 0xFF1B1B1B.toInt(), 0xFF6B5420.toInt(), style = 1, filledTiles = true)
+        }
+    }
+
+    /** 지금 그리는 카드의 디자인 (frameCustom이 정하고 panel이 따라 씀) */
+    @Volatile private var cur: Theme = Theme.BLUE
+
+    /** 사진 색조를 디자인 색에 맞춤 */
+    private fun tint(t: Theme): android.graphics.ColorFilter? {
+        if (t.gray) return android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(0f) })
+        val deg = t.hue ?: return null
+        val a = Math.toRadians(deg.toDouble()); val cs = Math.cos(a).toFloat(); val sn = Math.sin(a).toFloat()
+        val r = 0.213f; val g = 0.715f; val bl = 0.072f
+        return android.graphics.ColorMatrixColorFilter(floatArrayOf(
+            r + cs * (1 - r) + sn * (-r), g + cs * (-g) + sn * (-g), bl + cs * (-bl) + sn * (1 - bl), 0f, 0f,
+            r + cs * (-r) + sn * 0.143f, g + cs * (1 - g) + sn * 0.140f, bl + cs * (-bl) + sn * (-0.283f), 0f, 0f,
+            r + cs * (-r) + sn * (-(1 - r)), g + cs * (-g) + sn * g, bl + cs * (1 - bl) + sn * bl, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f,
+        ))
+    }
+
+    /** 배경·머리(알약, 흰 제목, 강조 제목, 기준 줄)·큰 숫자 칸·바닥. 반환: 그래프 판을 놓을 영역 */
+    internal fun frameCustom(ctx: Context, c: Canvas, pill: String, l1: String, l2: String, sub: String, tiles: List<Tile>, mark: Watermark.Mark, theme: Theme = Theme.BLUE): RectF {
+        cur = theme
         val white = fill(0xFFFFFFFF.toInt())
-        c.drawPath(Path().apply { moveTo(hx - hs, hy); lineTo(hx, hy - hs * 0.78f); lineTo(hx + hs, hy); close() }, white)
-        c.drawRect(hx - hs * 0.66f, hy - 4f, hx + hs * 0.66f, hy + hs * 0.62f, white)
-        val win = fill(0xFF1E5FD8.toInt()); val ws = hs * 0.16f
-        for (dx in listOf(-1, 1)) for (dy in listOf(0, 1)) c.drawRect(hx + dx * ws * 1.15f - ws + (if (dx > 0) 0f else ws * 0.0f), hy + 8f + dy * ws * 2.3f, hx + dx * ws * 1.15f + ws * 0.0f + (if (dx > 0) ws else 0f), hy + 8f + dy * ws * 2.3f + ws * 1.9f, win)
-        // 알약 · 제목(흰/노랑) · 기준
-        val tx = 214f * F
-        val textMax = (690f - 214f) * F
+        // 바탕
+        c.drawRect(0f, 0f, W.toFloat(), H.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, 0f, H.toFloat(), theme.bgA, theme.bgB, Shader.TileMode.CLAMP) })
+        // 머리 바탕
+        val headH = 372f * F
+        c.drawRect(0f, 0f, W.toFloat(), headH, Paint().apply { shader = LinearGradient(0f, 0f, W.toFloat(), headH, theme.headA, theme.headB, Shader.TileMode.CLAMP) })
+        val photo = Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter = tint(theme) }
         val pp = text(34f * F, 0xFFFFFFFF.toInt())
         val pw = pp.measureText(pill) + 52f * F
-        val pr = RectF(tx, 48f * F, tx + pw, 48f * F + 58f * F)
-        c.drawRoundRect(pr, 29f * F, 29f * F, fill(0x553B82F6))
-        c.drawRoundRect(pr, 29f * F, 29f * F, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF9CC2FF.toInt(); style = Paint.Style.STROKE; strokeWidth = 3f })
-        c.drawText(pill, pr.left + 26f * F, pr.bottom - 17f * F, pp)
-        c.drawText(l1, tx, 182f * F, fit(l1, text(66f * F, 0xFFFFFFFF.toInt()), textMax))
-        c.drawText(l2, tx - 30f * F, 270f * F, fit(l2, text(80f * F, YELLOW), textMax + 30f * F))
-        c.drawText(sub, tx - 30f * F, 322f * F, fit(sub, text(32f * F, 0xFFFFFFFF.toInt(), bold = false), textMax + 30f * F, 20f))
+        fun pillAt(left: Float) {
+            val pr = RectF(left, 48f * F, left + pw, 48f * F + 58f * F)
+            c.drawRoundRect(pr, 29f * F, 29f * F, fill(0x33FFFFFF))
+            c.drawRoundRect(pr, 29f * F, 29f * F, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xAAFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = 3f })
+            c.drawText(pill, pr.left + 26f * F, pr.bottom - 17f * F, pp)
+        }
+        when (theme.style) {
+            1 -> {
+                // 가운데 정렬: 사진 없이 큰 동그라미 무늬와 가는 줄
+                c.drawCircle(W * 0.08f, headH * 0.15f, 190f * F, fill(0x12FFFFFF))
+                c.drawCircle(W * 0.95f, headH * 0.80f, 240f * F, fill(0x10FFFFFF))
+                c.drawCircle(W * 0.80f, headH * 0.10f, 70f * F, fill(0x14FFFFFF))
+                pillAt((W - pw) / 2)
+                fun center(t: String, y: Float, p: Paint) { fit(t, p, W - 140f * F, 26f); c.drawText(t, (W - p.measureText(t)) / 2, y, p) }
+                center(l1, 190f * F, text(64f * F, 0xFFFFFFFF.toInt()))
+                center(l2, 282f * F, text(86f * F, theme.accent))
+                val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.accent; strokeWidth = 4f * F }
+                val sp = fit(sub, text(30f * F, 0xFFFFFFFF.toInt(), bold = false), W - 360f * F, 18f)
+                val sw = sp.measureText(sub)
+                c.drawText(sub, (W - sw) / 2, 336f * F, sp)
+                c.drawLine(60f * F, 326f * F, (W - sw) / 2 - 24f * F, 326f * F, line)
+                c.drawLine((W + sw) / 2 + 24f * F, 326f * F, W - 60f * F, 326f * F, line)
+            }
+            2 -> {
+                // 왼쪽 제목 + 오른쪽 큰 동그라미 표지, 비스듬한 줄무늬
+                val stripe = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x10FFFFFF; strokeWidth = 46f * F }
+                for (k in 0..6) c.drawLine(W * 0.38f + k * 120f * F, -20f, W * 0.18f + k * 120f * F, headH + 20f, stripe)
+                val cx = W - 190f * F; val cy = 176f * F; val rad = 132f * F
+                c.drawCircle(cx, cy, rad + 22f * F, fill(0x22FFFFFF))
+                c.drawCircle(cx, cy, rad, white)
+                val bp = fit(theme.badge, text(if (theme.badge.length <= 1) 170f * F else 118f * F, theme.headA), rad * 1.6f, 40f)
+                c.drawText(theme.badge, cx - bp.measureText(theme.badge) / 2, cy - (bp.descent() + bp.ascent()) / 2, bp)
+                val tx = 60f * F; val textMax = W - 60f * F - (rad * 2 + 100f * F)
+                pillAt(tx)
+                c.drawText(l1, tx, 186f * F, fit(l1, text(64f * F, 0xFFFFFFFF.toInt()), textMax))
+                c.drawText(l2, tx, 270f * F, fit(l2, text(76f * F, theme.accent), textMax))
+                c.drawText(sub, tx, 322f * F, fit(sub, text(30f * F, 0xFFFFFFFF.toInt(), bold = false), textMax, 18f))
+            }
+            else -> {
+                asset(ctx, R.drawable.stat_header)?.let { b -> c.drawBitmap(b, null, RectF(W - b.width * F, 0f, W.toFloat(), b.height * F), photo) }
+                // 집 아이콘
+                val hx = 112f * F; val hy = 112f * F; val hs = 62f * F
+                c.drawPath(Path().apply { moveTo(hx - hs, hy); lineTo(hx, hy - hs * 0.78f); lineTo(hx + hs, hy); close() }, white)
+                c.drawRect(hx - hs * 0.66f, hy - 4f, hx + hs * 0.66f, hy + hs * 0.62f, white)
+                val win = fill(theme.mid); val ws = hs * 0.16f
+                for (dx in listOf(-1, 1)) for (dy in listOf(0, 1)) c.drawRect(hx + dx * ws * 1.15f - ws, hy + 8f + dy * ws * 2.3f, hx + dx * ws * 1.15f + (if (dx > 0) ws else 0f), hy + 8f + dy * ws * 2.3f + ws * 1.9f, win)
+                val tx = 214f * F
+                val textMax = (690f - 214f) * F
+                pillAt(tx)
+                c.drawText(l1, tx, 182f * F, fit(l1, text(66f * F, 0xFFFFFFFF.toInt()), textMax))
+                c.drawText(l2, tx - 30f * F, 270f * F, fit(l2, text(80f * F, theme.accent), textMax + 30f * F))
+                c.drawText(sub, tx - 30f * F, 322f * F, fit(sub, text(32f * F, 0xFFFFFFFF.toInt(), bold = false), textMax + 30f * F, 20f))
+            }
+        }
+        // 머리 아래 물결 (밝은 바탕이 왼쪽에서 살짝 올라옴). 가운데 정렬 머리는 곧은 금색 줄
+        if (theme.style == 1) c.drawRect(0f, headH - 6f * F, W.toFloat(), headH, fill(theme.accent))
+        else c.drawPath(Path().apply { moveTo(0f, headH - 70f); quadTo(W * 0.30f, headH + 26f, W * 0.62f, headH - 14f); quadTo(W * 0.85f, headH - 34f, W.toFloat(), headH - 6f); lineTo(W.toFloat(), headH + 2f); lineTo(0f, headH + 2f); close() }, fill(theme.bgA))
 
         // 큰 숫자 칸 (최대 3칸)
         val tilesTop = 384f * F; val tilesH = 146f * F
@@ -165,38 +263,58 @@ object StatCards {
             tiles.forEachIndexed { i, t ->
                 val x = PAD + i * (cw + gap)
                 val rect = RectF(x, tilesTop, x + cw, tilesTop + tilesH)
-                c.drawRoundRect(RectF(rect.left, rect.top + 6f, rect.right, rect.bottom + 6f), 26f * F, 26f * F, fill(0x1A1E5FD8))
-                c.drawRoundRect(rect, 26f * F, 26f * F, white)
-                c.drawCircle(x + 46f * F, tilesTop + 42f * F, 11f * F, fill(NAVY))
-                c.drawText(t.label, x + 70f * F, tilesTop + 55f * F, fit(t.label, text(36f * F, INK), cw - 90f * F, 20f))
-                val vp = fit(t.value, text(66f * F, t.color), cw - 56f * F, 30f)
-                c.drawText(t.value, x + (cw - vp.measureText(t.value)) / 2, tilesTop + 122f * F, vp)
+                c.drawRoundRect(RectF(rect.left, rect.top + 6f, rect.right, rect.bottom + 6f), 26f * F, 26f * F, fill(0x1A000000))
+                if (theme.filledTiles) {
+                    // 진한 칸: 글자는 흰색, 숫자는 강조색 (첫 칸) 또는 흰색
+                    c.drawRoundRect(rect, 26f * F, 26f * F, Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, theme.dark, theme.mid, Shader.TileMode.CLAMP) })
+                    c.drawText(t.label, x + 34f * F, tilesTop + 55f * F, fit(t.label, text(34f * F, 0xCCFFFFFF.toInt()), cw - 60f * F, 20f))
+                    val vp = fit(t.value, text(66f * F, if (i == 0) theme.accent else 0xFFFFFFFF.toInt()), cw - 56f * F, 30f)
+                    c.drawText(t.value, x + (cw - vp.measureText(t.value)) / 2, tilesTop + 122f * F, vp)
+                } else {
+                    c.drawRoundRect(rect, 26f * F, 26f * F, white)
+                    c.drawCircle(x + 46f * F, tilesTop + 42f * F, 11f * F, fill(theme.dark))
+                    c.drawText(t.label, x + 70f * F, tilesTop + 55f * F, fit(t.label, text(36f * F, INK), cw - 90f * F, 20f))
+                    val vp = fit(t.value, text(66f * F, t.color), cw - 56f * F, 30f)
+                    c.drawText(t.value, x + (cw - vp.measureText(t.value)) / 2, tilesTop + 122f * F, vp)
+                }
             }
         }
 
-        // 바닥: 스카이라인 그림 + 워터마크
-        asset(ctx, R.drawable.stat_footer)?.let { b -> c.drawBitmap(b, null, RectF(0f, H - b.height * F, W.toFloat(), H.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG)) }
-        // 시안의 워터마크 자리(그림 위)를 그대로 덮어 그림. 문구가 비어 있어도 자리는 남색으로 덮음
-        Watermark.draw(c, mark, RectF(560f * F, H - 170f * F, 1008f * F, H - 26f * F), force = true)
+        // 바닥: 사진 머리는 스카이라인 사진, 나머지는 색 띠와 건물 실루엣
+        val markRect = RectF(560f * F, H - 170f * F, 1008f * F, H - 26f * F)
+        if (theme.style == 0) {
+            asset(ctx, R.drawable.stat_footer)?.let { b -> c.drawBitmap(b, null, RectF(0f, H - b.height * F, W.toFloat(), H.toFloat()), photo) }
+        } else {
+            val bandTop = H - 104f * F // 얇은 띠. 워터마크는 띠 위로 걸쳐 놓임
+            // 띠 위로 솟은 건물 실루엣
+            val heights = floatArrayOf(60f, 110f, 80f, 150f, 95f, 130f, 70f, 120f, 90f, 160f, 75f, 115f, 85f, 140f)
+            val bw = W / heights.size.toFloat()
+            heights.forEachIndexed { k, hgt -> c.drawRect(k * bw + bw * 0.12f, bandTop - hgt * F * 0.75f, (k + 1) * bw - bw * 0.12f, bandTop, fill((theme.mid and 0x00FFFFFF) or (if (k % 2 == 0) 0x4D000000 else 0x30000000))) }
+            c.drawRect(0f, bandTop, W.toFloat(), H.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, W.toFloat(), 0f, theme.headA, theme.headB, Shader.TileMode.CLAMP) })
+            c.drawRect(0f, bandTop, W.toFloat(), bandTop + 5f * F, fill(theme.accent))
+        }
+        // 워터마크 자리. 문구가 비어 있어도 자리는 남색으로 덮음
+        Watermark.draw(c, mark, markRect, force = true)
 
         return RectF(PAD, tilesTop + tilesH + 32f * F, W - PAD, 1128f * F)
     }
 
-    /** 흰 판 + 남색 머리띠(제목). 반환: 판 안쪽 그래프 영역 */
+    /** 흰 판 + 디자인 색 머리띠(제목). 반환: 판 안쪽 그래프 영역 */
     internal fun panel(c: Canvas, area: RectF, title: String, legend: List<Pair<String, Int>> = emptyList()): RectF {
+        val t = cur
         val r = 26f * F
-        c.drawRoundRect(RectF(area.left, area.top + 6f, area.right, area.bottom + 6f), r, r, fill(0x1A1E5FD8))
+        c.drawRoundRect(RectF(area.left, area.top + 6f, area.right, area.bottom + 6f), r, r, fill(0x14000000))
         c.drawRoundRect(area, r, r, fill(0xFFFFFFFF.toInt()))
         val stripH = 78f * F
         c.save()
         c.clipPath(Path().apply { addRoundRect(area, r, r, Path.Direction.CW) })
         c.drawRect(area.left, area.top, area.right, area.top + stripH, Paint().apply {
-            shader = LinearGradient(area.left, 0f, area.right, 0f, intArrayOf(NAVY, 0xFF2A62C9.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt()), floatArrayOf(0f, 0.38f, 0.62f, 1f), Shader.TileMode.CLAMP)
+            shader = LinearGradient(area.left, 0f, area.right, 0f, intArrayOf(t.dark, t.mid, 0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt()), floatArrayOf(0f, 0.38f, 0.62f, 1f), Shader.TileMode.CLAMP)
         })
         c.restore()
         // 막대 아이콘 + 제목
         val bx = area.left + 34f * F; val by = area.top + stripH - 20f * F
-        listOf(0.4f, 0.65f, 0.9f).forEachIndexed { i, hgt -> c.drawRect(bx + i * 15f * F, by - 36f * F * hgt, bx + i * 15f * F + 10f * F, by, fill(0xFFFFFFFF.toInt())) }
+        listOf(0.4f, 0.65f, 0.9f).forEachIndexed { i, hgt -> c.drawRect(bx + i * 15f * F, by - 36f * F * hgt, bx + i * 15f * F + 10f * F, by, fill(if (t.style == 1) t.accent else 0xFFFFFFFF.toInt())) }
         c.drawText(title, bx + 62f * F, area.top + stripH - 24f * F, text(38f * F, 0xFFFFFFFF.toInt()))
         // 범례 (오른쪽, 흰 바탕 위)
         var lx = area.right - 30f * F
@@ -211,6 +329,9 @@ object StatCards {
         return RectF(area.left + 28f * F, area.top + stripH + 22f * F, area.right - 28f * F, area.bottom - 24f * F)
     }
 
+    /** 지금 카드의 진한 색 (순위 동그라미 등, 디자인에 맞춘 색이 필요할 때) */
+    internal val themeDark: Int get() = cur.dark
+
     private fun captions(c: Canvas, s: StatSeries, top: Float, withDesc: Boolean = true) {
         val p = text(29f * F, GRAY, bold = false)
         var y = top
@@ -222,7 +343,7 @@ object StatCards {
     fun rank(
         ctx: Context, s: StatSeries, sido: List<String>, mark: Watermark.Mark,
         pill: String = "지역별 한눈에", panelTitle: String = "지역별 ${s.short}", names: List<String> = DEFAULT_NAMES,
-        label: (String) -> String = { it }, highlight: String? = null,
+        label: (String) -> String = { it }, highlight: String? = null, theme: Theme = Theme.BLUE,
     ): Bitmap? {
         var rows = s.regions.filter { it.name in sido && it.latest != null }.sortedByDescending { it.latest!! }
         if (rows.size < 5) return null
@@ -230,7 +351,7 @@ object StatCards {
         if (rows.size > 26) rows = (rows.take(12) + rows.filter { it.name == highlight } + rows.takeLast(12)).distinct().sortedByDescending { it.latest!! }
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val base = frame(ctx, c, s, pill, mark, names, label)
+        val base = frame(ctx, c, s, pill, mark, names, label, theme)
         // 17개 시도가 다 들어가도록 판을 아래로 조금 더 키움 (설명 줄은 추이 카드에만)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val inner = panel(c, area, panelTitle)
@@ -268,12 +389,12 @@ object StatCards {
     }
 
     /** 전국·서울·수도권 추이. 값이 3개 미만이면 null */
-    fun trend(ctx: Context, s: StatSeries, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, pill: String? = null, label: (String) -> String = { it }): Bitmap? {
+    fun trend(ctx: Context, s: StatSeries, mark: Watermark.Mark, names: List<String> = DEFAULT_NAMES, pill: String? = null, label: (String) -> String = { it }, theme: Theme = Theme.BLUE): Bitmap? {
         val lines = names.mapNotNull { s.region(it) }.filter { r -> r.values.count { it != null } >= 3 }.take(3)
         if (lines.isEmpty() || s.dates.size < 3) return null
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val area = frame(ctx, c, s, pill ?: "최근 ${s.dates.size}회 추이", mark, names, label)
+        val area = frame(ctx, c, s, pill ?: "최근 ${s.dates.size}회 추이", mark, names, label, theme)
         val inner = panel(c, area, "${s.short} 추이", lines.mapIndexed { i, r -> label(r.name) to TREND_COLORS[i] })
 
         val left = inner.left + 104f * F; val right = inner.right - 14f * F
@@ -327,10 +448,10 @@ object StatCards {
         for (s in picked) {
             val at = stats.chain(region).firstOrNull { s.region(it)?.latest != null } ?: continue
             val names = listOf(at, sido, "전국").distinct()
-            trend(ctx, s, mark, names, "${if (at == sido) sido else "$sido ${stats.shortName(at)}"} · 최근 ${s.dates.size}회", label)?.let { out += it }
+            trend(ctx, s, mark, names, "${if (at == sido) sido else "$sido ${stats.shortName(at)}"} · 최근 ${s.dates.size}회", label, Theme.TEAL)?.let { out += it }
             val sib = stats.siblings(region)
             if (s.kind == "change" && sib.count { s.region(it)?.latest != null } >= 5) {
-                rank(ctx, s, sib, mark, "$sido 시군구 순위", "$sido ${s.short}", names, label, highlight = at)?.let { out += it }
+                rank(ctx, s, sib, mark, "$sido 시군구 순위", "$sido ${s.short}", names, label, highlight = at, theme = Theme.TEAL)?.let { out += it }
             }
         }
         return out
