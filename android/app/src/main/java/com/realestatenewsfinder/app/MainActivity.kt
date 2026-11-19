@@ -331,6 +331,7 @@ fun App() {
     when (dealTool) {
         "budget" -> BudgetScreen(onBack = { dealTool = null }, onSent = { dealTool = null })
         "presale" -> PresaleScreen(onBack = { dealTool = null }, onSent = { dealTool = null })
+        "top" -> TopScreen(onBack = { dealTool = null }, onSent = { dealTool = null })
     }
     dealShare?.let { a -> key("ds" + a.target.toUri()) {
         DealShareScreen(a.target.lawdCd, a.target.complexId, a.aptNm, a.umdNm, a.type, a.period, a.fresh, onBack = { dealShare = null }, onSent = { dealShare = null })

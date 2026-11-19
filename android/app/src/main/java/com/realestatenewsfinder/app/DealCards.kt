@@ -341,4 +341,41 @@ object DealCards {
         c.drawText("자료 : 청약홈 분양가(최근 5년 공고), 국토교통부 실거래가" + (if (matches.size > rows.size) " · 외 ${matches.size - rows.size}곳" else ""), StatCards.PAD + 18f * F, area.bottom + 48f * F, StatCards.text(29f * F, StatCards.GRAY, bold = false))
         return listOf(bmp)
     }
+
+    // ---------- 지역별 최고 실거래 단지 ----------
+    fun top(ctx: Context, place: String, band: Int, period: DealPeriod, items: List<DealTools.TopItem>, today: LocalDate, mark: Watermark.Mark = Watermark.of(ctx)): List<Bitmap> {
+        if (items.isEmpty()) return emptyList()
+        val rows = items.take(10)
+        val bmp = Bitmap.createBitmap(W, StatCards.H, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val tiles = listOfNotNull(
+            StatCards.Tile("1위", short(rows.first().price), RED),
+            rows.getOrNull(4)?.let { StatCards.Tile("5위", short(it.price), StatCards.NAVY) },
+            rows.getOrNull(9)?.let { StatCards.Tile("10위", short(it.price), BLUE) },
+        )
+        val base = StatCards.frameCustom(ctx, c, "매매 실거래 · 최근 ${period.label}" + (if (band == 0) "" else " · ${band}㎡"), place, "최고 실거래 단지", "단지별 최고가 기준 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
+        val inner = StatCards.panel(c, area, "최고가 순위 1~${rows.size}위")
+        val rowH = inner.height() / rows.size.coerceAtLeast(8)
+        val size = (rowH * 0.44f).coerceIn(24f, 36f)
+        rows.forEachIndexed { k, t ->
+            val d = t.deal
+            val cy = inner.top + rowH * k + rowH / 2
+            val num = "${k + 1}"
+            c.drawCircle(inner.left + 22f * F, cy, 20f * F, StatCards.fill(if (k < 3) RED else StatCards.NAVY))
+            val np = StatCards.text(24f * F, 0xFFFFFFFF.toInt())
+            c.drawText(num, inner.left + 22f * F - np.measureText(num) / 2, cy + 9f * F, np)
+            val pv = short(t.price)
+            val pp = StatCards.text(size * 1.15f, if (k < 3) RED else StatCards.NAVY)
+            val pw = pp.measureText(pv)
+            c.drawText(pv, inner.right - pw, cy + size * 0.12f, pp)
+            val maxW = inner.width() - 70f * F - pw - 24f * F
+            c.drawText(d.aptNm, inner.left + 58f * F, cy - size * 0.08f, StatCards.fit(d.aptNm, StatCards.text(size, StatCards.INK), maxW, 18f))
+            val sub = listOfNotNull(t.gu.takeIf { it.isNotBlank() }, d.umdNm.takeIf { it.isNotBlank() }, "${DealFmt.area(d.area)}㎡ ${d.floor}층", d.date.substring(2, 7).replace('-', '.')).joinToString(" · ")
+            c.drawText(sub, inner.left + 58f * F, cy + size * 0.82f, StatCards.fit(sub, StatCards.text(size * 0.66f, StatCards.GRAY, bold = false), inner.width() - 70f * F, 14f))
+            if (k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
+        }
+        c.drawText("자료 : 국토교통부 실거래가 (단지별 최고가 한 건. 해제 거래 제외)", StatCards.PAD + 18f * F, area.bottom + 48f * F, StatCards.text(29f * F, StatCards.GRAY, bold = false))
+        return listOf(bmp)
+    }
 }

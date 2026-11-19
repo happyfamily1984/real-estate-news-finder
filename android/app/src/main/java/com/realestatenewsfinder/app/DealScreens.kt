@@ -86,6 +86,7 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
                     Triple("budget", "내 돈으로 살 수 있는 아파트", "예산·평형·지역을 고르면 살 수 있는 아파트 목록"),
                     Triple("history", "5·10·20년 전 가격 비교", "단지와 평형을 고르면 그때와 지금 실거래가"),
                     Triple("presale", "분양가 vs 실거래가", "10년 이내 단지의 분양가와 최근 실거래가"),
+                    Triple("top", "지역별 최고 실거래 단지", "최근 5년 실거래 최고가 1~10위"),
                 ).forEach { (id, title, sub) ->
                     SoftCard(onClick = { onTool(id) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
