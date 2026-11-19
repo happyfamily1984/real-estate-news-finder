@@ -353,7 +353,7 @@ object DealCards {
             rows.getOrNull(4)?.let { StatCards.Tile("5위", short(it.price), StatCards.NAVY) },
             rows.getOrNull(9)?.let { StatCards.Tile("10위", short(it.price), BLUE) },
         )
-        val base = StatCards.frameCustom(ctx, c, "매매 실거래 · 최근 ${period.label}" + (if (band == 0) "" else " · ${band}㎡"), place, "최고 실거래 단지", "단지별 최고가 기준 · ${today.monthValue}/${today.dayOfMonth} 기준", tiles, mark)
+        val base = StatCards.frameCustom(ctx, c, "매매 실거래 · 최근 ${period.label}" + (if (band == 0) "" else " · ${band}㎡"), place, "최고 실거래 단지", "최근 ${period.label}간 실거래가 기준 · ${today.monthValue}/${today.dayOfMonth}", tiles, mark)
         val area = RectF(base.left, base.top, base.right, base.bottom + 40f * F)
         val inner = StatCards.panel(c, area, "최고가 순위 1~${rows.size}위")
         val rowH = inner.height() / rows.size.coerceAtLeast(8)
@@ -375,7 +375,9 @@ object DealCards {
             c.drawText(sub, inner.left + 58f * F, cy + size * 0.82f, StatCards.fit(sub, StatCards.text(size * 0.66f, StatCards.GRAY, bold = false), inner.width() - 70f * F, 14f))
             if (k < rows.size - 1) c.drawRect(inner.left, inner.top + rowH * (k + 1) - 1f, inner.right, inner.top + rowH * (k + 1), StatCards.fill(0xFFEEF2F9.toInt()))
         }
-        c.drawText("자료 : 국토교통부 실거래가 (단지별 최고가 한 건. 해제 거래 제외)", StatCards.PAD + 18f * F, area.bottom + 48f * F, StatCards.text(29f * F, StatCards.GRAY, bold = false))
+        val cap = StatCards.text(29f * F, StatCards.GRAY, bold = false)
+        c.drawText("최근 ${period.label}간 실거래가 기준 (${period.label} 이전에 더 높은 거래가 있을 수 있음)", StatCards.PAD + 18f * F, area.bottom + 48f * F, cap)
+        c.drawText("자료 : 국토교통부 실거래가 (단지별 최고가 한 건. 해제 거래 제외)", StatCards.PAD + 18f * F, area.bottom + 92f * F, cap)
         return listOf(bmp)
     }
 }

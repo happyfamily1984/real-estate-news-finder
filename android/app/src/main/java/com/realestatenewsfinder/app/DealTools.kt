@@ -367,7 +367,7 @@ object DealTools {
     }
 
     /**
-     * 짧은 글: 맨 위 한마디 → 1~10위 단지와 최고가 → 마지막 한 줄. label: "경기" 또는 "서울 강남구"
+     * 짧은 글: 맨 위 한마디와 기준 기간 → 1~10위 단지와 최고가 → 한 줄 → 기간 밖 거래 안내. label: "경기" 또는 "서울 강남구"
      */
     fun topText(label: String, band: Int, period: DealPeriod, items: List<TopItem>, casual: Boolean, seed: Int = 0): String {
         fun e(c: String, p: String) = if (casual) c else p
@@ -376,7 +376,7 @@ object DealTools {
         fun pick(list: List<String>, salt: Int = 0) = list[Math.floorMod(seed + salt, list.size)]
         val lines = mutableListOf<String>()
         lines += pick(listOf("$label$what 대장 아파트, 실거래가로 줄 세워봄", "$label$what 에서 제일 비싸게 팔린 아파트 순위", "$label$what 집값 꼭대기에는 누가 있을까")).replace("$what 에서", "${what}에서") +
-            " (최근 ${period.label} 최고가)"
+            "\n최근 ${period.label}간 실거래가 기준"
         val show = items.take(10)
         lines += show.mapIndexed { k, t -> "${k + 1}. ${t.deal.aptNm} ${shortWon(t.price)}" + (if (band == 0) " (${t.deal.area.toInt()}㎡)" else "") }.joinToString("\n")
         if (show.size >= 3) {
@@ -385,6 +385,8 @@ object DealTools {
             else listOf("같은 지역이 맞나 싶은 격차예요", "순위표만 봐도 어디가 대장인지 보여요", "이 중에 살아보고 싶은 곳 있으세요?", "1위는 당분간 안 바뀔 것 같아요")
             lines += "1위와 ${show.size}위 차이 ${shortWon(gap)}\n" + pick(tail, 1)
         }
+        // 기간 밖의 거래는 순위에 없음을 밝힘
+        lines += "※ ${period.label} 이전에 거래된 더 높은 가격이 있을 수 있" + e("음", "어요")
         return lines.joinToString("\n\n")
     }
 }
