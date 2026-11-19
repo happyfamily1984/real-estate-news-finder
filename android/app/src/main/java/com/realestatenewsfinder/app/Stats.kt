@@ -192,87 +192,64 @@ object StatText {
     }
 
     // ---------- 변동률 (매매가·전세가 주간 변동률) ----------
+    /**
+     * 주간 시황 숫자 요약형 글:
+     *   📈 [기간] [무엇] 흐름 요약 / 상승률 TOP • 지역: 수치 ×3 / 흐름 포인트 • … / 한 줄 정리 ✔ … / 다음 주에도 정리해서 올릴게.
+     */
     private fun changeThread(s: StatSeries, head: StatRegion, sido: List<String>, casual: Boolean): List<String> {
         fun e(c: String, p: String) = if (casual) c else p
         val lines = mutableListOf<String>()
         val u = unit(s)
         val now = head.latest ?: 0.0
         val pt = "%p"
-        val streak = Insight.signStreak(head.values, eps(s))
-        var first = "${s.title}, ${head.name} ${s.fmt(head.latest)}"
-        if (kotlin.math.abs(streak) >= 2) first += " · ${kotlin.math.abs(streak)}$u${if (kotlin.math.abs(streak) >= head.values.size) " 넘게" else ""} 연속 " + (if (streak > 0) "상승" else "하락")
-        lines += "$first (${s.source} ${s.dateLabel} 기준)"
+        val what = s.title.replace(Regex("\\s*(주간|월간)?\\s*변동률$"), "") // "아파트 매매가격"
+        val week = if (u == "주") "${s.dateLabel} 주간" else s.dateLabel
+        lines += "📈 $week $what 흐름 요약 (${s.source})"
 
-        // 속도: 직전과 비교 + 최근 4회 평균과 비교 + 기간 내 최고·최저
-        val speed = mutableListOf<String>()
-        val before = head.prev
+        // 상승률 TOP 3 (시도). 오른 곳이 없으면 덜 내린 순
+        val rank = ranked(s, sido)
+        if (rank.size >= 3) {
+            lines += (if (rank.first().latest!! > 0) "상승률 TOP" else "덜 내린 곳 TOP") + "\n" + rank.take(3).joinToString("\n") { "• ${it.name}: ${s.fmt(it.latest)}" }
+        }
+
+        // 흐름 포인트: 전국 수치와 연속 여부, 속도 변화, 서울과의 격차, 오른 곳·내린 곳 수 (최대 4개)
+        val points = mutableListOf<String>()
+        val streak = Insight.signStreak(head.values, eps(s))
+        var first = "${head.name} ${s.fmt(head.latest)}"
+        if (abs(streak) >= 2) first += ", ${abs(streak)}$u${if (abs(streak) >= head.values.size) " 넘게" else ""} 연속 " + (if (streak > 0) "상승" else "하락")
+        points += first
         var accel = 0 // 1 = 강해짐, -1 = 약해짐
+        val before = head.prev
         if (before != null) {
             val diff = now - before
-            val same = abs(diff) < eps(s)
             val unitWord = if (u == "주") "지난주" else "지난달"
-            speed += when {
-                same -> "${head.name} 변동률은 $unitWord(${s.fmt(before)})와 같" + e("음", "아요")
-                now > 0 && before > 0 -> { accel = if (diff > 0) 1 else -1; "${head.name} 상승폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff > 0) "커졌" else "줄었") + e("음", "어요") }
-                now < 0 && before < 0 -> { accel = if (diff < 0) 1 else -1; "${head.name} 하락폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff < 0) "커졌" else "줄었") + e("음", "어요") }
-                else -> "$unitWord(${s.fmt(before)})에서 " + (if (now > 0) "상승" else if (now < 0) "하락" else "보합") + "으로 바뀌었" + e("음", "어요")
+            if (abs(diff) >= eps(s)) points += when {
+                now > 0 && before > 0 -> { accel = if (diff > 0) 1 else -1; "상승폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff > 0) "커짐" else "줄어듦") }
+                now < 0 && before < 0 -> { accel = if (diff < 0) 1 else -1; "하락폭은 $unitWord(${s.fmt(before)})보다 " + (if (diff < 0) "커짐" else "줄어듦") }
+                else -> "$unitWord(${s.fmt(before)})에서 " + (if (now > 0) "상승" else if (now < 0) "하락" else "보합") + "으로 바뀜"
             }
         }
-        Insight.prevAvg(head.values, 4)?.let { a ->
-            if (abs(now - a) >= eps(s) && now * a > 0) {
-                val stronger = abs(now) > abs(a)
-                speed += "직전 4$u 평균(${s.fmt(a)})보다 " + (if (stronger) "빠른" else "느린") + " 속도"
-            }
-        }
-        when (Insight.extreme(head.values)) {
-            1 -> if (now > 0) speed += "최근 ${head.values.size}$u 중 가장 큰 상승폭"
-            -1 -> speed += if (now < 0) "최근 ${head.values.size}$u 중 가장 큰 하락폭" else "최근 ${head.values.size}$u 중 가장 낮은 상승률"
-        }
-        if (speed.isNotEmpty()) lines += speed.joinToString("\n")
-
-        // 서울·수도권과 전국의 격차
-        val others = listOfNotNull(s.region("서울"), s.region("수도권")).filter { it !== head && it.latest != null }
-        if (others.isNotEmpty()) {
-            var line = others.joinToString(", ") { "${it.name} ${s.fmt(it.latest)}" }
-            val seoul = others.firstOrNull { it.name == "서울" }?.latest
-            if (seoul != null && head.name == "전국") {
-                val gap = seoul - now
-                line += if (abs(gap) < eps(s)) "\n서울과 전국이 같은 속도" else "\n서울이 전국보다 ${num(s, abs(gap))}$pt " + (if (gap > 0) "높" else "낮") + e("음", "아요")
-            }
-            lines += line
-        }
-
-        // 지역별: 1위·꼴찌, 격차, 오른 곳·내린 곳 수와 그 뜻
-        val rank = ranked(s, sido)
+        val seoul = s.region("서울")?.takeIf { it !== head }?.latest
+        if (seoul != null && head.name == "전국" && abs(seoul - now) >= eps(s)) points += "서울 ${s.fmt(seoul)}, 전국보다 ${num(s, abs(seoul - now))}$pt " + (if (seoul > now) "높음" else "낮음")
         var breadth = ""
         if (rank.size >= 5) {
-            val top = rank.first(); val bottom = rank.last()
             val up = rank.count { it.latest!! > 0 }; val down = rank.count { it.latest!! < 0 }
-            val b = mutableListOf<String>()
-            b += if (top.latest!! > 0) "가장 많이 오른 곳 ${top.name}(${s.fmt(top.latest)})" else "오른 곳 없이 ${top.name}(${s.fmt(top.latest)})이 가장 덜 내림"
-            b += if (bottom.latest!! < 0) "가장 많이 내린 곳 ${bottom.name}(${s.fmt(bottom.latest)})" else "가장 덜 오른 곳 ${bottom.name}(${s.fmt(bottom.latest)})"
             breadth = when {
                 up * 3 >= rank.size * 2 -> "상승이 전국으로 퍼진 모습"
                 down * 3 >= rank.size * 2 -> "약세가 넓게 퍼진 모습"
                 up > 0 && down > 0 -> "오르는 곳과 내리는 곳이 갈리는 모습"
                 else -> "대부분 제자리"
             }
-            b += "${rank.size}개 시도 중 오른 곳 ${up}곳, 내린 곳 ${down}곳 → $breadth"
-            b += "1위와 꼴찌 격차 ${num(s, top.latest!! - bottom.latest!!)}$pt"
-            lines += b.joinToString("\n")
+            points += "${rank.size}개 시도 중 오른 곳 ${up}곳, 내린 곳 ${down}곳"
         }
-
-        // 누적: 주간 숫자는 작아 보여도 쌓이면 달라짐
-        val n = head.values.size
-        if (n >= 8) {
-            val parts = listOfNotNull(head, s.region("서울").takeIf { it !== head }).mapNotNull { r -> RegionText.cumulative(r.values, n)?.let { "${r.name} ${s.fmt(it)}" } }
-            if (parts.isNotEmpty()) lines += "최근 $n$u 누적으로는 " + parts.joinToString(", ")
-        }
+        lines += "흐름 포인트\n" + points.take(4).joinToString("\n") { "• $it" }
 
         // 한 줄 정리
         val dir = if (now > eps(s)) "오름세" else if (now < -eps(s)) "내림세" else "보합"
         val pace = when { dir == "보합" -> ""; accel > 0 -> "가 강해지는 중"; accel < 0 -> "가 약해지는 중"; else -> " 유지" }
-        lines += "정리: ${head.name} $dir$pace" + (if (breadth.isNotBlank()) ", 지역별로는 $breadth" else "")
+        lines += "한 줄 정리\n✔ ${head.name} $dir$pace" + (if (breadth.isNotBlank()) ", 지역별로는 $breadth" else "")
+        lines += if (u == "주") e("다음 주에도 정리해서 올릴게. 팔로우해두면 놓치지 않아.", "다음 주에도 정리해서 올릴게요. 팔로우해두면 놓치지 않아요.")
+        else e("다음 달에도 정리해서 올릴게. 팔로우해두면 놓치지 않아.", "다음 달에도 정리해서 올릴게요. 팔로우해두면 놓치지 않아요.")
         return lines
     }
 
@@ -380,7 +357,7 @@ object RegionText {
         val lines = mutableListOf<String>()
         val sido = stats.sidoOf(region)
         val date = picked.firstOrNull()?.dateLabel
-        lines += "$region 부동산 지표 정리" + (date?.let { " ($it 기준)" } ?: "")
+        lines += "📈 $region 집값 흐름 요약" + (date?.let { " ($it 기준)" } ?: "")
         for (s in picked) {
             val at = stats.chain(region).firstOrNull { s.region(it)?.latest != null } ?: continue
             val r = s.region(at)!!
@@ -414,11 +391,15 @@ object RegionText {
         if (sale != null) {
             val sib = stats.siblings(region).mapNotNull { n -> sale.region(n)?.latest?.let { n to it } }.sortedByDescending { it.second }
             val rank = sib.indexOfFirst { it.first == region }
-            if (rank >= 0 && sib.size >= 5) {
-                val pos = when { rank * 3 < sib.size -> "강한 편"; rank * 3 >= sib.size * 2 -> "약한 편"; else -> "중간" }
-                lines += "$sido ${sib.size}개 시군구 중 ${sale.short} 상승률 ${rank + 1}위 → $sido 안에서 $pos\n1위 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)}), 꼴찌 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})"
+            if (sib.size >= 5) {
+                lines += "$sido 상승률 TOP\n" + sib.take(3).joinToString("\n") { "• ${stats.shortName(it.first)}: ${sale.fmt(it.second)}" }
+                if (rank >= 0) {
+                    val pos = when { rank * 3 < sib.size -> "강한 편"; rank * 3 >= sib.size * 2 -> "약한 편"; else -> "중간" }
+                    lines += "한 줄 정리\n✔ ${stats.shortName(region)}는 $sido ${sib.size}개 시군구 중 ${sale.short} 상승률 ${rank + 1}위, $sido 안에서 $pos"
+                } else if (region == sido) {
+                    lines += "한 줄 정리\n✔ $sido 안에서는 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)})가 가장 높고 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})가 가장 낮" + e("음", "아요")
+                }
             }
-            else if (region == sido && sib.size >= 5) lines += "$sido 안에서는 ${stats.shortName(sib.first().first)}(${sale.fmt(sib.first().second)})가 가장 높고 ${stats.shortName(sib.last().first)}(${sale.fmt(sib.last().second)})가 가장 낮" + e("음", "아요")
         }
         return lines.joinToString("\n\n")
     }

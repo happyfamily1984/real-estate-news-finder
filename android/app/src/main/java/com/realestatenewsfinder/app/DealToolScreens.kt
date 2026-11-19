@@ -225,19 +225,7 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
             out += DealTools.historyPoint(today, n, deals, target.complexId, aptNm, umdNm, key, buildYear)
         }
         points = out
-        // 글은 바로 보여주고, 물가 자료는 그 뒤에 받아서 되면 한 줄을 붙임 (못 받아도 글은 그대로)
-        compare = null
-        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, seed = seed + key)
-        val years = out.filter { it.ok && it.yearsAgo > 0 }.map { today.year - it.yearsAgo }
-        val dine = StatsRepository.cached(ctx)?.dineout?.takeIf { it.isNotEmpty() }
-            ?: kotlinx.coroutines.withTimeoutOrNull(20_000) { withContext(Dispatchers.IO) { runCatching { DineOut.load(ctx, today.year, years) }.getOrNull() } }
-        val c = dine?.let { DealTools.priceCompare(out, it, today.year, seed + key) }
-        if (c != null) {
-            val plain = text
-            compare = c
-            // 그 사이 글을 고쳤으면 건드리지 않음
-            if (plain == DealTools.historyText(aptNm, place, key, out, prefs.casualTone, seed = seed + key)) text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, c, seed + key)
-        }
+        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, seed = seed + key, thisYear = today.year)
     }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(

@@ -32,20 +32,20 @@ class StatsTest {
     }
 
     @Test
-    fun changeRateThreadReadsTheTrend() {
+    fun changeRateThreadIsWeeklyDigest() {
         val s = Stats.parse(json).series[0]
         val t = StatText.thread(s, sido, casual = true)
         assertEquals(
             listOf(
-                "아파트 매매가격 주간 변동률, 전국 +0.07% · 2주 넘게 연속 상승 (KB부동산 11/9 기준)",
-                "전국 상승폭은 지난주(+0.09%)보다 줄었음",
-                "서울 +0.10%, 수도권 +0.08%\n서울이 전국보다 0.03%p 높음",
-                "가장 많이 오른 곳 세종(+0.25%)\n가장 많이 내린 곳 대구(-0.05%)\n6개 시도 중 오른 곳 3곳, 내린 곳 2곳 → 오르는 곳과 내리는 곳이 갈리는 모습\n1위와 꼴찌 격차 0.30%p",
-                "정리: 전국 오름세가 약해지는 중, 지역별로는 오르는 곳과 내리는 곳이 갈리는 모습",
+                "📈 11/9 주간 아파트 매매가격 흐름 요약 (KB부동산)",
+                "상승률 TOP\n• 세종: +0.25%\n• 서울: +0.10%\n• 인천: +0.03%",
+                "흐름 포인트\n• 전국 +0.07%, 2주 넘게 연속 상승\n• 상승폭은 지난주(+0.09%)보다 줄어듦\n• 서울 +0.10%, 전국보다 0.03%p 높음\n• 6개 시도 중 오른 곳 3곳, 내린 곳 2곳",
+                "한 줄 정리\n✔ 전국 오름세가 약해지는 중, 지역별로는 오르는 곳과 내리는 곳이 갈리는 모습",
+                "다음 주에도 정리해서 올릴게. 팔로우해두면 놓치지 않아.",
             ),
             t.split("\n\n"),
         )
-        assertTrue(StatText.thread(s, sido, casual = false).contains("줄었어요"))
+        assertTrue(StatText.thread(s, sido, casual = false).endsWith("팔로우해두면 놓치지 않아요."))
     }
 
     @Test
@@ -95,7 +95,7 @@ class StatsTest {
         assertEquals(listOf("reb-sale-wk" to "서울 강남구", "reb-buy-supply-wk" to "서울 동남권"), st.seriesFor("서울 강남구").map { it.first.id to it.second })
         assertEquals(0.9527, RegionText.cumulative(listOf(0.2, 0.2, 0.3, 0.25), 4)!!, 1e-3)
         val t = RegionText.thread(st, "서울 강남구", st.series, casual = true)
-        assertTrue(t, t.startsWith("서울 강남구 부동산 지표 정리 (11/9 기준)"))
+        assertTrue(t, t.startsWith("📈 서울 강남구 집값 흐름 요약 (11/9 기준)"))
         assertTrue(t, t.contains("한국부동산원 매매가 +0.25% · 4주 넘게 연속 상승 (서울 +0.10%, 전국 +0.07%)\n서울 평균보다 0.15%p 높음"))
         assertTrue(t, t.contains("누적 최근 4주 +0.95%"))
         assertTrue(t, t.contains("한국부동산원 매매수급 (서울 동남권 기준) 112.5 (서울 109.2, 전국 99.5)\n서울 평균보다 3.3 높음"))
