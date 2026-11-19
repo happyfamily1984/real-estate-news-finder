@@ -383,7 +383,9 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     var band by remember { mutableIntStateOf(0) }
     var areaKey by remember { mutableStateOf(prefs.dealArea.ifBlank { prefs.dealRecent.firstOrNull().orEmpty() }) }
     val area = remember(areaKey) { DealArea.of(core, areaKey) }
-    var period by remember { mutableStateOf(DealPeriod.Y5) }
+    var picked by remember { mutableStateOf(DealPeriod.Y5) }
+    // 시도 전체는 받아야 할 양이 너무 많아서(국토부 하루 호출 한도) 1년으로 고정
+    val period = if (area?.all == true) DealPeriod.Y1 else picked
     var byBand by remember { mutableStateOf<Map<Int, List<DealTools.TopItem>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf("실거래 받는 중…") }
@@ -421,11 +423,14 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     ) {
         RegionSelect(area) { areaKey = it }
         Label("기간")
-        PillRow { TOP_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
+        if (area?.all == true) {
+            PillRow { ChoicePill("1년", true) {} }
+            Text("시도 전체는 최근 1년만 볼 수 있어요. 3년·5년은 시·군·구를 하나 골라야 해요.", fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else PillRow { TOP_PERIODS.forEach { p -> ChoicePill(p.label, period == p) { picked = p } } }
         Label("평형")
         PillRow { DealTools.TOP_BANDS.forEach { b -> ChoicePill(if (b == 0) "전체" else "${b}㎡", band == b) { band = b } } }
         Text(
-            "단지마다 기간 안에서 가장 비싸게 거래된 한 건을 기준으로 순위를 매겨요. 5년치는 달마다 따로 받아서 처음에는 오래 걸리고(시도 전체는 몇 분), 한 번 받으면 7일 동안 저장해 둬요.",
+            "단지마다 기간 안에서 가장 비싸게 거래된 한 건을 기준으로 순위를 매겨요. 5년치는 달마다 따로 받아서 처음에는 시간이 걸리고, 한 번 받으면 7일 동안 저장해 둬요.",
             fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
