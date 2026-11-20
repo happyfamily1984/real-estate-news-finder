@@ -96,6 +96,8 @@ object PlatformKit {
         if (auto) BlogAuto.start(title, text)
         val uris = files.map { FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", it) }
         val intent = intent(uris, if (p == Platform.BLOG) title else "", text)
+        // 블로그 앱에 글쓰기나 다른 화면이 열려 있으면 그 위에 겹쳐 오류가 남 → 열려 있던 화면을 닫고 새 글쓰기 화면으로 엶
+        if (p == Platform.BLOG) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         val has = installed(ctx, p)
         val ok = has && runCatching { ctx.startActivity(intent.setPackage(p.pkg)) }.isSuccess
         if (!ok) runCatching { ctx.startActivity(Intent.createChooser(intent.setPackage(null), "공유할 앱 선택")) }
