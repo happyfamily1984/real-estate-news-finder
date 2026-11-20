@@ -140,7 +140,7 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
     var text by remember { mutableStateOf("") }
     LaunchedEffect(result, area?.key) { text = result?.let { DealTools.budgetText(area?.label.orEmpty(), band, budget, it, prefs.casualNow, seed + it.items.size) } ?: "" }
     ThreadShareScreen(
-        title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", blogName = "${area?.label.orEmpty()} ${DealTools.shortWon(budget)}으로 살 수 있는 아파트", hint = "국토부 실거래로 뽑은 목록이에요. 자유롭게 고쳐 쓰세요.",
+        title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", blogName = "${area?.label.orEmpty()} ${DealTools.shortWon(budget)}으로 살 수 있는 ${band}㎡ 아파트", hint = "국토부 실거래로 뽑은 목록이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(result, band, budget),
         render = result?.let { r -> { DealCards.budget(ctx, area?.cardPlace.orEmpty(), band, budget, period, r, core.molit.today()) } },
@@ -229,7 +229,7 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
     }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
-        title = "$aptNm · 그때와 지금", cacheId = "history-${target.complexId}", blogName = "$place $aptNm 실거래가 그때와 지금", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = "$aptNm · 그때와 지금", cacheId = "history-${target.complexId}", blogName = "$place $aptNm ${areaKey?.let { "${it}㎡ " }.orEmpty()}실거래가 그때와 지금", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(points, areaKey, compare),
         render = points?.let { p -> { DealCards.history(ctx, aptNm, place, areaKey ?: 0, p, today, note = compare?.line) } },
@@ -291,7 +291,7 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
     LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualNow, seed, today) } ?: "" }
     val inRegion = items?.count { i -> area?.codes.orEmpty().any { it in i.lawd } } ?: 0
     ThreadShareScreen(
-        title = "분양가 vs 실거래가", cacheId = "presale", blogName = "${area?.label.orEmpty()} 아파트 분양가 vs 실거래가", hint = "청약홈 분양가와 국토부 실거래 숫자로 만든 글이에요. 평가 문장은 자유롭게 고쳐 쓰세요.",
+        title = "분양가 vs 실거래가", cacheId = "presale", blogName = "${area?.label.orEmpty()} ${band}㎡ 아파트 분양가 vs 실거래가", hint = "청약홈 분양가와 국토부 실거래 숫자로 만든 글이에요. 평가 문장은 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(matches, band, period),
         render = matches?.let { m -> { DealCards.presale(ctx, area?.cardPlace.orEmpty(), band, period, m, today) } },
@@ -406,7 +406,7 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     var text by remember { mutableStateOf("") }
     LaunchedEffect(items, period) { text = items?.let { DealTools.topText(area?.label.orEmpty(), band, period, it, prefs.casualNow, seed) } ?: "" }
     ThreadShareScreen(
-        title = "지역별 최고 실거래 단지", cacheId = "top", blogName = "${area?.label.orEmpty()} 최고 실거래 단지 TOP 10", hint = "국토부 실거래 최고가로 뽑은 순위예요. 자유롭게 고쳐 쓰세요.",
+        title = "지역별 최고 실거래 단지", cacheId = "top", blogName = "${area?.label.orEmpty()} ${if (band > 0) "${band}㎡ " else ""}최고 실거래 단지 TOP 10", hint = "국토부 실거래 최고가로 뽑은 순위예요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
         renderKey = Triple(items, band, period),
         render = items?.let { list -> { DealCards.top(ctx, area?.cardPlace.orEmpty(), band, period, list, today) } },
@@ -465,7 +465,7 @@ fun FundingScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
     LaunchedEffect(f) { text = f?.let { DealTools.fundingText(aptNm, place, areaKey ?: 0, mine.firstNotNullOfOrNull { d -> d.buildYear }, mine.size, it, ratio, prefs.casualNow) } ?: "" }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
-        title = "$aptNm · 자금 계산", cacheId = "funding-${target.complexId}", blogName = "$place $aptNm 사려면 얼마 필요할까", hint = "실거래 평균과 넣은 숫자로 계산한 글이에요. 세금·대출은 대략값이니 올리기 전에 확인해 주세요.",
+        title = "$aptNm · 자금 계산", cacheId = "funding-${target.complexId}", blogName = "$place $aptNm ${areaKey?.let { "${it}㎡ " }.orEmpty()}사려면 얼마 필요할까", hint = "실거래 평균과 넣은 숫자로 계산한 글이에요. 세금·대출은 대략값이니 올리기 전에 확인해 주세요.",
         text = text, onText = { text = it },
         renderKey = f to areaKey,
         render = f?.let { ff -> { DealCards.funding(ctx, aptNm, place, areaKey ?: 0, ff, ratio, today) } },
