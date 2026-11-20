@@ -53,8 +53,8 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
     var interval by remember { mutableIntStateOf(prefs.intervalMin) }
     var feedUrl by remember { mutableStateOf(prefs.feedUrl) }
     var casual by remember { mutableStateOf(prefs.casualTone) }
-    var handle by remember { mutableStateOf(prefs.cardHandle) }
-    var tagline by remember { mutableStateOf(prefs.cardTagline) }
+    var handle by remember { mutableStateOf(if (prefs.markAccount == 1) prefs.mark2Handle else prefs.cardHandle) }
+    var tagline by remember { mutableStateOf(if (prefs.markAccount == 1) prefs.mark2Tagline else prefs.cardTagline) }
     var geminiKey by remember { mutableStateOf(prefs.geminiKey) }
     var geminiStatus by remember { mutableStateOf<String?>(null) }
     var groqKey by remember { mutableStateOf(prefs.groqKey) }
@@ -280,9 +280,23 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     Spacer(Modifier.height(14.dp))
                     Text("워터마크 (직접 만든 카드·그래프 이미지 오른쪽 아래에 들어가요. 기사·커뮤니티 캡처에는 넣지 않아요)", fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedPillField(tagline, { tagline = it; prefs.cardTagline = it }, "문구 (예: 부동산 알려주는 스레드)", 50.dp, 15.sp)
+                    // 워터마크 계정 고르기: 고른 계정의 문구·계정 이름을 아래에서 고칠 수 있음
+                    var markAccount by remember { mutableIntStateOf(prefs.markAccount) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Watermark.ACCOUNTS.forEachIndexed { i, name ->
+                            IntervalPill(name, markAccount == i) {
+                                markAccount = i; prefs.markAccount = i
+                                tagline = if (i == 1) prefs.mark2Tagline else prefs.cardTagline
+                                handle = if (i == 1) prefs.mark2Handle else prefs.cardHandle
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedPillField(handle, { handle = it; prefs.cardHandle = it }, "계정 이름 (예: @my_threads)", 50.dp, 15.sp)
+                    OutlinedPillField(tagline, { tagline = it; if (markAccount == 1) prefs.mark2Tagline = it else prefs.cardTagline = it }, if (markAccount == 1) "문구 (예: 중개의 신)" else "문구 (예: 부동산 알려주는 스레드)", 50.dp, 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedPillField(handle, { handle = it; if (markAccount == 1) prefs.mark2Handle = it else prefs.cardHandle = it }, "계정 이름 (예: @my_threads)", 50.dp, 15.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (markAccount == 1) "중개의 신: 로고가 들어간 금색 테두리 워터마크예요. 계정 이름은 비워도 돼요." else "부동산 알려주는 스레드: 남색 알약 워터마크예요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 // 스레드 계정 전환
