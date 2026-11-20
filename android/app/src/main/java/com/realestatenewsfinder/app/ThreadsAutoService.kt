@@ -93,7 +93,7 @@ object BlogAuto {
     class Job(
         val title: String, val body: String, val startedAt: Long = System.currentTimeMillis(),
         var titleDone: Boolean = false, var titleTries: Int = 0, var titleClicked: Boolean = false,
-        var bodyTries: Int = 0, var bodyClicked: Boolean = false, var lastAt: Long = 0, var logged: Boolean = false,
+        var bodyTries: Int = 0, var bodyClicked: Boolean = false, var lastAt: Long = 0, var logged: Boolean = false, var asked: Boolean = false,
     )
     @Volatile var pending: Job? = null
     fun start(title: String, body: String) { pending = Job(title.trim(), body); ThreadsAuto.log = ""; ThreadsAuto.note("블로그 자동 입력 시작") }
@@ -194,7 +194,17 @@ class ThreadsAutoService : AccessibilityService() {
         if (root.packageName != BlogAuto.PACKAGE) return
         val nodes = all(root)
         val edits = nodes.filter { it.isEditable }
-        if (edits.isEmpty() && nodes.none { label(it).trim() == "제목" }) return // 아직 글쓰기 화면이 아님
+        if (edits.isEmpty() && nodes.none { label(it).trim() == "제목" }) {
+            // 쓰던 글이 있다고 묻는 창이 뜨면 새 글로 시작 (창의 글자는 기록에 남김)
+            val labels = nodes.map { label(it).trim() }.filter { it.isNotEmpty() }
+            if (!job.asked && labels.any { it.contains("작성 중") || it.contains("작성중") || it.contains("임시저장") || it.contains("이어서") }) {
+                job.asked = true; job.lastAt = now
+                ThreadsAuto.note("  묻는 창: " + labels.distinct().take(12).joinToString(" | ") { it.take(16) })
+                val fresh = nodes.firstOrNull { n -> label(n).trim().let { it == "새로 작성" || it == "새로작성" || it == "새 글 작성" || it == "새글 작성" || it == "새로 쓰기" || it == "새로쓰기" } }
+                ThreadsAuto.note("새로 작성 → ${if (fresh != null && click(fresh)) "누름" else "없음"}")
+            }
+            return // 아직 글쓰기 화면이 아님
+        }
         job.lastAt = now
         if (!job.logged) {
             job.logged = true
