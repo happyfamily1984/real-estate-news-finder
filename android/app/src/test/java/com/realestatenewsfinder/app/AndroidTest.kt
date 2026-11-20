@@ -104,6 +104,24 @@ class AndroidTest {
     }
 
     @Test
+    fun platforms() {
+        val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
+        // 보내는 인텐트: 여러 장이면 SEND_MULTIPLE, 블로그는 제목도 같이
+        val uris = listOf(android.net.Uri.parse("content://a/1.jpg"), android.net.Uri.parse("content://a/2.jpg"))
+        val many = PlatformKit.intent(uris, "제목", "본문")
+        assertEquals(android.content.Intent.ACTION_SEND_MULTIPLE, many.action)
+        assertEquals("제목", many.getStringExtra(android.content.Intent.EXTRA_SUBJECT)); assertEquals("본문", many.getStringExtra(android.content.Intent.EXTRA_TEXT))
+        assertEquals(android.content.Intent.ACTION_SEND, PlatformKit.intent(uris.take(1), "", "본문").action)
+        try {
+            Platform.select(app, Platform.BLOG)
+            assertTrue(!Prefs(app).casualNow)
+            compose.setContent { AppTheme(dark = false) { StatShareScreen(stats.series[0], stats.sido, {}, {}) } }
+            compose.waitUntil(15000) { compose.onAllNodes(androidx.compose.ui.test.hasText("블로그에 올리기")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onRoot().captureRoboImage("build/screens/platform-blog.png")
+        } finally { Platform.select(app, Platform.THREADS) }
+    }
+
+    @Test
     fun labSignals() {
         val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
         assertTrue(StatText.signals(stats, true, 2026).second.isNotEmpty())

@@ -473,6 +473,7 @@ fun HomeScreen(
 
     Column(Modifier.fillMaxSize()) {
         Header(hasNew, onBell)
+        PlatformBar(Modifier.padding(start = 16.dp, end = 8.dp, bottom = 2.dp))
         PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
             LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
                 item {

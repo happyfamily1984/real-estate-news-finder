@@ -78,7 +78,7 @@ fun PreviewScreen(post: Post, source: Source?, onExport: () -> Unit, onOpenSite:
                     Text(post.outlet ?: source?.name ?: post.source, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = source?.let { Color(it.color) } ?: Color.Gray)
                     Text(post.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                TextButton(onClick = onExport) { Text("스레드용 만들기", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onExport) { Text("${Platform.current.label}용 만들기", fontWeight = FontWeight.Bold) }
             }
         },
         bottomBar = {

@@ -425,7 +425,7 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptN
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("5·10·20년 전 가격과 비교", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Text("그때와 지금 실거래가를 스레드용으로", fontSize = 12.sp, color = muted)
+                            Text("그때와 지금 실거래가를 글과 이미지로", fontSize = 12.sp, color = muted)
                         }
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = muted)
                     }
@@ -475,7 +475,7 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptN
                 Spacer(Modifier.width(4.dp))
                 Text(if (subscribed.isNotEmpty()) "알림 받는 중" else "실거래 알림 받기")
             }
-            GradientButton("스레드 내보내기", null, onClick = {
+            GradientButton("${Platform.current.label} 내보내기", null, onClick = {
                 // 새로 신고된 거래가 있으면 그 거래를 분석하는 글로, 없으면 기간 요약으로
                 val fresh = (noted + deals.orEmpty().filter { it.key in newKeys }).filter { !it.canceled }.distinctBy { it.key }
                 onShare(name, umd, type, period, fresh)

@@ -2,6 +2,9 @@ package com.realestatenewsfinder.app
 
 import android.content.Context
 
+/** AI가 만든 블로그 글: 제목, 본문(소제목 포함), 태그 + 카드 이미지용 내용 */
+data class BlogPost(val title: String, val body: String, val tags: List<String>, val points: List<String>)
+
 /** AI가 만든 스레드 글 + 카드 이미지용 내용 */
 data class Summary(val thread: String, val headline: String, val points: List<String>)
 
@@ -203,7 +206,7 @@ object Summarizer {
         lastDropped = emptyList()
         val today = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date())
         val lab = format != "basic"
-        val system = system(kind, post.tags, Prefs(ctx).casualTone, today, format)
+        val system = system(kind, post.tags, Prefs(ctx).casualNow, today, format)
         val input = buildInput(post, sourceName, body)
         fun all(s: Summary) = s.thread + "\n" + s.headline + "\n" + s.points.joinToString("\n")
         var sum = parse(ask(ctx, system, input) ?: return null, post.title, lab) ?: return null
@@ -224,5 +227,108 @@ object Summarizer {
             sum = cleaned.copy(headline = cleaned.headline.ifBlank { post.title })
         }
         return sum
+    }
+
+    // ---------- 블로그 글 ----------
+    const val MAX_BLOG_CHARS = 1600
+
+    /**
+     * 네이버 블로그용 글 쓰는 법. 검색에 잘 걸리는 글의 공통 구성을 따름:
+     * 핵심 낱말이 앞에 오는 제목 → 결론부터 쓰는 첫 문단 → 질문형 소제목 3개와 짧은 문단 → 한눈에 정리 → 마무리 → 태그.
+     * 기사 문장을 그대로 베끼지 않고 풀어 쓰며(비슷한 문서로 묶이지 않게), 같은 낱말을 억지로 반복하지 않음.
+     */
+    fun blogSystem(kind: String, tags: List<String>, today: String = ""): String {
+        val what = when (kind) {
+            "gov" -> "정부·공공기관 보도자료"
+            "community" -> "부동산 커뮤니티 게시글"
+            else -> "부동산 뉴스 기사"
+        }
+        val angle = tags.mapNotNull { ANGLES[it] }.take(2).joinToString(" / ").ifEmpty { "누구에게 해당되는지, 언제부터인지, 금액·비율이 얼마인지" }
+        val community = if (kind == "community")
+            "- 이 글은 개인의 경험·의견이다. 사실처럼 단정하지 말고 '~라는 글', '~라는 의견'으로 전한다. 작성자 닉네임은 쓰지 않는다.\n" else ""
+        return "너는 $what 을(를) 읽고 네이버 블로그에 올릴 부동산 정보 글로 바꿔 쓰는 사람이다. 읽는 사람은 검색으로 들어온, 내 집 마련·전월세·대출·세금이 걱정인 일반인이다.\n" +
+            "입력은 제목과 본문이다. 본문에는 메뉴·광고·다른 기사 제목이 섞여 있을 수 있으니, 제목과 관련된 내용만 쓴다.\n" +
+            (if (today.isNotEmpty()) "오늘은 $today 이다.\n" else "") + "\n" +
+            "[주제] 글의 주제는 입력의 '제목'이 말하는 바로 그것이다. 주제를 바꾸지 않는다.\n" +
+            "이 글에서 특히 살릴 것: $angle. 본문에 없으면 억지로 넣지 않는다.\n" +
+            "입력에 '공고 주요 정보'가 있으면 그 안의 위치, 세대수, 분양가·임대조건, 일정, 입주 시기를 빠짐없이 살려 쓴다.\n\n" +
+            "[사실 규칙 — 어기면 안 됨]\n" +
+            "- 숫자(금액, 비율, 경쟁률, 가구 수, 날짜, 연도)는 본문에 있는 것만, 본문에 적힌 그대로 쓴다. 계산하거나 단위를 바꾸지 않는다.\n" +
+            "- 본문에 없는 연도·날짜를 쓰지 않는다. '올해', '지난해', '현재' 같은 표현을 특정 연도로 바꾸지 않는다.\n" +
+            "- 숫자가 무엇에 대한 것인지(어느 지역, 어느 기간, 무엇과 비교)를 본문과 똑같이 연결한다.\n" +
+            "- 본문에 없는 전망, 추측, 권유(사라, 팔아라, 넣어라), 내 경험담을 지어 쓰지 않는다. 본문에 전망이 있으면 누가 말했는지 함께 쓴다.\n" +
+            "- 본문에 없는 내용으로 분량을 채우지 않는다. 본문이 짧으면 글도 짧게 쓴다.\n" +
+            community + "\n" +
+            "[블로그 글 쓰는 법]\n" +
+            "- 말투: 읽기 편한 존댓말('~습니다', '~해요'를 섞어서). 기사 문장을 그대로 옮기지 말고 내 말로 풀어 쓴다. 기사체('~로 나타났다', '~것으로 집계됐다')는 쓰지 않는다.\n" +
+            "- 제목: 사람들이 검색할 핵심 낱말(지역·단지·제도·대출 이름)을 맨 앞에 두고, 무엇이 달라지는지·얼마인지·언제부터인지가 드러나게 쓴다. 20~35자. 본문에 없는 과장('충격', '역대급', '무조건')은 쓰지 않는다.\n" +
+            "- 첫 문단(2~3문장): 결론부터. 무슨 일인지 한 문장으로 말하고, 누구에게 해당되는 이야기인지 덧붙인다. 인사말·날씨 얘기·자기소개는 쓰지 않는다.\n" +
+            "- 본문: 소제목 3개. 소제목은 '■ ' 로 시작하고 읽는 사람이 검색할 만한 질문 꼴로 쓴다(예: '■ 누가 대상일까?', '■ 언제부터 적용될까?', '■ 얼마나 달라질까?'). " +
+            "소제목마다 2~4문장. 한 문단은 2~3문장으로 끊고 문단 사이에 빈 줄을 둔다. 조건·금액이 여러 개면 '- ' 로 시작하는 줄로 나열한다.\n" +
+            "- 그다음 '■ 한눈에 정리' 소제목 아래 '- ' 로 시작하는 줄 3~4개로 핵심만 다시 정리한다.\n" +
+            "- 마무리(1~2문장): 본문에 있는 사실로 정리하고, 일정이나 확인할 곳이 본문에 있으면 알려준다. 사라·기다려라 같은 권유는 하지 않는다.\n" +
+            "- 핵심 낱말은 제목, 첫 문단, 마무리에 자연스럽게 한 번씩 들어가면 충분하다. 같은 낱말을 억지로 반복하지 않는다.\n" +
+            "- 길이: 본문 전체 700~1,100자. 쓰지 않는 것: 표, 이모지, 굵게 표시(**), 화살표, 한자, '출처' 표기, 링크.\n\n" +
+            "[출력 형식] 아래 네 구역만 출력한다. 머리말·설명 없이.\n" +
+            "[제목]\n(제목 한 줄)\n" +
+            "[본문]\n(첫 문단, 소제목 3개와 문단, 한눈에 정리, 마무리)\n" +
+            "[태그]\n(본문에 나온 지역·단지·제도 이름 위주로 5~8개. 쉼표로 구분, # 없이)\n" +
+            "[카드]\n- 항목: 내용  (이런 줄 3~5개. 항목 10자 이내, 내용 28자 이내. 본문에 있는 것만)"
+    }
+
+    /** AI 응답을 제목·본문·태그·카드 내용으로 나눔 */
+    fun parseBlog(raw: String, fallbackTitle: String): BlogPost? {
+        val text = raw.replace("\r", "").replace("**", "").trim()
+        val marks = Regex("\\[\\s*(제목|본문|태그|카드)\\s*]").findAll(text).toList()
+        fun part(name: String): String {
+            val m = marks.firstOrNull { it.groupValues[1] == name } ?: return ""
+            val end = marks.firstOrNull { it.range.first > m.range.first }?.range?.first ?: text.length
+            return text.substring(m.range.last + 1, end).trim()
+        }
+        var body = (if (marks.any { it.groupValues[1] == "본문" }) part("본문") else if (marks.isEmpty()) text else "")
+            .lines().joinToString("\n") { cleanLine(it).replace(Regex("^#{1,4}\\s*"), "■ ") }.replace(Regex("\n{3,}"), "\n\n").trim()
+        if (body.isBlank()) return null
+        if (body.length > MAX_BLOG_CHARS) {
+            val cut = body.take(MAX_BLOG_CHARS)
+            val end = cut.lastIndexOf("\n\n")
+            body = (if (end > MAX_BLOG_CHARS / 2) cut.take(end) else cut).trim()
+        }
+        val title = part("제목").lines().firstOrNull { it.isNotBlank() }?.let { cleanLine(it) }?.take(60).orEmpty().ifBlank { fallbackTitle }
+        val tags = part("태그").split(Regex("[,\\n#]+")).map { it.trim().replace(" ", "") }.filter { it.length in 2..15 }.distinct().take(8)
+        val points = part("카드").lines().map { cleanLine(it).replace(Regex("^([-•·]|\\d+[.)])\\s*"), "").trim() }.filter { it.isNotEmpty() && !it.startsWith("[") }.take(6)
+        return BlogPost(title, body, tags, points)
+    }
+
+    /** AI 없이 만드는 블로그 기본 글: 제목 + 피드에 있던 앞부분 */
+    fun basicBlog(post: Post): BlogPost {
+        val b = basic(post)
+        return BlogPost(post.title, b.thread.lines().drop(1).joinToString("\n").trim().ifBlank { post.title }, listOf("부동산") + post.tags.map { it.replace("·", "") }, b.points)
+    }
+
+    suspend fun summarizeBlog(ctx: Context, post: Post, kind: String, sourceName: String, body: String): BlogPost? {
+        if (!hasKey(ctx)) return null
+        lastDropped = emptyList()
+        val today = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date())
+        val system = blogSystem(kind, post.tags, today)
+        val input = buildInput(post, sourceName, body)
+        fun all(b: BlogPost) = b.title + "\n" + b.body + "\n" + b.points.joinToString("\n")
+        var blog = parseBlog(ask(ctx, system, input) ?: return null, post.title) ?: return null
+        var bad = unsupportedNumbers(all(blog), input, lenient = true)
+        if (bad.isNotEmpty()) {
+            val retry = ask(ctx, system, "$input\n\n[다시 쓰기] 방금 쓴 글에 본문에 없는 숫자(${bad.joinToString(", ")})가 있었다. 본문에 있는 숫자만 써서 처음부터 다시 써라.")?.let { parseBlog(it, post.title) }
+            if (retry != null) {
+                val bad2 = unsupportedNumbers(all(retry), input, lenient = true)
+                if (bad2.size <= bad.size) { blog = retry; bad = bad2 }
+            }
+        }
+        if (bad.isNotEmpty()) {
+            // 원문에 없는 숫자가 든 줄은 뺌
+            fun ok(line: String) = numbers(line).none { it in bad }
+            val cleaned = blog.body.lines().filter { ok(it) }.joinToString("\n").replace(Regex("\n{3,}"), "\n\n").trim()
+            if (cleaned.isBlank()) return null
+            lastDropped = bad
+            blog = blog.copy(title = if (ok(blog.title)) blog.title else post.title, body = cleaned, points = blog.points.filter { ok(it) })
+        }
+        return blog
     }
 }

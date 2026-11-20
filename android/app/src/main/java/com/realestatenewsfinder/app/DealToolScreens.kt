@@ -138,7 +138,7 @@ fun BudgetScreen(onBack: () -> Unit, onSent: () -> Unit) {
     }
     val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(result, area?.key) { text = result?.let { DealTools.budgetText(area?.label.orEmpty(), band, budget, it, prefs.casualTone, seed + it.items.size) } ?: "" }
+    LaunchedEffect(result, area?.key) { text = result?.let { DealTools.budgetText(area?.label.orEmpty(), band, budget, it, prefs.casualNow, seed + it.items.size) } ?: "" }
     ThreadShareScreen(
         title = "내 돈으로 살 수 있는 아파트", cacheId = "budget", hint = "국토부 실거래로 뽑은 목록이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
@@ -225,7 +225,7 @@ fun HistoryScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
             out += DealTools.historyPoint(today, n, deals, target.complexId, aptNm, umdNm, key, buildYear)
         }
         points = out
-        text = DealTools.historyText(aptNm, place, key, out, prefs.casualTone, seed = seed + key, thisYear = today.year)
+        text = DealTools.historyText(aptNm, place, key, out, prefs.casualNow, seed = seed + key, thisYear = today.year)
     }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
@@ -288,7 +288,7 @@ fun PresaleScreen(onBack: () -> Unit, onSent: () -> Unit) {
     }
     val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed, today) } ?: "" }
+    LaunchedEffect(matches, period) { text = matches?.let { DealTools.presaleText(area?.label.orEmpty(), band, period, it, prefs.casualNow, seed, today) } ?: "" }
     val inRegion = items?.count { i -> area?.codes.orEmpty().any { it in i.lawd } } ?: 0
     ThreadShareScreen(
         title = "분양가 vs 실거래가", cacheId = "presale", hint = "청약홈 분양가와 국토부 실거래 숫자로 만든 글이에요. 평가 문장은 자유롭게 고쳐 쓰세요.",
@@ -404,7 +404,7 @@ fun TopScreen(onBack: () -> Unit, onSent: () -> Unit) {
     val items = byBand?.get(band)?.take(10)
     val seed = remember { (System.currentTimeMillis() / 1000).toInt() }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(items, period) { text = items?.let { DealTools.topText(area?.label.orEmpty(), band, period, it, prefs.casualTone, seed) } ?: "" }
+    LaunchedEffect(items, period) { text = items?.let { DealTools.topText(area?.label.orEmpty(), band, period, it, prefs.casualNow, seed) } ?: "" }
     ThreadShareScreen(
         title = "지역별 최고 실거래 단지", cacheId = "top", hint = "국토부 실거래 최고가로 뽑은 순위예요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
@@ -462,7 +462,7 @@ fun FundingScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
     val cap = ((capEok.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 500.0) * 10000).toLong()
     val f = remember(price, savings, ratio, cap, areaKey) { if (price > 0) DealTools.funding(price, mine.first().area, savings, ratio, cap) else null }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(f) { text = f?.let { DealTools.fundingText(aptNm, place, areaKey ?: 0, mine.firstNotNullOfOrNull { d -> d.buildYear }, mine.size, it, ratio, prefs.casualTone) } ?: "" }
+    LaunchedEffect(f) { text = f?.let { DealTools.fundingText(aptNm, place, areaKey ?: 0, mine.firstNotNullOfOrNull { d -> d.buildYear }, mine.size, it, ratio, prefs.casualNow) } ?: "" }
     val areas = remember(recent) { recent.orEmpty().groupBy(DealText::areaKey).entries.sortedBy { it.key }.map { it.key to it.value.size } }
     ThreadShareScreen(
         title = "$aptNm · 자금 계산", cacheId = "funding-${target.complexId}", hint = "실거래 평균과 넣은 숫자로 계산한 글이에요. 세금·대출은 대략값이니 올리기 전에 확인해 주세요.",
@@ -496,7 +496,7 @@ fun FundingScreen(target: DealTarget, aptNm: String, umdNm: String, onBack: () -
 fun SignalShareScreen(stats: Stats, onBack: () -> Unit, onSent: () -> Unit) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
-    val (first, used) = remember(stats) { StatText.signals(stats, prefs.casualTone, java.time.LocalDate.now(KST).year) }
+    val (first, used) = remember(stats) { StatText.signals(stats, prefs.casualNow, java.time.LocalDate.now(KST).year) }
     var text by remember(stats) { mutableStateOf(first) }
     ThreadShareScreen(
         title = "🧪 타이밍 신호 3가지", cacheId = "signals", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 사라·기다려라 같은 권유는 넣지 않았어요.",

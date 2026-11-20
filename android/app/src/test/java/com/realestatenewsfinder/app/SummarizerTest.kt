@@ -139,4 +139,31 @@ class SummarizerTest {
         assertEquals(emptyList<String>(), Summarizer.unsupportedNumbers("수법 2가지\n1. 깡통전세", "깡통전세와 이중계약", lenient = true))
         assertEquals(listOf("30"), Summarizer.unsupportedNumbers("1. 30% 올랐대", "올랐다", lenient = true))
     }
+
+    // ----- 블로그 글 -----
+    @Test
+    fun blogFormat() {
+        val sys = Summarizer.blogSystem("news", listOf("금리·대출"), "2026년 11월 20일")
+        assertTrue(sys.contains("네이버 블로그") && sys.contains("■ ") && sys.contains("한눈에 정리") && sys.contains("[태그]") && sys.contains("금리나 한도"))
+        assertTrue(Summarizer.blogSystem("community", emptyList()).contains("개인의 경험·의견"))
+        val raw = "[제목]\n**디딤돌대출 한도 축소, 12월부터 달라지는 점**\n[본문]\n디딤돌대출 한도가 줄어듭니다.\n\n## 누가 대상일까?\n무주택자가 대상입니다.\n\n■ 한눈에 정리\n- 12월 시행\n[태그]\n디딤돌대출, 대출 한도, #무주택자\n[카드]\n- 시행: 12월"
+        val b = Summarizer.parseBlog(raw, "원래 제목")!!
+        assertEquals("디딤돌대출 한도 축소, 12월부터 달라지는 점", b.title)
+        assertTrue(b.body.startsWith("디딤돌대출 한도가 줄어듭니다.") && b.body.contains("■ 누가 대상일까?") && b.body.contains("- 12월 시행") && !b.body.contains("[태그]"))
+        assertEquals(listOf("디딤돌대출", "대출한도", "무주택자"), b.tags)
+        assertEquals(listOf("시행: 12월"), b.points)
+        assertEquals("원래 제목", Summarizer.parseBlog("그냥 본문만 왔을 때", "원래 제목")!!.title)
+        assertNull(Summarizer.parseBlog("[제목]\n제목만", "t"))
+    }
+
+    @Test
+    fun blogTextFromData() {
+        val day = java.time.LocalDate.of(2026, 11, 20)
+        assertEquals("래미안슈르 자금 계산 정리 (2026년 11월 20일 기준)", BlogText.title("래미안슈르 · 자금 계산", day))
+        val body = BlogText.body("과천시 최고 실거래 단지", "과천에서 제일 비싸게 팔린 곳이에요.\n\n1. 가 25억\n2. 나 20억\n\n※ 1년 이전 거래는 빠짐\n\n어디가 제일 끌리세요?")
+        assertTrue(body.startsWith("과천에서 제일 비싸게 팔린 곳이에요.\n\n■ 숫자로 보는 핵심\n\n1. 가 25억"))
+        assertTrue(body.contains("■ 마무리\n\n어디가 제일 끌리세요?") && body.contains("- 1년 이전 거래는 빠짐") && body.contains("권유가 아닙니다"))
+        assertTrue(body.trim().lines().last().startsWith("#과천시 #최고 #실거래") && body.contains("#부동산"))
+        assertEquals(Platform.BLOG, Platform.of("blog")); assertEquals(Platform.THREADS, Platform.of(null))
+    }
 }
