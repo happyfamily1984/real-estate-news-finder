@@ -159,7 +159,7 @@ class SummarizerTest {
     @Test
     fun blogTextFromData() {
         val day = java.time.LocalDate.of(2026, 11, 20)
-        assertEquals("래미안슈르 자금 계산 정리 (2026년 11월 20일 기준)", BlogText.title("래미안슈르 · 자금 계산", day))
+        assertEquals("래미안슈르 자금 계산 (2026년 11월 기준)", BlogText.title("래미안슈르 · 자금 계산", day))
         val body = BlogText.body("과천시 최고 실거래 단지", "과천에서 제일 비싸게 팔린 곳이에요.\n\n1. 가 25억\n2. 나 20억\n\n※ 1년 이전 거래는 빠짐\n\n어디가 제일 끌리세요?")
         assertTrue(body.startsWith("과천에서 제일 비싸게 팔린 곳이에요.\n\n■ 숫자로 보는 핵심\n\n1. 가 25억"))
         assertTrue(body.contains("■ 마무리\n\n어디가 제일 끌리세요?") && body.contains("- 1년 이전 거래는 빠짐") && body.contains("권유가 아닙니다"))

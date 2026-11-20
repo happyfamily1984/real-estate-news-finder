@@ -123,13 +123,13 @@ object BlogText {
 
     fun title(screenTitle: String, today: LocalDate): String {
         val t = screenTitle.replace(EMOJI, "").replace(" · ", " ").replace(Regex("\\s+"), " ").trim()
-        return "$t 정리 (${today.year}년 ${today.monthValue}월 ${today.dayOfMonth}일 기준)"
+        return "$t (${today.year}년 ${today.monthValue}월 기준)"
     }
 
     /** 글에서 태그로 쓸 낱말: 기본 태그 + 제목에 나온 지역·단지 이름 */
     fun tags(screenTitle: String): List<String> {
         val words = screenTitle.replace(EMOJI, "").split(Regex("[^가-힣A-Za-z0-9]+")).filter { it.length in 2..12 && !it.all(Char::isDigit) }
-        val skip = setOf("실험실", "전체", "정리", "비교", "계산", "신호", "가지", "최근", "그때와", "지금")
+        val skip = setOf("실험실", "전체", "TOP", "vs", "사려면", "얼마", "필요할까", "으로", "있는", "그때와", "지금", "타이밍", "정리", "비교", "계산", "신호", "가지", "최근", "그때와", "지금")
         return (words.filter { it !in skip }.take(3) + listOf("부동산", "아파트", "실거래가", "부동산시세", "내집마련")).distinct().take(8)
     }
 

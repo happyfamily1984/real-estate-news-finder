@@ -73,6 +73,8 @@ fun ThreadShareScreen(
     status: String? = null,
     onBack: () -> Unit, onSent: () -> Unit,
     controls: (@Composable ColumnScope.() -> Unit)? = null,
+    /** 블로그 제목·태그에 쓸 이름: 검색에 걸리게 지역·단지 이름이 앞에 오는 것 (예: "안양시 동안구 최고 실거래 단지"). 없으면 화면 제목 */
+    blogName: String? = null,
 ) {
     val ctx = LocalContext.current
     var pieces by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
@@ -83,8 +85,9 @@ fun ThreadShareScreen(
     // 올릴 곳(스레드·오픈톡·블로그)에 맞춰 글을 다듬음. 블로그는 제목 + 소제목이 있는 글로 바꿔서 따로 고칠 수 있게 함
     val platform = remember { Platform.load(ctx); Platform.current }
     val blog = platform == Platform.BLOG
-    var blogTitle by remember(title) { mutableStateOf(BlogText.title(title, LocalDate.now(KST))) }
-    var blogBody by remember(text) { mutableStateOf(BlogText.body(title, text)) }
+    val blogKey = blogName?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null } ?: title
+    var blogTitle by remember(blogKey) { mutableStateOf(BlogText.title(blogKey, LocalDate.now(KST))) }
+    var blogBody by remember(text, blogKey) { mutableStateOf(BlogText.body(blogKey, text)) }
     val outText = if (blog) blogBody else text
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -209,7 +212,7 @@ fun RegionShareScreen(stats: Stats, region: String, onBack: () -> Unit, onSent: 
     val series = available.map { it.first }.filter { it.id in picked }
     var text by remember(region, picked) { mutableStateOf(RegionText.thread(stats, region, series, prefs.casualNow)) }
     ThreadShareScreen(
-        title = "$region 지표", cacheId = "region-$region", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = "$region 지표", cacheId = "region-$region", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.", blogName = "$region 아파트 시세 지표",
         text = text, onText = { text = it },
         renderKey = picked to region, render = { StatCards.renderRegion(ctx, stats, region, series) },
         status = if (series.isEmpty()) "넣을 지표를 하나 이상 골라주세요." else null,
@@ -272,7 +275,7 @@ fun DealShareScreen(
     }
     val place = listOf(regionName.substringAfter(' ', regionName), umdNm).filter { it.isNotBlank() }.joinToString(" ")
     ThreadShareScreen(
-        title = aptNm, cacheId = "deal-$lawdCd-$complexId", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        title = aptNm, cacheId = "deal-$lawdCd-$complexId", hint = "국토부 실거래 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.", blogName = "$regionName $umdNm $aptNm 실거래가",
         text = text, onText = { text = it },
         renderKey = Triple(shown, newKeys, type),
         render = shown?.let { d -> { DealCards.render(ctx, DealCards.Input(aptNm, place, type, period, d, newKeys, core.molit.today())) } },
