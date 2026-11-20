@@ -72,9 +72,9 @@ fun ThreadShareScreen(
     renderKey: Any?, render: (() -> List<Bitmap>)?,
     status: String? = null,
     onBack: () -> Unit, onSent: () -> Unit,
-    controls: (@Composable ColumnScope.() -> Unit)? = null,
     /** 블로그 제목·태그에 쓸 이름: 검색에 걸리게 지역·단지 이름이 앞에 오는 것 (예: "안양시 동안구 최고 실거래 단지"). 없으면 화면 제목 */
     blogName: String? = null,
+    controls: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     var pieces by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
