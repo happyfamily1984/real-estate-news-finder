@@ -93,6 +93,19 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("includeLink", true)
         set(v) = sp.edit().putBoolean("includeLink", v).apply()
 
+    /** 워터마크 계정: 0 = 부동산 알려주는 스레드(남색 알약), 1 = 중개의 신(로고 + 금색) */
+    var markAccount: Int
+        get() = sp.getInt("markAccount", 0)
+        set(v) = sp.edit().putInt("markAccount", v).apply()
+
+    /** 두 번째 워터마크 계정(중개의 신)의 문구와 계정 이름 */
+    var mark2Tagline: String
+        get() = sp.getString("mark2Tagline", "중개의 신") ?: ""
+        set(v) = sp.edit().putString("mark2Tagline", v.trim()).apply()
+    var mark2Handle: String
+        get() = sp.getString("mark2Handle", "") ?: ""
+        set(v) = sp.edit().putString("mark2Handle", v.trim()).apply()
+
     /** 워터마크 첫 줄 문구. 비우면 표시 안 함 */
     var cardTagline: String
         get() = sp.getString("cardTagline", "부동산 알려주는 스레드") ?: ""

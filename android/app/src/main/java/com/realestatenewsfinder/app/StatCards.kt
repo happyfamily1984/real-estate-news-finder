@@ -21,11 +21,53 @@ object Watermark {
     private const val NAVY = 0xFF0B2A6F.toInt()
     private const val YELLOW = 0xFFFFD84D.toInt()
 
-    data class Mark(val tagline: String, val handle: String) {
+    /** style 0: 남색 알약 + 집 그림, 1: 중개의 신(짙은 남색 + 금색 테두리 + 로고). logo는 style 1에서 왼쪽에 넣을 동그란 로고 */
+    data class Mark(val tagline: String, val handle: String, val style: Int = 0, val logo: android.graphics.Bitmap? = null) {
         val isEmpty get() = tagline.isBlank() && handle.isBlank()
     }
 
-    fun of(ctx: Context) = Prefs(ctx).let { Mark(it.cardTagline, it.cardHandle) }
+    /** 고를 수 있는 워터마크 계정 이름 (설정 화면) */
+    val ACCOUNTS = listOf("부동산 알려주는 스레드", "중개의 신")
+    private var logo: android.graphics.Bitmap? = null
+
+    /** 설정에서 고른 계정의 워터마크 */
+    fun of(ctx: Context): Mark = Prefs(ctx).let { p ->
+        if (p.markAccount == 1) {
+            if (logo == null) logo = runCatching { android.graphics.BitmapFactory.decodeResource(ctx.resources, R.drawable.mark_jungae) }.getOrNull()
+            Mark(p.mark2Tagline, p.mark2Handle, 1, logo)
+        } else Mark(p.cardTagline, p.cardHandle)
+    }
+
+    private const val GOLD = 0xFFF2C24B.toInt()
+
+    /** 중개의 신: 짙은 남색 알약에 금색 테두리, 왼쪽 동그란 로고, 문구(마지막 낱말은 금색) + 계정 이름 */
+    private fun drawGold(c: Canvas, mark: Mark, rect: RectF) {
+        val r = rect.height() / 2
+        c.drawRoundRect(rect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = android.graphics.LinearGradient(rect.left, rect.top, rect.left, rect.bottom, 0xFF16234F.toInt(), 0xFF070D24.toInt(), android.graphics.Shader.TileMode.CLAMP) })
+        c.drawRoundRect(rect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GOLD; style = Paint.Style.STROKE; strokeWidth = rect.height() * 0.035f })
+        val d = rect.height() * 0.84f
+        val lx = rect.left + rect.height() * 0.08f
+        val box = RectF(lx, rect.centerY() - d / 2, lx + d, rect.centerY() + d / 2)
+        mark.logo?.let { c.drawBitmap(it, null, box, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)) }
+        val tx = (if (mark.logo != null) box.right else rect.left + rect.height() * 0.3f) + rect.height() * 0.14f
+        val maxW = rect.right - tx - rect.height() * 0.3f
+        val cy = rect.centerY()
+        val two = mark.tagline.isNotBlank() && mark.handle.isNotBlank()
+        val main = mark.tagline.ifBlank { mark.handle }
+        val p = paint(rect.height() * (if (two) 0.34f else 0.44f), 0xFFFFFFFF.toInt())
+        while (p.measureText(main) > maxW && p.textSize > 12f) p.textSize -= 1f
+        val base = if (two) cy - rect.height() * 0.02f else cy + p.textSize * 0.36f
+        // 마지막 낱말만 금색 ('중개의' 흰색 + '신' 금색). 계정 이름만 있으면 전체 금색
+        val cut = if (mark.tagline.isBlank()) 0 else main.lastIndexOf(' ') + 1
+        val head = main.substring(0, cut)
+        c.drawText(head, tx, base, p)
+        c.drawText(main.substring(cut), tx + p.measureText(head), base, Paint(p).apply { color = GOLD })
+        if (two) {
+            val hp = paint(rect.height() * 0.24f, GOLD, bold = false)
+            while (hp.measureText(mark.handle) > maxW && hp.textSize > 12f) hp.textSize -= 1f
+            c.drawText(mark.handle, tx, cy + rect.height() * 0.32f, hp)
+        }
+    }
 
     private fun paint(size: Float, color: Int, bold: Boolean = true) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size; this.color = color
@@ -35,6 +77,7 @@ object Watermark {
     /** rect 안에 알약을 그림. 문구가 둘 다 비어 있으면 빈 알약도 그리지 않음 (force면 배경은 그림) */
     fun draw(c: Canvas, mark: Mark, rect: RectF, force: Boolean = false) {
         if (mark.isEmpty && !force) return
+        if (mark.style == 1 && !mark.isEmpty) { drawGold(c, mark, rect); return }
         val r = rect.height() / 2
         c.drawRoundRect(rect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = NAVY })
         c.drawRoundRect(rect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF9CC2FF.toInt(); style = Paint.Style.STROKE; strokeWidth = rect.height() * 0.022f })

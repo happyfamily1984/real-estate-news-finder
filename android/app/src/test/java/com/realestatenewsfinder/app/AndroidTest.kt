@@ -122,6 +122,20 @@ class AndroidTest {
     }
 
     @Test
+    fun goldWatermark() {
+        val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
+        try {
+            Prefs(app).markAccount = 1
+            val mark = Watermark.of(app)
+            assertEquals(1, mark.style); assertEquals("중개의 신", mark.tagline); assertTrue(mark.logo != null)
+            save("mark-gold-1", StatCards.render(app, stats.series[0], stats.sido, mark)[0])
+            Prefs(app).mark2Handle = "@jungae_god"
+            save("mark-gold-2", StatCards.render(app, stats.series[0], stats.sido, Watermark.of(app))[0])
+        } finally { Prefs(app).markAccount = 0; Prefs(app).mark2Handle = "" }
+        assertEquals(0, Watermark.of(app).style)
+    }
+
+    @Test
     fun labSignals() {
         val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
         assertTrue(StatText.signals(stats, true, 2026).second.isNotEmpty())
