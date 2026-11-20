@@ -237,12 +237,27 @@ class ThreadsAutoService : AccessibilityService() {
             else if (++job.bodyTries >= 3) end("본문 칸에 넣지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
             return
         }
+        // 본문 칸이 입력칸으로 안 잡히는 경우(블로그 편집기): 커서가 놓인 곳(제목 칸이 아닌 곳)에 붙여넣기. 본문은 복사돼 있음
+        val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (focused != null && !isTitle(focused)) {
+            val ok = focused.performAction(AccessibilityNodeInfo.ACTION_PASTE) || setText(focused, job.body)
+            ThreadsAuto.note("커서 자리(${focused.className?.toString()?.substringAfterLast('.')})에 붙여넣기 → ${if (ok) "됨" else "실패"}")
+            if (ok) { end("제목과 본문을 넣었어요. 확인 후 등록을 눌러주세요."); return }
+            if (++job.bodyTries >= 5) {
+                ThreadsAuto.note("  화면 요소: " + nodes.mapNotNull { it.className?.toString()?.substringAfterLast('.') }.groupingBy { it }.eachCount().entries.joinToString(" ") { "${it.key}×${it.value}" }.take(400))
+                end("본문을 넣지 못했어요. 커서 자리를 길게 눌러 붙여넣기 해주세요.")
+            }
+            return
+        }
         if (!job.bodyClicked) {
             // 사진만 있고 글 칸이 없으면 아래 도구 줄의 '텍스트' 버튼을 한 번 눌러 글 칸을 만듦
             val btn = nodes.firstOrNull { n -> label(n).trim().let { it == "텍스트" || it == "텍스트 추가" || it == "글" || it.equals("Text", true) } }
             job.bodyClicked = true
             ThreadsAuto.note("텍스트 버튼 → ${if (btn != null && click(btn)) "누름" else "없음"}")
-        } else if (++job.bodyTries >= 5) end("본문 칸을 찾지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
+        } else if (++job.bodyTries >= 8) {
+            ThreadsAuto.note("  화면 요소: " + nodes.mapNotNull { it.className?.toString()?.substringAfterLast('.') }.groupingBy { it }.eachCount().entries.joinToString(" ") { "${it.key}×${it.value}" }.take(400))
+            end("본문 칸을 찾지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
+        }
     }
 
     // ---------- 계정 확인 · 전환 ----------
