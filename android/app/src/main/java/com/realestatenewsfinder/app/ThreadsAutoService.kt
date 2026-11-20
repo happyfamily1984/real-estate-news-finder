@@ -87,6 +87,21 @@ object ThreadsAuto {
     }
 }
 
+/** 네이버 블로그 글쓰기 화면에 제목·본문 넣기 ('블로그에 올리기'를 누르면 40초 동안 유효, 한 번만 입력) */
+object BlogAuto {
+    const val PACKAGE = "com.nhn.android.blog"
+    class Job(
+        val title: String, val body: String, val startedAt: Long = System.currentTimeMillis(),
+        var titleDone: Boolean = false, var titleTries: Int = 0, var titleClicked: Boolean = false,
+        var bodyTries: Int = 0, var bodyClicked: Boolean = false, var lastAt: Long = 0, var logged: Boolean = false,
+    )
+    @Volatile var pending: Job? = null
+    fun start(title: String, body: String) { pending = Job(title.trim(), body); ThreadsAuto.log = ""; ThreadsAuto.note("블로그 자동 입력 시작") }
+
+    /** 입력칸이 제목 칸인지: 안내 글자(또는 비어 있을 때 보이는 글자)가 '제목' */
+    fun isTitleField(hint: String, text: String, showingHint: Boolean) = hint.trim() == "제목" || (showingHint && text.trim() == "제목") || hint.contains("제목을")
+}
+
 /**
  * 스레드 앱 화면에서만 동작하는 접근성 서비스.
  * - 계정 확인·전환: 올릴 계정이 아니면 로그아웃하고 저장된 계정 목록에서 올릴 계정을 선택 (설정에서 켠 경우)
@@ -102,6 +117,7 @@ class ThreadsAutoService : AccessibilityService() {
     private val tick = object : Runnable {
         override fun run() {
             ThreadsAuto.switching?.let { runCatching { runSwitch(it) } }
+            BlogAuto.pending?.let { runCatching { runBlog(it) } }
             handler.postDelayed(this, 250)
         }
     }
@@ -119,6 +135,7 @@ class ThreadsAutoService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         ThreadsAuto.switching?.let { runSwitch(it); return }
+        BlogAuto.pending?.let { runCatching { runBlog(it) }; return }
         val job = ThreadsAuto.pending ?: return
         val elapsed = System.currentTimeMillis() - job.startedAt
         if (elapsed > 30_000) { ThreadsAuto.pending = null; return }
@@ -153,6 +170,69 @@ class ThreadsAutoService : AccessibilityService() {
             while (target != null && !target.isClickable) target = target.parent
             if (target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) job.composeClicked = true
         }
+    }
+
+    // ---------- 네이버 블로그: 제목 · 본문 넣기 ----------
+
+    private fun setText(n: AccessibilityNodeInfo, text: String): Boolean {
+        n.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        return n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) })
+    }
+
+    private fun hintOf(n: AccessibilityNodeInfo) = (if (android.os.Build.VERSION.SDK_INT >= 26) n.hintText?.toString() else null).orEmpty()
+
+    /**
+     * 한 번에 한 동작씩: ① 제목 칸에 제목 넣기 ② 본문 칸에 본문 넣기 (본문 칸이 없으면 '텍스트' 버튼을 한 번 눌러 만듦).
+     * '위치 추가'나 '등록'은 누르지 않음. 못 넣으면 그만두고 붙여넣기 안내 (본문은 복사돼 있음).
+     */
+    private fun runBlog(job: BlogAuto.Job) {
+        val now = System.currentTimeMillis()
+        fun end(message: String) { BlogAuto.pending = null; ThreadsAuto.note("끝: $message"); Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
+        if (now - job.startedAt > 40_000) { end("블로그에 글을 넣지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요."); return }
+        if (now - job.lastAt < 700) return
+        val root = rootInActiveWindow ?: return
+        if (root.packageName != BlogAuto.PACKAGE) return
+        val nodes = all(root)
+        val edits = nodes.filter { it.isEditable }
+        if (edits.isEmpty() && nodes.none { label(it).trim() == "제목" }) return // 아직 글쓰기 화면이 아님
+        job.lastAt = now
+        if (!job.logged) {
+            job.logged = true
+            ThreadsAuto.note("  입력칸 ${edits.size}개: " + edits.take(6).joinToString(" | ") { "힌트[${hintOf(it).take(10)}] 글[${it.text?.toString().orEmpty().take(10)}]${if (it.isShowingHintText) "h" else ""} ${it.className?.toString()?.substringAfterLast('.')}" })
+            ThreadsAuto.note("  보이는 글자: " + nodes.map { label(it) }.filter { it.isNotEmpty() }.distinct().take(25).joinToString(" | ") { it.take(12) })
+        }
+        fun isTitle(n: AccessibilityNodeInfo) = BlogAuto.isTitleField(hintOf(n), n.text?.toString().orEmpty(), n.isShowingHintText) || n.text?.toString() == job.title
+        if (!job.titleDone) {
+            if (job.title.isBlank()) { job.titleDone = true; return }
+            val t = edits.firstOrNull { isTitle(it) }
+            if (t != null) {
+                val ok = setText(t, job.title)
+                ThreadsAuto.note("제목 넣기 → ${if (ok) "됨" else "실패"}")
+                if (ok || ++job.titleTries >= 3) job.titleDone = true
+            } else if (!job.titleClicked) {
+                // 제목 칸이 입력칸으로 안 보이면 '제목' 글자 자리를 한 번 눌러 입력칸을 엶
+                val lbl = nodes.firstOrNull { label(it).trim() == "제목" }
+                job.titleClicked = true
+                ThreadsAuto.note("제목 자리 누르기 → ${if (lbl != null && press(lbl)) "누름" else "없음"}")
+            } else if (++job.titleTries >= 4) { job.titleDone = true; ThreadsAuto.note("제목 칸을 찾지 못함") }
+            return
+        }
+        val body = edits.firstOrNull { !isTitle(it) }
+        if (body != null) {
+            val current = if (body.isShowingHintText) "" else body.text?.toString().orEmpty()
+            if (current.contains(job.body.take(15))) { end("제목과 본문을 넣었어요. 확인 후 등록을 눌러주세요."); return }
+            val ok = setText(body, if (current.isBlank()) job.body else current + "\n" + job.body) || body.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+            ThreadsAuto.note("본문 넣기 → ${if (ok) "됨" else "실패"}")
+            if (ok) end("제목과 본문을 넣었어요. 확인 후 등록을 눌러주세요.")
+            else if (++job.bodyTries >= 3) end("본문 칸에 넣지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
+            return
+        }
+        if (!job.bodyClicked) {
+            // 사진만 있고 글 칸이 없으면 아래 도구 줄의 '텍스트' 버튼을 한 번 눌러 글 칸을 만듦
+            val btn = nodes.firstOrNull { n -> label(n).trim().let { it == "텍스트" || it == "텍스트 추가" || it == "글" || it.equals("Text", true) } }
+            job.bodyClicked = true
+            ThreadsAuto.note("텍스트 버튼 → ${if (btn != null && click(btn)) "누름" else "없음"}")
+        } else if (++job.bodyTries >= 5) end("본문 칸을 찾지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
     }
 
     // ---------- 계정 확인 · 전환 ----------
