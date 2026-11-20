@@ -129,9 +129,9 @@ class AndroidTest {
             val mark = Watermark.of(app)
             assertEquals(1, mark.style); assertEquals("중개의 신", mark.tagline); assertTrue(mark.logo != null)
             save("mark-gold-1", StatCards.render(app, stats.series[0], stats.sido, mark)[0])
-            Prefs(app).mark2Handle = "@jungae_god"
-            save("mark-gold-2", StatCards.render(app, stats.series[0], stats.sido, Watermark.of(app))[0])
-        } finally { Prefs(app).markAccount = 0; Prefs(app).mark2Handle = "" }
+            assertEquals("@dawn.realtor", mark.handle); assertEquals("dawn.realtor", Prefs(app).uploadAccount)
+        } finally { Prefs(app).markAccount = 0 }
+        assertEquals("buals_zip", Prefs(app).uploadAccount)
         assertEquals(0, Watermark.of(app).style)
     }
 

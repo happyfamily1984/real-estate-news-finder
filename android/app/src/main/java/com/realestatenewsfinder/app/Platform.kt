@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,15 +57,32 @@ enum class Platform(val id: String, val label: String, val pkg: String, val appN
     }
 }
 
-/** 첫 화면 위쪽의 '올릴 곳' 고르기 */
+/** 올릴 계정: 0 = 부알스(부동산 알려주는 스레드), 1 = 중개의 신. 고르면 카드 워터마크와 스레드로 올릴 계정이 함께 바뀜 */
+object Account {
+    var current by mutableStateOf(0)
+        private set
+    private var loaded = false
+    fun load(ctx: Context) { if (!loaded) { loaded = true; current = Prefs(ctx).markAccount } }
+    fun select(ctx: Context, i: Int) { loaded = true; current = i; Prefs(ctx).markAccount = i }
+}
+
+/** 첫 화면 위쪽의 '올릴 곳'과 '계정' 고르기 */
 @Composable
 fun PlatformBar(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    Platform.load(ctx)
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("올릴 곳", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(10.dp))
-        PillRow { Platform.entries.forEach { p -> ChoicePill(p.label, Platform.current == p) { Platform.select(ctx, p) } } }
+    Platform.load(ctx); Account.load(ctx)
+    androidx.compose.foundation.layout.Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("올릴 곳", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
+            Spacer(Modifier.width(8.dp))
+            PillRow { Platform.entries.forEach { p -> ChoicePill(p.label, Platform.current == p) { Platform.select(ctx, p) } } }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("계정", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
+            Spacer(Modifier.width(8.dp))
+            PillRow { Watermark.ACCOUNTS.forEachIndexed { i, name -> ChoicePill(name, Account.current == i) { Account.select(ctx, i) } } }
+        }
     }
 }
 
