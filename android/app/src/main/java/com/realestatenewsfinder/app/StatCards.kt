@@ -27,7 +27,7 @@ object Watermark {
     }
 
     /** 고를 수 있는 워터마크 계정 이름 (설정 화면) */
-    val ACCOUNTS = listOf("부동산 알려주는 스레드", "중개의 신")
+    val ACCOUNTS = listOf("부알스", "중개의 신")
     private var logo: android.graphics.Bitmap? = null
 
     /** 설정에서 고른 계정의 워터마크 */

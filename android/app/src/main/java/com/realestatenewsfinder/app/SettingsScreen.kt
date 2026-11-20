@@ -281,11 +281,11 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     Text("워터마크 (직접 만든 카드·그래프 이미지 오른쪽 아래에 들어가요. 기사·커뮤니티 캡처에는 넣지 않아요)", fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     // 워터마크 계정 고르기: 고른 계정의 문구·계정 이름을 아래에서 고칠 수 있음
-                    var markAccount by remember { mutableIntStateOf(prefs.markAccount) }
+                    val markAccount = Account.also { it.load(ctx) }.current
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Watermark.ACCOUNTS.forEachIndexed { i, name ->
                             IntervalPill(name, markAccount == i) {
-                                markAccount = i; prefs.markAccount = i
+                                Account.select(ctx, i)
                                 tagline = if (i == 1) prefs.mark2Tagline else prefs.cardTagline
                                 handle = if (i == 1) prefs.mark2Handle else prefs.cardHandle
                             }
@@ -296,7 +296,7 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     Spacer(Modifier.height(8.dp))
                     OutlinedPillField(handle, { handle = it; if (markAccount == 1) prefs.mark2Handle = it else prefs.cardHandle = it }, "계정 이름 (예: @my_threads)", 50.dp, 15.sp)
                     Spacer(Modifier.height(6.dp))
-                    Text(if (markAccount == 1) "중개의 신: 로고가 들어간 금색 테두리 워터마크예요. 계정 이름은 비워도 돼요." else "부동산 알려주는 스레드: 남색 알약 워터마크예요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (markAccount == 1) "중개의 신: 로고가 들어간 금색 테두리 워터마크예요. 계정 이름은 스레드로 올릴 때 계정 확인·전환에도 써요." else "부알스(부동산 알려주는 스레드): 남색 알약 워터마크예요. 첫 화면의 '계정'에서도 바꿀 수 있어요.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 // 스레드 계정 전환

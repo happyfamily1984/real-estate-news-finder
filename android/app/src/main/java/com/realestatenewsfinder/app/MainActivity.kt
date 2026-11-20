@@ -228,7 +228,7 @@ fun App() {
 
     // 머리의 계정 전환 버튼: 스레드를 열어 올릴 계정인지 확인하고, 아니면 전환
     val switchAccount: () -> Unit = {
-        val account = Prefs(ctx).threadsAccount
+        val account = Prefs(ctx).uploadAccount
         val problem = when {
             account.isBlank() -> "설정에서 올릴 스레드 계정을 먼저 적어주세요."
             !ThreadsAuto.isEnabled(ctx) -> "접근성에서 '부동산뉴스파인더 · 스레드 자동 입력'을 먼저 켜주세요."

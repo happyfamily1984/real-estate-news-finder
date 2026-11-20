@@ -194,7 +194,7 @@ object ThreadsKit {
      */
     fun upload(ctx: Context, files: List<File>, text: String) {
         val prefs = Prefs(ctx)
-        val account = prefs.threadsAccount
+        val account = prefs.uploadAccount
         if (ThreadsAuto.isEnabled(ctx) && prefs.autoSwitchAccount && account.isNotBlank() && isThreadsInstalled(ctx) &&
             ThreadsAuto.startSwitch(ctx, account, files, text)
         ) return

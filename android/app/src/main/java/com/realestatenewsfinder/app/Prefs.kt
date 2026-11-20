@@ -98,12 +98,15 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("markAccount", 0)
         set(v) = sp.edit().putInt("markAccount", v).apply()
 
+    /** 지금 고른 계정으로 올릴 스레드 계정 이름 (@ 없이): 부알스는 설정의 스레드 계정, 중개의 신은 그 계정 이름 */
+    val uploadAccount: String get() = (if (markAccount == 1) mark2Handle else threadsAccount).trim().removePrefix("@")
+
     /** 두 번째 워터마크 계정(중개의 신)의 문구와 계정 이름 */
     var mark2Tagline: String
         get() = sp.getString("mark2Tagline", "중개의 신") ?: ""
         set(v) = sp.edit().putString("mark2Tagline", v.trim()).apply()
     var mark2Handle: String
-        get() = sp.getString("mark2Handle", "") ?: ""
+        get() = sp.getString("mark2Handle", "@dawn.realtor") ?: ""
         set(v) = sp.edit().putString("mark2Handle", v.trim()).apply()
 
     /** 워터마크 첫 줄 문구. 비우면 표시 안 함 */
