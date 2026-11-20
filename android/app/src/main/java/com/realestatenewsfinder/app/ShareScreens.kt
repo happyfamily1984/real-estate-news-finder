@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.LocalDate
 
 /** 고르는 알약 (선택하면 파란 그라데이션) */
 @Composable
@@ -79,6 +80,12 @@ fun ThreadShareScreen(
     var zoom by remember { mutableStateOf<Int?>(null) }
     var showAutoHelp by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf(false) }
+    // 올릴 곳(스레드·오픈톡·블로그)에 맞춰 글을 다듬음. 블로그는 제목 + 소제목이 있는 글로 바꿔서 따로 고칠 수 있게 함
+    val platform = remember { Platform.load(ctx); Platform.current }
+    val blog = platform == Platform.BLOG
+    var blogTitle by remember(title) { mutableStateOf(BlogText.title(title, LocalDate.now(KST))) }
+    var blogBody by remember(text) { mutableStateOf(BlogText.body(title, text)) }
+    val outText = if (blog) blogBody else text
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && sent) onSent() }
@@ -97,7 +104,7 @@ fun ThreadShareScreen(
         pieces = p; files = f
     }
 
-    fun share() { files?.let { sent = true; ThreadsKit.upload(ctx, it, text) } }
+    fun share() { files?.let { sent = true; PlatformKit.send(ctx, platform, it, if (blog) blogTitle else "", outText) } }
     if (showAutoHelp) AlertDialog(
         onDismissRequest = { showAutoHelp = false },
         title = { Text("자동 입력 켜기") },
@@ -145,15 +152,25 @@ fun ThreadShareScreen(
             Card(colors = cardColors, shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("스레드에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                        Text("${text.length}/500", fontSize = 12.sp, color = if (text.length > 500) MaterialTheme.colorScheme.error else muted)
+                        Text("${platform.label}에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                        if (platform == Platform.THREADS) Text("${text.length}/500", fontSize = 12.sp, color = if (text.length > 500) MaterialTheme.colorScheme.error else muted)
+                        else Text("${outText.length}자", fontSize = 12.sp, color = muted)
                     }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(text, onText, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                    if (blog) {
+                        OutlinedTextField(blogTitle, { blogTitle = it }, Modifier.fillMaxWidth(), label = { Text("제목") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp))
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(blogBody, { blogBody = it }, Modifier.fillMaxWidth(), label = { Text("본문") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                    } else OutlinedTextField(text, onText, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
                     Spacer(Modifier.height(8.dp))
-                    Text(hint, fontSize = 12.sp, color = muted)
+                    Text(hint + when (platform) {
+                        Platform.BLOG -> "\n블로그용으로 제목·소제목·태그를 붙였어요. 올리면 네이버 블로그 글쓰기 화면에 사진이 들어가고, 본문은 붙여넣기 하면 돼요."
+                        Platform.OPENTALK -> "\n올리면 카카오톡에서 오픈톡 방을 고르는 화면이 열려요. 사진을 보낸 뒤 글을 붙여넣기 하세요."
+                        else -> ""
+                    }, fontSize = 12.sp, lineHeight = 17.sp, color = muted)
                     Spacer(Modifier.height(6.dp))
-                    Button(onClick = { ThreadsKit.copy(ctx, "본문", text) }) {
+                    if (blog) OutlinedButton(onClick = { ThreadsKit.copy(ctx, "제목", blogTitle) }) { Text("제목 복사") }
+                    Button(onClick = { ThreadsKit.copy(ctx, "본문", outText) }) {
                         Icon(Icons.Filled.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("복사하기")
                     }
                 }
@@ -168,10 +185,10 @@ fun ThreadShareScreen(
                 val n = ThreadsKit.saveToGallery(ctx, files!!, "renf_${cacheId.hashCode().toUInt()}_${System.currentTimeMillis() / 1000}")
                 Toast.makeText(ctx, if (n > 0) "사진 앱에 ${n}장 저장했어요 (RealEstateNews 앨범)" else "안드로이드 10 이상에서 저장할 수 있어요", Toast.LENGTH_SHORT).show()
             }) { Text("갤러리 저장") }
-            GradientButton("스레드에 올리기", null, onClick = {
+            GradientButton("${platform.label}에 올리기", null, onClick = {
                 if (ready) {
-                    ThreadsKit.copy(ctx, "본문", text)
-                    if (ThreadsAuto.isEnabled(ctx)) share() else showAutoHelp = true
+                    ThreadsKit.copy(ctx, "본문", outText)
+                    if (platform != Platform.THREADS || ThreadsAuto.isEnabled(ctx)) share() else showAutoHelp = true
                 }
             }, modifier = Modifier.weight(1f))
         }
@@ -190,7 +207,7 @@ fun RegionShareScreen(stats: Stats, region: String, onBack: () -> Unit, onSent: 
         mutableStateOf(available.filter { it.second == region }.map { it.first.id }.ifEmpty { available.map { it.first.id } }.take(4).toSet())
     }
     val series = available.map { it.first }.filter { it.id in picked }
-    var text by remember(region, picked) { mutableStateOf(RegionText.thread(stats, region, series, prefs.casualTone)) }
+    var text by remember(region, picked) { mutableStateOf(RegionText.thread(stats, region, series, prefs.casualNow)) }
     ThreadShareScreen(
         title = "$region 지표", cacheId = "region-$region", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
         text = text, onText = { text = it },
@@ -250,8 +267,8 @@ fun DealShareScreen(
     val shown = remember(deals, newKeys) { deals?.let { d -> d + freshValid.filter { it.key in newKeys && d.none { x -> x.key == it.key } } } }
     LaunchedEffect(shown, analyze, type, period) {
         val d = shown ?: return@LaunchedEffect
-        text = if (newKeys.isNotEmpty()) DealText.fresh(aptNm, regionName, umdNm, freshValid.filter { it.type == type }, d, period, prefs.casualTone)
-        else DealText.summary(aptNm, regionName, umdNm, type, period, d, prefs.casualTone)
+        text = if (newKeys.isNotEmpty()) DealText.fresh(aptNm, regionName, umdNm, freshValid.filter { it.type == type }, d, period, prefs.casualNow)
+        else DealText.summary(aptNm, regionName, umdNm, type, period, d, prefs.casualNow)
     }
     val place = listOf(regionName.substringAfter(' ', regionName), umdNm).filter { it.isNotBlank() }.joinToString(" ")
     ThreadShareScreen(

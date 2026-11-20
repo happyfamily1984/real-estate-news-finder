@@ -7,6 +7,8 @@
 
     <queries>
         <package android:name="com.instagram.barcelona" />
+        <package android:name="com.kakao.talk" />
+        <package android:name="com.nhn.android.blog" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />

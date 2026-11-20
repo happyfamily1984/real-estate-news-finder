@@ -66,9 +66,11 @@ fun StatsScreen(
         Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
             Text("통계", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
             Text(
-                when (mode) { 1 -> "지역을 고르면 그 지역 지표로 이미지와 글이 만들어져요"; 2 -> "단지 실거래를 보고 알림을 받거나 스레드용으로 만들어요"; else -> "지표를 누르면 스레드용 그래프 이미지와 글이 만들어져요" },
+                when (mode) { 1 -> "지역을 고르면 그 지역 지표로 이미지와 글이 만들어져요"; 2 -> "단지 실거래를 보고 알림을 받거나 ${Platform.current.label}용으로 만들어요"; else -> "지표를 누르면 ${Platform.current.label}용 그래프 이미지와 글이 만들어져요" },
                 fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(8.dp))
+            PlatformBar()
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("전국 지표", "지역별", "실거래").forEachIndexed { i, label -> ChoicePill(label, mode == i) { onMode(i) } }
@@ -189,102 +191,13 @@ private fun StatCard(s: StatSeries, sido: List<String>, onClick: () -> Unit) {
 fun StatShareScreen(s: StatSeries, sido: List<String>, onBack: () -> Unit, onSent: () -> Unit) {
     val ctx = LocalContext.current
     val prefs = remember { Prefs(ctx) }
-    var text by remember(s.id) { mutableStateOf(StatText.thread(s, sido, prefs.casualTone)) }
-    var pieces by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
-    var files by remember { mutableStateOf<List<File>?>(null) }
-    var zoom by remember { mutableStateOf<Int?>(null) }
-    var showAutoHelp by remember { mutableStateOf(false) }
-    var sent by remember { mutableStateOf(false) }
-    val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner) {
-        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && sent) onSent() }
-        owner.lifecycle.addObserver(obs)
-        onDispose { owner.lifecycle.removeObserver(obs) }
-    }
-    BackHandler(onBack = onBack)
-
-    LaunchedEffect(s.id) {
-        val (p, f) = withContext(Dispatchers.Default) {
-            val imgs = StatCards.render(ctx, s, sido)
-            imgs to ThreadsKit.writeCache(ctx, "stat-${s.id}", imgs)
-        }
-        pieces = p; files = f
-    }
-
-    fun share() { files?.let { sent = true; ThreadsKit.upload(ctx, it, text) } }
-    if (showAutoHelp) AlertDialog(
-        onDismissRequest = { showAutoHelp = false },
-        title = { Text("자동 입력 켜기") },
-        text = { Text("접근성에서 '부동산뉴스파인더 · 스레드 자동 입력'을 켜면 스레드 새 글 화면에 본문이 자동으로 들어가요.\n\n켜지 않아도 본문은 복사돼 있어서 붙여넣기 하면 돼요.", fontSize = 14.sp, lineHeight = 20.sp) },
-        confirmButton = { TextButton(onClick = { showAutoHelp = false; ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("접근성 설정 열기") } },
-        dismissButton = { TextButton(onClick = { showAutoHelp = false; share() }) { Text("그냥 올리기") } },
+    var text by remember(s.id) { mutableStateOf(StatText.thread(s, sido, prefs.casualNow)) }
+    ThreadShareScreen(
+        title = s.title, cacheId = "stat-${s.id}", hint = "통계 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.",
+        text = text, onText = { text = it },
+        renderKey = s.id, render = { StatCards.render(ctx, s, sido) },
+        onBack = onBack, onSent = onSent,
     )
-    zoom?.let { i ->
-        pieces.getOrNull(i)?.let { b ->
-            androidx.compose.ui.window.Dialog(onDismissRequest = { zoom = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-                Box(Modifier.fillMaxSize().background(Color.Black).clickable { zoom = null }, contentAlignment = Alignment.Center) {
-                    Image(remember(b) { b.asImageBitmap() }, "이미지 ${i + 1}", contentScale = ContentScale.FillWidth, modifier = Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-
-    val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-            Text(s.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(colors = cardColors, shape = RoundedCornerShape(18.dp)) {
-                Column(Modifier.padding(vertical = 14.dp)) {
-                    Text("이미지 ${pieces.size}장", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(10.dp))
-                    val w = (LocalConfiguration.current.screenWidthDp * 0.62f).dp
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        itemsIndexed(pieces) { i, b ->
-                            Image(remember(b) { b.asImageBitmap() }, "이미지 ${i + 1}", contentScale = ContentScale.FillWidth,
-                                modifier = Modifier.width(w).clip(RoundedCornerShape(10.dp)).clickable { zoom = i }.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)))
-                        }
-                    }
-                    if (files == null) Text("그래프 만드는 중…", Modifier.padding(16.dp), color = muted)
-                }
-            }
-            Card(colors = cardColors, shape = RoundedCornerShape(18.dp)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("스레드에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                        Text("${text.length}/500", fontSize = 12.sp, color = if (text.length > 500) MaterialTheme.colorScheme.error else muted)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
-                    Spacer(Modifier.height(8.dp))
-                    Text("통계 숫자를 그대로 넣어 만든 글이에요. 자유롭게 고쳐 쓰세요.", fontSize = 12.sp, color = muted)
-                    Spacer(Modifier.height(6.dp))
-                    Button(onClick = { ThreadsKit.copy(ctx, "본문", text) }) {
-                        Icon(Icons.Filled.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("복사하기")
-                    }
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-        }
-        Row(
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(enabled = files != null, shape = CircleShape, modifier = Modifier.height(52.dp), onClick = {
-                val n = ThreadsKit.saveToGallery(ctx, files!!, "renf_stat_${System.currentTimeMillis() / 1000}")
-                Toast.makeText(ctx, if (n > 0) "사진 앱에 ${n}장 저장했어요 (RealEstateNews 앨범)" else "안드로이드 10 이상에서 저장할 수 있어요", Toast.LENGTH_SHORT).show()
-            }) { Text("갤러리 저장") }
-            GradientButton("스레드에 올리기", null, onClick = {
-                if (files != null) {
-                    ThreadsKit.copy(ctx, "본문", text)
-                    if (ThreadsAuto.isEnabled(ctx)) share() else showAutoHelp = true
-                }
-            }, modifier = Modifier.weight(1f))
-        }
-    }
 }
 
 /** 네이버 로그인 상태 (앱 안 브라우저 저장소의 쿠키로 판단. 비밀번호는 다루지 않음) */

@@ -80,6 +80,14 @@ class Prefs(ctx: Context) {
         get() = sp.getString("cardHandle", "@buals_zip") ?: ""
         set(v) = sp.edit().putString("cardHandle", v.trim()).apply()
 
+    /** 올릴 곳: threads / opentalk / blog */
+    var platform: String
+        get() = sp.getString("platform", "threads") ?: "threads"
+        set(v) = sp.edit().putString("platform", v).apply()
+
+    /** 지금 만들 글의 말투가 반말인지: 블로그는 늘 존댓말 */
+    val casualNow: Boolean get() = casualTone && platform != "blog"
+
     /** 뉴스·정부 글을 스레드로 보낼 때 본문 끝에 원문 링크를 넣을지 */
     var includeLink: Boolean
         get() = sp.getBoolean("includeLink", true)

@@ -59,6 +59,9 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val uploadedAt = UploadLog.sent[post.id]
     // 실험실: 글 형식 (기본 / 문답형 / 찬반 질문형 / 체크리스트형). 바꾸면 그 형식으로 다시 요약
     var labFormat by remember { mutableStateOf("basic") }
+    // 올릴 곳: 스레드(짧은 글) / 오픈톡(카드뉴스 + 짧은 글) / 블로그(제목 + 소제목이 있는 긴 글)
+    val platform = remember { Platform.load(ctx); Platform.current }
+    val blog = platform == Platform.BLOG
     var askAgain by remember { mutableStateOf(false) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -73,12 +76,15 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     var attempt by remember { mutableIntStateOf(0) }
     var scan by remember(attempt) { mutableStateOf<ScanState>(ScanState.Loading(0, "페이지 여는 중")) }
     // 커뮤니티 글은 원문 캡처(작성자 모자이크) + 요약이 기본. 뉴스·정부 글은 카드
-    var useCapture by remember { mutableStateOf(kind == "community") }
+    var useCapture by remember { mutableStateOf(kind == "community" && platform == Platform.THREADS) }
     var mosaicOn by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<ExportResult?>(null) }
 
     val basic = remember(post) { Summarizer.basic(post) }
-    var thread by remember { mutableStateOf(basic.thread) }
+    val basicBlog = remember(post) { Summarizer.basicBlog(post) }
+    var thread by remember { mutableStateOf(if (blog) basicBlog.body else basic.thread) }
+    var blogTitle by remember { mutableStateOf(basicBlog.title) }
+    var blogTags by remember { mutableStateOf(basicBlog.tags.joinToString(" ") { "#$it" }) }
     var headline by remember { mutableStateOf(basic.headline) }
     var pointsText by remember { mutableStateOf(basic.points.joinToString("\n")) }
     var summaryState by remember { mutableStateOf("") } // "", "working", "done", 또는 안내·실패 사유
@@ -90,10 +96,12 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val scanned = (scan as? ScanState.Done)?.result
     val link = remember(scanned?.finalUrl) { articleLink(scanned?.finalUrl, post.url) }
     val linkOn = kind != "community" && includeLink
-    val outText = if (linkOn) thread.trimEnd() + "\n\n" + link else thread
+    val outText = if (blog) listOfNotNull(thread.trimEnd(), if (linkOn) "원문 보기: $link" else null, blogTags.trim().ifBlank { null }).joinToString("\n\n")
+        else if (linkOn) thread.trimEnd() + "\n\n" + link else thread
+    val sendNow = { files: List<File> -> sent = true; UploadLog.mark(ctx, post.id); PlatformKit.send(ctx, platform, files, if (blog) blogTitle else "", outText) }
 
     if (showAutoHelp) {
-        val send = { showAutoHelp = false; result?.files?.let { sent = true; UploadLog.mark(ctx, post.id); ThreadsKit.upload(ctx, it, outText) }; Unit }
+        val send = { showAutoHelp = false; result?.files?.let { sendNow(it) }; Unit }
         AlertDialog(
             onDismissRequest = { showAutoHelp = false },
             title = { Text("자동 입력 켜기") },
@@ -126,6 +134,15 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         val body = done?.text.orEmpty()
         if (body.length < 80 && post.summary.isNullOrBlank() && post.details.isEmpty()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
         summaryState = "working"
+        if (blog) {
+            val b = Summarizer.summarizeBlog(ctx, post, kind, sourceName, body)
+            if (b != null) {
+                blogTitle = b.title; thread = b.body; if (b.tags.isNotEmpty()) blogTags = b.tags.joinToString(" ") { "#$it" }
+                if (post.details.isEmpty() && b.points.isNotEmpty()) pointsText = b.points.joinToString("\n")
+                summaryState = "done"
+            } else summaryState = "요약 실패: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
+            return@LaunchedEffect
+        }
         val sum = Summarizer.summarize(ctx, post, kind, sourceName, body, labFormat)
         if (sum != null) {
             // 표지 제목은 기사 제목 그대로 둠 (AI가 주제를 바꾸지 못하게)
@@ -151,7 +168,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                 val meta = CardMaker.Meta(post.tags.firstOrNull() ?: kindLabel(kind), sourceName, post.time, Watermark.of(ctx))
                 val points = pointsText.lines().map { it.trim() }.filter { it.isNotEmpty() }
                 // 뉴스·정부 글: 1번 이미지는 기사 머리 부분(매체명·제목·날짜·요약) 캡처, 그다음이 핵심 정리
-                val head = if (kind != "community" && done != null) runCatching { CardMaker.articleHeader(done.bitmap, done.titleRect, done.imageRects, meta) }.getOrNull() else null
+                val head = if (platform == Platform.THREADS && kind != "community" && done != null) runCatching { CardMaker.articleHeader(done.bitmap, done.titleRect, done.imageRects, meta) }.getOrNull() else null
                 if (head != null) { header = true; listOf(head) + CardMaker.pointCards(post.title, points, meta) }
                 else CardMaker.render(post.title, Summary(thread, headline, points), meta)
             }
@@ -187,14 +204,14 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로") }
-            Text("스레드용 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+            Text("${platform.label}용 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
         }
         // 이미 스레드로 보낸 글이면 맨 위에 알림. 잘못 표시됐으면 지울 수 있음
         if (uploadedAt != null) Row(
             Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF12A150).copy(alpha = 0.12f)).padding(start = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("✓ ${UploadLog.label(uploadedAt)}에 스레드로 보낸 글이에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0E7C3E), modifier = Modifier.weight(1f))
+            Text("✓ ${UploadLog.label(uploadedAt)}에 올린 글이에요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0E7C3E), modifier = Modifier.weight(1f))
             TextButton(onClick = { UploadLog.clear(ctx, post.id) }) { Text("표시 지우기", fontSize = 13.sp) }
         }
         Box(Modifier.weight(1f)) {
@@ -250,6 +267,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                         )
                         if (kind != "community") Text(
                             if (result?.header == true) "1번은 기사 머리 부분(매체명 · 제목 · 날짜 · 요약) 캡처, 그다음은 핵심 정리 카드예요."
+                            else if (platform != Platform.THREADS) "직접 만든 카드뉴스예요 (표지 + 핵심 정리). 기사 화면은 캡처하지 않아요."
                             else "기사 제목 위치를 찾지 못하면 직접 만든 표지 카드가 들어가요.",
                             Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), fontSize = 12.sp, color = muted,
                         )
@@ -273,11 +291,20 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                 Card(colors = cardColors, shape = RoundedCornerShape(18.dp)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("스레드에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                            Text("${outText.length}/500", fontSize = 12.sp, color = if (outText.length > 500) MaterialTheme.colorScheme.error else muted)
+                            Text("${platform.label}에 들어갈 글", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                            if (platform == Platform.THREADS) Text("${outText.length}/500", fontSize = 12.sp, color = if (outText.length > 500) MaterialTheme.colorScheme.error else muted)
+                            else Text("${outText.length}자", fontSize = 12.sp, color = muted)
                         }
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(thread, { thread = it }, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                        if (blog) {
+                            OutlinedTextField(blogTitle, { blogTitle = it }, Modifier.fillMaxWidth(), label = { Text("제목") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp))
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        OutlinedTextField(thread, { thread = it }, Modifier.fillMaxWidth(), label = if (blog) ({ Text("본문") }) else null, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                        if (blog) {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(blogTags, { blogTags = it }, Modifier.fillMaxWidth(), label = { Text("태그") }, textStyle = LocalTextStyle.current.copy(fontSize = 14.sp))
+                        }
                         if (kind != "community") {
                             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -302,10 +329,14 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             else -> Text(summaryState, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.error)
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("🧪 실험실 · 글 형식", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(4.dp))
-                        PillRow { Summarizer.LAB_FORMATS.forEach { (id, label) -> ChoicePill(label, labFormat == id) { if (summaryState != "working") labFormat = id } } }
-                        Text("문답형은 제도·대출 글, 찬반 질문형은 입장이 갈리는 글, 체크리스트형은 사기·피해 글에 맞아요. 내용이 안 맞으면 기본 형식으로 써요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
+                        if (blog) Text("블로그 글 구성: 핵심 낱말이 앞에 오는 제목, 결론부터 쓰는 첫 문단, 질문형 소제목 3개, 한눈에 정리, 마무리, 태그. 올리면 네이버 블로그 글쓰기 화면에 사진이 들어가고 본문은 붙여넣기 하면 돼요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
+                        else if (platform == Platform.OPENTALK) Text("올리면 카카오톡에서 오픈톡 방을 고르는 화면이 열려요. 카드뉴스를 보낸 뒤 글을 붙여넣기 하세요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
+                        else {
+                            Text("🧪 실험실 · 글 형식", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(4.dp))
+                            PillRow { Summarizer.LAB_FORMATS.forEach { (id, label) -> ChoicePill(label, labFormat == id) { if (summaryState != "working") labFormat = id } } }
+                            Text("문답형은 제도·대출 글, 찬반 질문형은 입장이 갈리는 글, 체크리스트형은 사기·피해 글에 맞아요. 내용이 안 맞으면 기본 형식으로 써요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
+                        }
                         Spacer(Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(enabled = scanEnded && summaryState != "working", onClick = { summaryRun++ }) {
@@ -314,6 +345,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             Button(onClick = { ThreadsKit.copy(ctx, "본문", outText) }) {
                                 Icon(Icons.Filled.ContentCopy, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("복사하기")
                             }
+                            if (blog) OutlinedButton(onClick = { ThreadsKit.copy(ctx, "제목", blogTitle) }) { Text("제목 복사") }
                         }
                     }
                 }
@@ -337,17 +369,17 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", outText) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
                     // 자동 입력이 켜져 있으면: (설정에 따라) 계정 확인·전환 → 보내기 → 본문 붙여넣기
-                    if (ThreadsAuto.isEnabled(ctx)) { sent = true; UploadLog.mark(ctx, post.id); ThreadsKit.upload(ctx, files, outText) } else showAutoHelp = true
+                    if (platform != Platform.THREADS || ThreadsAuto.isEnabled(ctx)) sendNow(files) else showAutoHelp = true
                 }
             }
             if (askAgain) AlertDialog(
                 onDismissRequest = { askAgain = false },
                 title = { Text("이미 올린 글이에요") },
-                text = { Text("이 글은 ${uploadedAt?.let { UploadLog.label(it) } ?: "전"}에 스레드로 보냈어요. 한 번 더 올릴까요?", fontSize = 14.sp, lineHeight = 20.sp) },
+                text = { Text("이 글은 ${uploadedAt?.let { UploadLog.label(it) } ?: "전"}에 이미 보냈어요. 한 번 더 올릴까요?", fontSize = 14.sp, lineHeight = 20.sp) },
                 confirmButton = { TextButton(onClick = { askAgain = false; go() }) { Text("다시 올리기", fontWeight = FontWeight.Bold) } },
                 dismissButton = { TextButton(onClick = { askAgain = false }) { Text("취소") } },
             )
-            GradientButton(if (uploadedAt != null) "다시 올리기" else "스레드에 올리기", null, onClick = { if (uploadedAt != null && !sent) askAgain = true else go() }, modifier = Modifier.weight(1f))
+            GradientButton(if (uploadedAt != null) "다시 올리기" else "${platform.label}에 올리기", null, onClick = { if (uploadedAt != null && !sent) askAgain = true else go() }, modifier = Modifier.weight(1f))
         }
     }
 }
