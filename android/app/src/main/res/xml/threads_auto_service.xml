@@ -6,4 +6,4 @@
     android:canRetrieveWindowContent="true"
     android:description="@string/threads_auto_desc"
     android:notificationTimeout="300"
-    android:packageNames="com.instagram.barcelona" />
+    android:packageNames="com.instagram.barcelona,com.nhn.android.blog" />

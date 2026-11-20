@@ -91,6 +91,9 @@ object PlatformKit {
         if (p == Platform.THREADS) { ThreadsKit.upload(ctx, files, text); return }
         if (p == Platform.BLOG && title.isNotBlank()) ThreadsKit.copy(ctx, "제목", title)
         ThreadsKit.copy(ctx, "본문", text)
+        // 접근성 자동 입력이 켜져 있으면 블로그 글쓰기 화면에 제목·본문을 넣어 줌
+        val auto = p == Platform.BLOG && ThreadsAuto.isEnabled(ctx)
+        if (auto) BlogAuto.start(title, text)
         val uris = files.map { FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", it) }
         val intent = intent(uris, if (p == Platform.BLOG) title else "", text)
         val has = installed(ctx, p)
@@ -101,7 +104,8 @@ object PlatformKit {
             when {
                 !ok -> "${p.appName} 앱을 열지 못해 공유 목록을 띄웠어요. 글은 복사돼 있어요."
                 p == Platform.OPENTALK -> "오픈톡 방을 고르면 사진이 가요. 글은 복사돼 있으니 붙여넣기 하세요."
-                else -> "글쓰기 화면에 사진을 넣었어요. 본문은 붙여넣기, 제목은 키보드 클립보드에 있어요."
+                auto -> "글쓰기 화면이 열리면 제목과 본문을 넣을게요. 잠시만 기다려 주세요."
+                else -> "사진을 넣었어요. 접근성 자동 입력을 켜면 제목·본문도 들어가요. 지금은 본문을 붙여넣기 하세요."
             },
             Toast.LENGTH_LONG,
         ).show()
