@@ -93,7 +93,7 @@ object BlogAuto {
     class Job(
         val title: String, val body: String, val startedAt: Long = System.currentTimeMillis(),
         var titleDone: Boolean = false, var titleTries: Int = 0, var titleClicked: Boolean = false,
-        var bodyTries: Int = 0, var bodyClicked: Boolean = false, var lastAt: Long = 0, var logged: Boolean = false, var asked: Boolean = false,
+        var bodyTries: Int = 0, var bodyClicked: Boolean = false, var stage: Int = 0, var lastAt: Long = 0, var logged: Boolean = false, var asked: Boolean = false,
     )
     @Volatile var pending: Job? = null
     fun start(title: String, body: String) { pending = Job(title.trim(), body); ThreadsAuto.log = ""; ThreadsAuto.note("블로그 자동 입력 시작") }
@@ -249,14 +249,38 @@ class ThreadsAutoService : AccessibilityService() {
             }
             return
         }
-        if (!job.bodyClicked) {
-            // 사진만 있고 글 칸이 없으면 아래 도구 줄의 '텍스트' 버튼을 한 번 눌러 글 칸을 만듦
-            val btn = nodes.firstOrNull { n -> label(n).trim().let { it == "텍스트" || it == "텍스트 추가" || it == "글" || it.equals("Text", true) } }
-            job.bodyClicked = true
-            ThreadsAuto.note("텍스트 버튼 → ${if (btn != null && click(btn)) "누름" else "없음"}")
-        } else if (++job.bodyTries >= 8) {
-            ThreadsAuto.note("  화면 요소: " + nodes.mapNotNull { it.className?.toString()?.substringAfterLast('.') }.groupingBy { it }.eachCount().entries.joinToString(" ") { "${it.key}×${it.value}" }.take(400))
-            end("본문 칸을 찾지 못했어요. 본문은 복사돼 있으니 붙여넣기 해주세요.")
+        // 본문 자리에 커서가 없음 (사진만 있고 글 칸이 아직 없음) → 한 번에 한 가지씩 시도해서 사진 아래에 커서를 놓음
+        val win = bounds(root).takeIf { it.height() > 0 } ?: resources.displayMetrics.let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
+        when (job.stage++) {
+            0 -> {
+                // ① 제목 칸에서 '다음/엔터' → 본문으로 넘어감
+                val t = edits.firstOrNull { isTitle(it) }
+                val ok = t != null && android.os.Build.VERSION.SDK_INT >= 30 && t.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+                ThreadsAuto.note("제목 칸에서 엔터 → ${if (ok) "됨" else "안 됨"}")
+            }
+            1 -> {
+                // ② 아래 도구 줄의 글자(T) 버튼: 이름으로 찾고, 없으면 도구 줄(화면 맨 아래 띠)의 왼쪽에서 두 번째 버튼
+                val bar = nodes.filter { n -> val bb = bounds(n); n.isClickable && bb.height() > 0 && bb.top > win.top + win.height() * 0.85f && bb.width() < win.width() * 0.3f }.sortedBy { bounds(it).left }
+                ThreadsAuto.note("  도구 줄: " + bar.take(8).joinToString(" | ") { "${label(it).take(8)}@${bounds(it).centerX() * 100 / win.width().coerceAtLeast(1)}%" })
+                val btn = nodes.firstOrNull { n -> label(n).trim().let { it == "텍스트" || it == "텍스트 추가" || it == "글" || it == "글쓰기" || it.equals("Text", true) } } ?: bar.getOrNull(1)
+                ThreadsAuto.note("글자 버튼 → ${if (btn != null && click(btn)) "누름" else "없음"}")
+            }
+            2, 3, 4 -> {
+                // ③ 맨 아래까지 넘김 (사진 아래 빈 자리가 보이게)
+                val ok = nodes.lastOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+                ThreadsAuto.note("아래로 넘기기 → ${if (ok) "됨" else "끝"}")
+            }
+            5 -> {
+                // ④ 도구 줄 바로 위 빈 자리를 눌러 커서를 놓음 ('등록'·'위치 추가'와는 먼 곳)
+                val barTop = nodes.filter { label(it).trim() == "저장" }.maxOfOrNull { bounds(it).top } ?: (win.bottom - (win.height() * 0.07f).toInt())
+                val y = barTop - win.height() * 0.035f
+                ThreadsAuto.note("사진 아래 빈 자리 누르기(y ${(y * 100 / win.height()).toInt()}%) → ${if (tapAt(win.exactCenterX(), y)) "누름" else "실패"}")
+            }
+            6, 7, 8 -> {} // 커서가 놓이기를 기다림
+            else -> {
+                ThreadsAuto.note("  화면 요소: " + nodes.mapNotNull { it.className?.toString()?.substringAfterLast('.') }.groupingBy { it }.eachCount().entries.joinToString(" ") { "${it.key}×${it.value}" }.take(400))
+                end("본문 칸을 찾지 못했어요. 사진 아래를 누르고 붙여넣기 해주세요.")
+            }
         }
     }
 
