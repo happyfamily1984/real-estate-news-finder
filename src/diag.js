@@ -37,16 +37,31 @@ const post = (label, path, body) => show(label, `${BASE}${path}`, {
 });
 
 const all = [];
-let info = null, first = null;
-for (let page = 1; page <= 15; page++) {
-  const b = search({ cortOfcCd: 'B000254', rprsAdongSdCd: '', rprsAdongSggCd: '' }, 100);
+let first = null;
+const variants = {
+  A소재지40: [{ cortAuctnSrchCondCd: '0004602' }, 40],
+  B법원40: [{ cortOfcCd: 'B000254', rprsAdongSdCd: '', rprsAdongSggCd: '' }, 40],
+  C소재지100: [{ cortAuctnSrchCondCd: '0004602' }, 100],
+};
+let good = null;
+for (const [name, [extra, size]] of Object.entries(variants)) {
+  const txt = await post(name, '/pgj/pgjsearch/searchControllerMain.on', search(extra, size));
+  try {
+    const j = JSON.parse(txt); const list = j.data?.dlt_srchResult || [];
+    console.log(name, 'message:', j.message, 'errors:', JSON.stringify(j.errors || j.error || '').slice(0, 300), 'pageInfo:', JSON.stringify(j.data?.dma_pageInfo), '건수', list.length, '법원', [...new Set(list.map((r) => r.jiwonNm))].join(','), '소재지 예', list.slice(0, 3).map((r) => r.printSt).join(' / '));
+    if (list.length && list.some((r) => /안양/.test(r.printSt + r.jiwonNm))) good = [extra, size];
+  } catch { console.log(name, '본문:', txt.slice(0, 500)); }
+  await new Promise((r) => setTimeout(r, 1500));
+}
+if (good) for (let page = 1; page <= 30; page++) {
+  const b = search(good[0], good[1]);
   b.dma_pageInfo.pageNo = page;
-  const txt = await post(`안양지원 ${page}쪽`, '/pgj/pgjsearch/searchControllerMain.on', b);
-  let j; try { j = JSON.parse(txt); } catch { console.log('JSON 아님:', txt.slice(0, 800)); break; }
+  const txt = await post(`모으기 ${page}쪽`, '/pgj/pgjsearch/searchControllerMain.on', b);
+  let j; try { j = JSON.parse(txt); } catch { console.log('본문:', txt.slice(0, 500)); break; }
   const list = j.data?.dlt_srchResult || [];
-  if (page === 1) { info = j.data?.dma_pageInfo; first = list[0]; console.log('data 키:', Object.keys(j.data || {}), 'message:', j.message, 'pageInfo:', JSON.stringify(info)); }
+  if (page === 1) first = list[0];
   all.push(...list);
-  if (list.length < 100) break;
+  if (list.length < good[1]) break;
   await new Promise((r) => setTimeout(r, 1200));
 }
 console.log('모은 건수:', all.length, '법원:', [...new Set(all.map((r) => r.jiwonNm))].join(','));
