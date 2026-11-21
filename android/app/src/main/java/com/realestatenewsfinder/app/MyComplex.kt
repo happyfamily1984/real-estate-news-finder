@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 내 단지: 깊게 보는 메인 단지들의 실거래 분석과 경매 물건.
- * 중개사 슈퍼앱 저장소의 수집기가 3시간마다 만들어 공용 임시저장소(store 브랜치)의 main/my.json에 올리고, 앱은 그걸 받아 보여줌.
+ * 이 저장소의 수집기(collector/, Actions 'my')가 3시간마다 만들어 store 브랜치의 main/my.json에 올리고, 앱은 그걸 받아 보여줌.
  * 단지 분석·경매 물건마다 올릴 글(post)이 보고서함과 같은 꼴로 들어 있음.
  */
 data class MyArea(
@@ -156,7 +156,7 @@ object My {
 
     private fun deal(d: JSONObject) = MyDeal(d.optString("type"), d.optString("date"), d.optDouble("area"), d.optInt("floor"), d.optLong("price"), d.optLong("deposit"), d.optLong("monthlyRent"), d.optBoolean("canceled"))
 
-    const val URL_MY = "https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/store/main/my.json"
+    const val URL_MY = "https://raw.githubusercontent.com/happyfamily1984/real-estate-news-finder/store/main/my.json"
 
     private fun cacheFile(ctx: Context) = File(ctx.filesDir, "my.json")
 
