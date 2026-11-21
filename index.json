@@ -1,0 +1,1461 @@
+{
+ "version": 1,
+ "updatedAt": "2026-11-21T14:45:45.296Z",
+ "items": [
+  {
+   "path": "auction/B000254.json",
+   "kind": "auction",
+   "source": "법원경매정보",
+   "label": "수원지방법원 안양지원 진행 물건",
+   "count": 142,
+   "fetchedAt": "2026-11-21T14:45:42.649Z"
+  },
+  {
+   "path": "main/my.json",
+   "kind": "main",
+   "label": "메인 단지 분석·경매",
+   "count": 6,
+   "fetchedAt": "2026-11-21T14:45:26.253Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202312.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202312",
+   "count": 138,
+   "fetchedAt": "2026-11-21T04:31:00.216Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202401.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202401",
+   "count": 170,
+   "fetchedAt": "2026-11-21T04:30:59.675Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202402.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202402",
+   "count": 119,
+   "fetchedAt": "2026-11-21T04:30:59.129Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202403.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202403",
+   "count": 142,
+   "fetchedAt": "2026-11-21T04:30:58.598Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202404.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202404",
+   "count": 125,
+   "fetchedAt": "2026-11-21T04:30:58.057Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202405.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202405",
+   "count": 149,
+   "fetchedAt": "2026-11-21T04:30:57.525Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202406.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202406",
+   "count": 150,
+   "fetchedAt": "2026-11-21T04:30:56.966Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202407.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202407",
+   "count": 176,
+   "fetchedAt": "2026-11-21T04:30:56.266Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202408.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202408",
+   "count": 152,
+   "fetchedAt": "2026-11-21T04:30:55.725Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202409.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202409",
+   "count": 106,
+   "fetchedAt": "2026-11-21T04:30:54.993Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202410.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202410",
+   "count": 134,
+   "fetchedAt": "2026-11-21T04:30:54.628Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202411.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202411",
+   "count": 116,
+   "fetchedAt": "2026-11-21T04:30:54.056Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202412.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202412",
+   "count": 139,
+   "fetchedAt": "2026-11-21T04:30:53.516Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202501.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202501",
+   "count": 144,
+   "fetchedAt": "2026-11-21T04:30:52.827Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202502.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202502",
+   "count": 185,
+   "fetchedAt": "2026-11-21T04:30:52.285Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202503.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202503",
+   "count": 166,
+   "fetchedAt": "2026-11-21T04:30:51.585Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202504.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202504",
+   "count": 139,
+   "fetchedAt": "2026-11-21T04:30:51.036Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202505.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202505",
+   "count": 151,
+   "fetchedAt": "2026-11-21T04:30:50.504Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202506.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202506",
+   "count": 176,
+   "fetchedAt": "2026-11-21T04:30:49.960Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202507.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202507",
+   "count": 200,
+   "fetchedAt": "2026-11-21T04:30:49.379Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202508.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202508",
+   "count": 153,
+   "fetchedAt": "2026-11-21T04:30:48.830Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202509.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202509",
+   "count": 126,
+   "fetchedAt": "2026-11-21T04:30:48.419Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202510.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202510",
+   "count": 138,
+   "fetchedAt": "2026-11-21T04:30:48.039Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202511.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202511",
+   "count": 173,
+   "fetchedAt": "2026-11-21T04:30:47.504Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202512.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202512",
+   "count": 170,
+   "fetchedAt": "2026-11-21T04:30:46.953Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202601.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202601",
+   "count": 195,
+   "fetchedAt": "2026-11-21T04:30:46.247Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202602.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202602",
+   "count": 126,
+   "fetchedAt": "2026-11-21T04:30:45.523Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202603.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202603",
+   "count": 159,
+   "fetchedAt": "2026-11-21T04:30:44.992Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202604.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202604",
+   "count": 149,
+   "fetchedAt": "2026-11-21T04:30:44.277Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202605.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202605",
+   "count": 139,
+   "fetchedAt": "2026-11-21T04:30:43.580Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202606.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202606",
+   "count": 187,
+   "fetchedAt": "2026-11-21T04:30:42.996Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202607.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202607",
+   "count": 155,
+   "fetchedAt": "2026-11-21T04:30:42.131Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202608.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202608",
+   "count": 159,
+   "fetchedAt": "2026-11-21T04:30:41.372Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202609.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202609",
+   "count": 128,
+   "fetchedAt": "2026-11-21T04:30:40.676Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202610.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202610",
+   "count": 113,
+   "fetchedAt": "2026-11-21T14:45:31.452Z"
+  },
+  {
+   "path": "molit/offi-rent/41173/202611.json",
+   "kind": "molit-offi-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202611",
+   "count": 52,
+   "fetchedAt": "2026-11-21T14:45:31.262Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202312.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202312",
+   "count": 19,
+   "fetchedAt": "2026-11-21T04:30:39.084Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202401.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202401",
+   "count": 26,
+   "fetchedAt": "2026-11-21T04:30:38.901Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202402.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202402",
+   "count": 22,
+   "fetchedAt": "2026-11-21T04:30:38.615Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202403.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202403",
+   "count": 44,
+   "fetchedAt": "2026-11-21T04:30:38.431Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202404.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202404",
+   "count": 20,
+   "fetchedAt": "2026-11-21T04:30:38.074Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202405.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202405",
+   "count": 31,
+   "fetchedAt": "2026-11-21T04:30:37.889Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202406.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202406",
+   "count": 24,
+   "fetchedAt": "2026-11-21T04:30:37.694Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202407.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202407",
+   "count": 33,
+   "fetchedAt": "2026-11-21T04:30:37.510Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202408.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202408",
+   "count": 19,
+   "fetchedAt": "2026-11-21T04:30:37.317Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202409.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202409",
+   "count": 23,
+   "fetchedAt": "2026-11-21T04:30:37.133Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202410.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202410",
+   "count": 25,
+   "fetchedAt": "2026-11-21T04:30:36.944Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202411.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202411",
+   "count": 25,
+   "fetchedAt": "2026-11-21T04:30:36.757Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202412.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202412",
+   "count": 23,
+   "fetchedAt": "2026-11-21T04:30:36.563Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202501.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202501",
+   "count": 15,
+   "fetchedAt": "2026-11-21T04:30:36.378Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202502.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202502",
+   "count": 27,
+   "fetchedAt": "2026-11-21T04:30:36.113Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202503.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202503",
+   "count": 42,
+   "fetchedAt": "2026-11-21T04:30:35.927Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202504.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202504",
+   "count": 96,
+   "fetchedAt": "2026-11-21T04:30:35.566Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202505.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202505",
+   "count": 19,
+   "fetchedAt": "2026-11-21T04:30:35.169Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202506.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202506",
+   "count": 33,
+   "fetchedAt": "2026-11-21T04:30:34.978Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202507.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202507",
+   "count": 36,
+   "fetchedAt": "2026-11-21T04:30:34.794Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202508.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202508",
+   "count": 37,
+   "fetchedAt": "2026-11-21T04:30:34.600Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202509.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202509",
+   "count": 34,
+   "fetchedAt": "2026-11-21T04:30:34.250Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202510.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202510",
+   "count": 31,
+   "fetchedAt": "2026-11-21T04:30:33.893Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202511.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202511",
+   "count": 35,
+   "fetchedAt": "2026-11-21T04:30:33.542Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202512.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202512",
+   "count": 31,
+   "fetchedAt": "2026-11-21T04:30:33.183Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202601.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202601",
+   "count": 45,
+   "fetchedAt": "2026-11-21T04:30:32.834Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202602.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202602",
+   "count": 51,
+   "fetchedAt": "2026-11-21T04:30:32.478Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202603.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202603",
+   "count": 48,
+   "fetchedAt": "2026-11-21T04:30:32.127Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202604.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202604",
+   "count": 58,
+   "fetchedAt": "2026-11-21T04:30:31.770Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202605.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202605",
+   "count": 56,
+   "fetchedAt": "2026-11-21T04:30:31.418Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202606.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202606",
+   "count": 58,
+   "fetchedAt": "2026-11-21T04:30:31.060Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202607.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202607",
+   "count": 39,
+   "fetchedAt": "2026-11-21T04:30:30.667Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202608.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202608",
+   "count": 30,
+   "fetchedAt": "2026-11-21T04:30:30.477Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202609.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202609",
+   "count": 31,
+   "fetchedAt": "2026-11-21T04:30:30.291Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202610.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202610",
+   "count": 37,
+   "fetchedAt": "2026-11-21T14:45:31.067Z"
+  },
+  {
+   "path": "molit/offi-trade/41173/202611.json",
+   "kind": "molit-offi-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202611",
+   "count": 15,
+   "fetchedAt": "2026-11-21T14:45:30.882Z"
+  },
+  {
+   "path": "molit/rent/41173/202312.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202312",
+   "count": 1139,
+   "fetchedAt": "2026-11-21T04:30:29.482Z"
+  },
+  {
+   "path": "molit/rent/41173/202401.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202401",
+   "count": 1434,
+   "fetchedAt": "2026-11-21T04:30:26.398Z"
+  },
+  {
+   "path": "molit/rent/41173/202402.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202402",
+   "count": 1087,
+   "fetchedAt": "2026-11-21T04:30:23.502Z"
+  },
+  {
+   "path": "molit/rent/41173/202403.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202403",
+   "count": 1134,
+   "fetchedAt": "2026-11-21T04:30:21.211Z"
+  },
+  {
+   "path": "molit/rent/41173/202404.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202404",
+   "count": 826,
+   "fetchedAt": "2026-11-21T04:30:18.532Z"
+  },
+  {
+   "path": "molit/rent/41173/202405.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202405",
+   "count": 1044,
+   "fetchedAt": "2026-11-21T04:30:17.221Z"
+  },
+  {
+   "path": "molit/rent/41173/202406.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202406",
+   "count": 1111,
+   "fetchedAt": "2026-11-21T04:30:15.248Z"
+  },
+  {
+   "path": "molit/rent/41173/202407.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202407",
+   "count": 1151,
+   "fetchedAt": "2026-11-21T04:30:12.771Z"
+  },
+  {
+   "path": "molit/rent/41173/202408.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202408",
+   "count": 1039,
+   "fetchedAt": "2026-11-21T04:30:09.756Z"
+  },
+  {
+   "path": "molit/rent/41173/202409.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202409",
+   "count": 817,
+   "fetchedAt": "2026-11-21T04:30:07.837Z"
+  },
+  {
+   "path": "molit/rent/41173/202410.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202410",
+   "count": 1049,
+   "fetchedAt": "2026-11-21T04:30:06.475Z"
+  },
+  {
+   "path": "molit/rent/41173/202411.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202411",
+   "count": 1035,
+   "fetchedAt": "2026-11-21T04:30:04.271Z"
+  },
+  {
+   "path": "molit/rent/41173/202412.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202412",
+   "count": 1041,
+   "fetchedAt": "2026-11-21T04:30:01.820Z"
+  },
+  {
+   "path": "molit/rent/41173/202501.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202501",
+   "count": 981,
+   "fetchedAt": "2026-11-21T04:29:59.731Z"
+  },
+  {
+   "path": "molit/rent/41173/202502.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202502",
+   "count": 1424,
+   "fetchedAt": "2026-11-21T04:29:58.269Z"
+  },
+  {
+   "path": "molit/rent/41173/202503.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202503",
+   "count": 1263,
+   "fetchedAt": "2026-11-21T04:29:55.151Z"
+  },
+  {
+   "path": "molit/rent/41173/202504.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202504",
+   "count": 976,
+   "fetchedAt": "2026-11-21T04:29:52.563Z"
+  },
+  {
+   "path": "molit/rent/41173/202505.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202505",
+   "count": 1017,
+   "fetchedAt": "2026-11-21T04:29:50.899Z"
+  },
+  {
+   "path": "molit/rent/41173/202506.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202506",
+   "count": 974,
+   "fetchedAt": "2026-11-21T04:29:48.911Z"
+  },
+  {
+   "path": "molit/rent/41173/202507.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202507",
+   "count": 882,
+   "fetchedAt": "2026-11-21T04:29:47.150Z"
+  },
+  {
+   "path": "molit/rent/41173/202508.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202508",
+   "count": 776,
+   "fetchedAt": "2026-11-21T04:29:45.611Z"
+  },
+  {
+   "path": "molit/rent/41173/202509.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202509",
+   "count": 898,
+   "fetchedAt": "2026-11-21T04:29:43.827Z"
+  },
+  {
+   "path": "molit/rent/41173/202510.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202510",
+   "count": 975,
+   "fetchedAt": "2026-11-21T04:29:41.904Z"
+  },
+  {
+   "path": "molit/rent/41173/202511.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202511",
+   "count": 1095,
+   "fetchedAt": "2026-11-21T04:29:40.162Z"
+  },
+  {
+   "path": "molit/rent/41173/202512.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202512",
+   "count": 1017,
+   "fetchedAt": "2026-11-21T04:29:37.634Z"
+  },
+  {
+   "path": "molit/rent/41173/202601.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202601",
+   "count": 1084,
+   "fetchedAt": "2026-11-21T04:29:35.896Z"
+  },
+  {
+   "path": "molit/rent/41173/202602.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202602",
+   "count": 813,
+   "fetchedAt": "2026-11-21T04:29:33.536Z"
+  },
+  {
+   "path": "molit/rent/41173/202603.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202603",
+   "count": 908,
+   "fetchedAt": "2026-11-21T04:29:31.349Z"
+  },
+  {
+   "path": "molit/rent/41173/202604.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202604",
+   "count": 820,
+   "fetchedAt": "2026-11-21T04:29:29.778Z"
+  },
+  {
+   "path": "molit/rent/41173/202605.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202605",
+   "count": 798,
+   "fetchedAt": "2026-11-21T04:29:27.962Z"
+  },
+  {
+   "path": "molit/rent/41173/202606.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202606",
+   "count": 867,
+   "fetchedAt": "2026-11-21T04:29:26.474Z"
+  },
+  {
+   "path": "molit/rent/41173/202607.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202607",
+   "count": 1003,
+   "fetchedAt": "2026-11-21T04:29:24.812Z"
+  },
+  {
+   "path": "molit/rent/41173/202608.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202608",
+   "count": 766,
+   "fetchedAt": "2026-11-21T04:29:22.506Z"
+  },
+  {
+   "path": "molit/rent/41173/202609.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202609",
+   "count": 768,
+   "fetchedAt": "2026-11-21T04:29:20.909Z"
+  },
+  {
+   "path": "molit/rent/41173/202610.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202610",
+   "count": 843,
+   "fetchedAt": "2026-11-21T14:45:30.571Z"
+  },
+  {
+   "path": "molit/rent/41173/202611.json",
+   "kind": "molit-rent",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202611",
+   "count": 371,
+   "fetchedAt": "2026-11-21T14:45:29.660Z"
+  },
+  {
+   "path": "molit/trade/41173/202312.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202312",
+   "count": 177,
+   "fetchedAt": "2026-11-21T04:29:16.736Z"
+  },
+  {
+   "path": "molit/trade/41173/202401.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202401",
+   "count": 209,
+   "fetchedAt": "2026-11-21T04:29:15.867Z"
+  },
+  {
+   "path": "molit/trade/41173/202402.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202402",
+   "count": 243,
+   "fetchedAt": "2026-11-21T04:29:15.633Z"
+  },
+  {
+   "path": "molit/trade/41173/202403.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202403",
+   "count": 318,
+   "fetchedAt": "2026-11-21T04:29:14.595Z"
+  },
+  {
+   "path": "molit/trade/41173/202404.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202404",
+   "count": 354,
+   "fetchedAt": "2026-11-21T04:29:14.212Z"
+  },
+  {
+   "path": "molit/trade/41173/202405.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202405",
+   "count": 432,
+   "fetchedAt": "2026-11-21T04:29:13.116Z"
+  },
+  {
+   "path": "molit/trade/41173/202406.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202406",
+   "count": 453,
+   "fetchedAt": "2026-11-21T04:29:12.720Z"
+  },
+  {
+   "path": "molit/trade/41173/202407.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202407",
+   "count": 581,
+   "fetchedAt": "2026-11-21T04:29:11.652Z"
+  },
+  {
+   "path": "molit/trade/41173/202408.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202408",
+   "count": 467,
+   "fetchedAt": "2026-11-21T04:29:11.077Z"
+  },
+  {
+   "path": "molit/trade/41173/202409.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202409",
+   "count": 264,
+   "fetchedAt": "2026-11-21T04:29:09.766Z"
+  },
+  {
+   "path": "molit/trade/41173/202410.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202410",
+   "count": 341,
+   "fetchedAt": "2026-11-21T04:29:09.384Z"
+  },
+  {
+   "path": "molit/trade/41173/202411.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202411",
+   "count": 262,
+   "fetchedAt": "2026-11-21T04:29:08.678Z"
+  },
+  {
+   "path": "molit/trade/41173/202412.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202412",
+   "count": 268,
+   "fetchedAt": "2026-11-21T04:29:08.297Z"
+  },
+  {
+   "path": "molit/trade/41173/202501.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202501",
+   "count": 254,
+   "fetchedAt": "2026-11-21T04:29:07.220Z"
+  },
+  {
+   "path": "molit/trade/41173/202502.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202502",
+   "count": 403,
+   "fetchedAt": "2026-11-21T04:29:06.841Z"
+  },
+  {
+   "path": "molit/trade/41173/202503.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202503",
+   "count": 595,
+   "fetchedAt": "2026-11-21T04:29:05.285Z"
+  },
+  {
+   "path": "molit/trade/41173/202504.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202504",
+   "count": 479,
+   "fetchedAt": "2026-11-21T04:29:04.683Z"
+  },
+  {
+   "path": "molit/trade/41173/202505.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202505",
+   "count": 691,
+   "fetchedAt": "2026-11-21T04:29:03.604Z"
+  },
+  {
+   "path": "molit/trade/41173/202506.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202506",
+   "count": 892,
+   "fetchedAt": "2026-11-21T04:29:02.840Z"
+  },
+  {
+   "path": "molit/trade/41173/202507.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202507",
+   "count": 360,
+   "fetchedAt": "2026-11-21T04:29:01.341Z"
+  },
+  {
+   "path": "molit/trade/41173/202508.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202508",
+   "count": 341,
+   "fetchedAt": "2026-11-21T04:29:00.946Z"
+  },
+  {
+   "path": "molit/trade/41173/202509.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202509",
+   "count": 696,
+   "fetchedAt": "2026-11-21T04:28:59.864Z"
+  },
+  {
+   "path": "molit/trade/41173/202510.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202510",
+   "count": 718,
+   "fetchedAt": "2026-11-21T04:28:59.110Z"
+  },
+  {
+   "path": "molit/trade/41173/202511.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202511",
+   "count": 163,
+   "fetchedAt": "2026-11-21T04:28:57.706Z"
+  },
+  {
+   "path": "molit/trade/41173/202512.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202512",
+   "count": 440,
+   "fetchedAt": "2026-11-21T04:28:57.493Z"
+  },
+  {
+   "path": "molit/trade/41173/202601.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202601",
+   "count": 437,
+   "fetchedAt": "2026-11-21T04:28:56.449Z"
+  },
+  {
+   "path": "molit/trade/41173/202602.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202602",
+   "count": 441,
+   "fetchedAt": "2026-11-21T04:28:56.045Z"
+  },
+  {
+   "path": "molit/trade/41173/202603.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202603",
+   "count": 500,
+   "fetchedAt": "2026-11-21T04:28:55.647Z"
+  },
+  {
+   "path": "molit/trade/41173/202604.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202604",
+   "count": 729,
+   "fetchedAt": "2026-11-21T04:28:55.066Z"
+  },
+  {
+   "path": "molit/trade/41173/202605.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202605",
+   "count": 710,
+   "fetchedAt": "2026-11-21T04:28:54.325Z"
+  },
+  {
+   "path": "molit/trade/41173/202606.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202606",
+   "count": 505,
+   "fetchedAt": "2026-11-21T04:28:53.561Z"
+  },
+  {
+   "path": "molit/trade/41173/202607.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202607",
+   "count": 538,
+   "fetchedAt": "2026-11-21T04:28:52.999Z"
+  },
+  {
+   "path": "molit/trade/41173/202608.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202608",
+   "count": 375,
+   "fetchedAt": "2026-11-21T04:28:52.432Z"
+  },
+  {
+   "path": "molit/trade/41173/202609.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202609",
+   "count": 258,
+   "fetchedAt": "2026-11-21T04:28:52.062Z"
+  },
+  {
+   "path": "molit/trade/41173/202610.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202610",
+   "count": 373,
+   "fetchedAt": "2026-11-21T14:45:29.086Z"
+  },
+  {
+   "path": "molit/trade/41173/202611.json",
+   "kind": "molit-trade",
+   "source": "국토교통부 실거래가 공개시스템 API",
+   "region": "41173",
+   "regionName": "경기도 안양시 동안구",
+   "ym": "202611",
+   "count": 137,
+   "fetchedAt": "2026-11-21T14:45:27.440Z"
+  }
+ ]
+}
