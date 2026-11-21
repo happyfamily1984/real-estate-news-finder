@@ -139,9 +139,15 @@ object PlatformKit {
 object BlogText {
     private val EMOJI = Regex("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{FE0F}]")
 
-    fun title(screenTitle: String, today: LocalDate): String {
+    /** 제목 꼴도 틀마다 다름 (0번이 기본) */
+    fun title(screenTitle: String, today: LocalDate, style: Int = 0): String {
         val t = screenTitle.replace(EMOJI, "").replace(" · ", " ").replace(Regex("\\s+"), " ").trim()
-        return "$t (${today.year}년 ${today.monthValue}월 기준)"
+        return when (Math.floorMod(style, 4)) {
+            1 -> "${today.year}년 ${today.monthValue}월 $t"
+            2 -> "$t, ${today.monthValue}월 자료로 정리"
+            3 -> "$t | ${today.year}년 ${today.monthValue}월 자료"
+            else -> "$t (${today.year}년 ${today.monthValue}월 기준)"
+        }
     }
 
     /** 글에서 태그로 쓸 낱말: 기본 태그 + 제목에 나온 지역·단지 이름 */
@@ -151,7 +157,8 @@ object BlogText {
         return (words.filter { it !in skip }.take(3) + listOf("부동산", "아파트", "실거래가", "부동산시세", "내집마련")).distinct().take(8)
     }
 
-    fun body(screenTitle: String, text: String): String {
+    fun body(screenTitle: String, text: String, style: Int = 0): String {
+        val st = BlogMix.style(style)
         val paras = text.replace(EMOJI, "").replace("✔ ", "").lines().joinToString("\n") { it.trimStart() }.trim().split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
         if (paras.isEmpty()) return ""
         val notes = paras.filter { it.startsWith("※") }
@@ -162,11 +169,12 @@ object BlogText {
             // 마지막 문단이 한두 줄짜리 맺음말·질문이면 '마무리'로 따로 뺌
             val closing = main.size > 2 && last.lines().size <= 2
             val middle = if (closing) main.subList(1, main.size - 1) else main.subList(1, main.size)
-            out += "■ 숫자로 보는 핵심\n\n" + middle.joinToString("\n\n")
-            if (closing) out += "■ 마무리\n\n$last"
+            out += "${st.mark} ${st.nums}\n\n" + middle.joinToString("\n\n")
+            if (closing) out += "${st.mark} ${st.close}\n\n$last"
         }
-        out += "■ 참고\n\n" + (notes.map { it.removePrefix("※").trim() } + "숫자는 공개된 통계·실거래 자료를 그대로 옮긴 것이고, 사거나 팔라는 권유가 아닙니다.").joinToString("\n") { "- $it" }
-        out += "자료: 국토교통부 실거래가 공개시스템, 한국부동산원, KB부동산"
+        val refs = "${st.mark} ${st.refs}\n\n" + (notes.map { it.removePrefix("※").trim() } + st.disclaimer).joinToString("\n") { "- $it" }
+        val source = "자료: 국토교통부 실거래가 공개시스템, 한국부동산원, KB부동산"
+        out += if (st.sourceFirst) listOf(source, refs) else listOf(refs, source)
         out += tags(screenTitle).joinToString(" ") { "#$it" }
         return out.joinToString("\n\n")
     }

@@ -237,7 +237,17 @@ object Summarizer {
      * 핵심 낱말이 앞에 오는 제목 → 결론부터 쓰는 첫 문단 → 질문형 소제목 3개와 짧은 문단 → 한눈에 정리 → 마무리 → 태그.
      * 기사 문장을 그대로 베끼지 않고 풀어 쓰며(비슷한 문서로 묶이지 않게), 같은 낱말을 억지로 반복하지 않음.
      */
-    fun blogSystem(kind: String, tags: List<String>, today: String = ""): String {
+    fun blogSystem(kind: String, tags: List<String>, today: String = "", style: Int = 0): String {
+        // 틀마다 소제목 꼴·정리 소제목·정리 위치를 달리해 날마다·계정마다 글 구성이 겹치지 않게 함
+        val heads = when (Math.floorMod(style, 4)) {
+            1 -> "소제목 3개. 소제목은 '■ ' 로 시작하고 핵심 낱말로 끝나는 짧은 말로 쓴다(예: '■ 대상과 조건', '■ 적용 시기', '■ 달라지는 금액')"
+            2 -> "소제목 2~4개(내용에 맞게). 소제목은 '■ ' 로 시작하고 '~하는 이유', '~확인할 것', '~달라지는 점' 처럼 풀어 쓴다"
+            3 -> "소제목 3개. 소제목은 '■ ' 로 시작하고 첫째·둘째·셋째 순서가 드러나게 쓴다(예: '■ 먼저, 무엇이 바뀌나', '■ 다음, 누가 해당되나', '■ 끝으로, 언제부터인가')"
+            else -> "소제목 3개. 소제목은 '■ ' 로 시작하고 읽는 사람이 검색할 만한 질문 꼴로 쓴다(예: '■ 누가 대상일까?', '■ 언제부터 적용될까?', '■ 얼마나 달라질까?')"
+        }
+        val recapName = listOf("한눈에 정리", "핵심만 다시 보기", "세 줄 요약", "요점 정리")[Math.floorMod(style, 4)]
+        val recapFirst = Math.floorMod(style, 4) == 2
+        val recap = "'■ $recapName' 소제목 아래 '- ' 로 시작하는 줄 3~4개로 핵심만 정리한다"
         val what = when (kind) {
             "gov" -> "정부·공공기관 보도자료"
             "community" -> "부동산 커뮤니티 게시글"
@@ -263,15 +273,17 @@ object Summarizer {
             "- 말투: 읽기 편한 존댓말('~습니다', '~해요'를 섞어서). 기사 문장을 그대로 옮기지 말고 내 말로 풀어 쓴다. 기사체('~로 나타났다', '~것으로 집계됐다')는 쓰지 않는다.\n" +
             "- 제목: 사람들이 검색할 핵심 낱말(지역·단지·제도·대출 이름)을 맨 앞에 두고, 무엇이 달라지는지·얼마인지·언제부터인지가 드러나게 쓴다. 20~35자. 본문에 없는 과장('충격', '역대급', '무조건')은 쓰지 않는다.\n" +
             "- 첫 문단(2~3문장): 결론부터. 무슨 일인지 한 문장으로 말하고, 누구에게 해당되는 이야기인지 덧붙인다. 인사말·날씨 얘기·자기소개는 쓰지 않는다.\n" +
-            "- 본문: 소제목 3개. 소제목은 '■ ' 로 시작하고 읽는 사람이 검색할 만한 질문 꼴로 쓴다(예: '■ 누가 대상일까?', '■ 언제부터 적용될까?', '■ 얼마나 달라질까?'). " +
+            (if (recapFirst) "- 첫 문단 바로 다음에 $recap.\n" else "") +
+            "- 본문: $heads. " +
             "소제목마다 2~4문장. 한 문단은 2~3문장으로 끊고 문단 사이에 빈 줄을 둔다. 조건·금액이 여러 개면 '- ' 로 시작하는 줄로 나열한다.\n" +
-            "- 그다음 '■ 한눈에 정리' 소제목 아래 '- ' 로 시작하는 줄 3~4개로 핵심만 다시 정리한다.\n" +
+            "- 평가: 숫자가 나오는 소제목 단락은 마지막 문장을 그 숫자가 읽는 사람에게 무슨 뜻인지 풀이하는 평가로 끝낸다(높은 편인지 낮은 편인지, 차이가 큰지, 무엇을 더 확인해야 하는지). 평가에는 본문에 있는 숫자만 쓰고 전망·권유는 쓰지 않는다.\n" +
+            (if (recapFirst) "" else "- 그다음 $recap.\n") +
             "- 마무리(1~2문장): 본문에 있는 사실로 정리하고, 일정이나 확인할 곳이 본문에 있으면 알려준다. 사라·기다려라 같은 권유는 하지 않는다.\n" +
             "- 핵심 낱말은 제목, 첫 문단, 마무리에 자연스럽게 한 번씩 들어가면 충분하다. 같은 낱말을 억지로 반복하지 않는다.\n" +
             "- 길이: 본문 전체 700~1,100자. 쓰지 않는 것: 표, 이모지, 굵게 표시(**), 화살표, 한자, '출처' 표기, 링크.\n\n" +
             "[출력 형식] 아래 네 구역만 출력한다. 머리말·설명 없이.\n" +
             "[제목]\n(제목 한 줄)\n" +
-            "[본문]\n(첫 문단, 소제목 3개와 문단, 한눈에 정리, 마무리)\n" +
+            "[본문]\n(첫 문단, 소제목과 문단, $recapName, 마무리)\n" +
             "[태그]\n(본문에 나온 지역·단지·제도 이름 위주로 5~8개. 쉼표로 구분, # 없이)\n" +
             "[카드]\n- 항목: 내용  (이런 줄 3~5개. 항목 10자 이내, 내용 28자 이내. 본문에 있는 것만)"
     }
@@ -305,11 +317,11 @@ object Summarizer {
         return BlogPost(post.title, b.thread.lines().drop(1).joinToString("\n").trim().ifBlank { post.title }, listOf("부동산") + post.tags.map { it.replace("·", "") }, b.points)
     }
 
-    suspend fun summarizeBlog(ctx: Context, post: Post, kind: String, sourceName: String, body: String): BlogPost? {
+    suspend fun summarizeBlog(ctx: Context, post: Post, kind: String, sourceName: String, body: String, style: Int = 0): BlogPost? {
         if (!hasKey(ctx)) return null
         lastDropped = emptyList()
         val today = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date())
-        val system = blogSystem(kind, post.tags, today)
+        val system = blogSystem(kind, post.tags, today, style)
         val input = buildInput(post, sourceName, body)
         fun all(b: BlogPost) = b.title + "\n" + b.body + "\n" + b.points.joinToString("\n")
         var blog = parseBlog(ask(ctx, system, input) ?: return null, post.title) ?: return null
@@ -330,5 +342,13 @@ object Summarizer {
             blog = blog.copy(title = if (ok(blog.title)) blog.title else post.title, body = cleaned, points = blog.points.filter { ok(it) })
         }
         return blog
+    }
+
+    /** 숫자로 만든 블로그 글의 단락마다 한 줄 평가를 받아 옴 (번호 → 평가). 키가 없거나 실패하면 null */
+    suspend fun evaluate(ctx: Context, body: String): Map<Int, String>? {
+        if (!hasKey(ctx)) return null
+        val input = BlogMix.evalInput(body)
+        if (input.isBlank()) return emptyMap()
+        return BlogMix.parseEvals(ask(ctx, BlogMix.EVAL_SYSTEM, input) ?: return null, body)
     }
 }
