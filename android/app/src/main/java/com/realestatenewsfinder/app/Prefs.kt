@@ -175,4 +175,9 @@ class Prefs(ctx: Context) {
     var seenIds: Set<String>?
         get() = sp.getStringSet("seen", null)
         set(v) = sp.edit().putStringSet("seen", v).apply()
+
+    /** 이미 알림을 보낸 경매 물건 표시 (물건|최저가|매각기일). null이면 아직 한 번도 받아 보지 않음 */
+    var auctionSeen: Set<String>?
+        get() = sp.getStringSet("auctionSeen", null)
+        set(v) = sp.edit().putStringSet("auctionSeen", v).apply()
 }

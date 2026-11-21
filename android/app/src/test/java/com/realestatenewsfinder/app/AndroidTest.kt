@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.graphics.Bitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
@@ -143,6 +144,38 @@ class AndroidTest {
         assertEquals(2, Reports.render(app, list[0]).size)
         compose.setContent { AppTheme(dark = false) { ReportBox({}, initial = list) } }
         compose.onRoot().captureRoboImage("build/screens/report-box.png")
+    }
+
+    /** 내 단지 탭: 수집기가 실제로 만든 자료(2026-11-21)로 화면을 그림 */
+    @Test
+    fun myScreens() {
+        val data = My.parse(javaClass.getResource("/my.json")!!.readText())
+        assertEquals(6, data.complexes.size)
+        Reports.render(app, data.auctions.first().post!!, "경매 정보", "법원경매정보").forEachIndexed { i, b -> save("my-auction-card-${i + 1}", b) }
+        Reports.render(app, data.complexes.first { it.id == "hangaram-silla" }.post!!, "단지 분석", "국토교통부 실거래가").forEachIndexed { i, b -> save("my-complex-card-${i + 1}", b) }
+        var screen by androidx.compose.runtime.mutableStateOf("list")
+        compose.setContent {
+            AppTheme(dark = false) {
+                val c = data.complexes.first { it.id == "hangaram-silla" }
+                when (screen) {
+                    "list" -> MyScreen(data, null, false, {}, 0, {}, {}, {})
+                    "auctions" -> MyScreen(data, null, false, {}, 1, {}, {}, {})
+                    "complex" -> MyComplexScreen(c, data.auctions.filter { it.complexId == c.id }, {}, {}, {}, {})
+                    else -> AuctionScreen(data.auctions.first(), {}, {})
+                }
+            }
+        }
+        compose.onNodeWithText("한가람신라").assertExists()
+        compose.onRoot().captureRoboImage("build/screens/my-list.png")
+        screen = "auctions"; compose.waitForIdle()
+        compose.onNodeWithText("2025타경101547", substring = true).assertExists()
+        compose.onRoot().captureRoboImage("build/screens/my-auctions.png")
+        screen = "complex"; compose.waitForIdle()
+        compose.onNodeWithText("분석 요점").assertExists()
+        compose.onRoot().captureRoboImage("build/screens/my-complex.png")
+        screen = "auction"; compose.waitForIdle()
+        compose.onNodeWithText("권리 관계 (매각물건명세서)").assertExists()
+        compose.onRoot().captureRoboImage("build/screens/my-auction.png")
     }
 
     @Test

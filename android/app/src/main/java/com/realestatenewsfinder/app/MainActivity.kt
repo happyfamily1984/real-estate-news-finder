@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.filled.Home
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
         UploadLog.load(this)
         HotPostWorker.schedule(this)
         runCatching { DealPollWorker.schedule(this, replace = false) }
+        runCatching { AuctionWorker.schedule(this) }
         handleIntent(intent)
         setContent { AppTheme { App() } }
     }
@@ -104,6 +107,11 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(EXTRA_DEAL)
             DealTarget.parse(hash)?.let { pendingDeal.value = it }
         }
+        // 경매 알림 → 내 단지 탭의 그 물건
+        intent?.getStringExtra(EXTRA_AUCTION)?.let { id ->
+            intent.removeExtra(EXTRA_AUCTION)
+            pendingAuction.value = id
+        }
         val json = intent?.getStringExtra(EXTRA_POST) ?: return
         intent.removeExtra(EXTRA_POST)
         runCatching { PostStore.fromJson(org.json.JSONObject(json)) }.getOrNull()?.let { pendingPost.value = it }
@@ -112,6 +120,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_POST = "post"
         const val EXTRA_DEAL = "deal"
+        const val EXTRA_AUCTION = "auction"
+        /** 경매 알림을 눌러 열어야 할 물건 */
+        val pendingAuction = mutableStateOf<String?>(null)
         /** 실거래 알림을 눌러 열어야 할 단지 */
         val pendingDeal = mutableStateOf<DealTarget?>(null)
         /** 알림을 눌러 열어야 할 글 (App이 받아서 미리보기를 띄움) */
@@ -142,6 +153,7 @@ enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
     HOME("뉴스", Icons.Filled.Home, Icons.Outlined.Home),
     GOV("정부·공공", Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
     COMMUNITY("커뮤니티", Icons.Filled.Forum, Icons.Outlined.Forum),
+    MY("내 단지", Icons.Filled.Apartment, Icons.Outlined.Apartment),
     STATS("통계", Icons.Filled.BarChart, Icons.Outlined.BarChart),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
@@ -214,6 +226,31 @@ fun App() {
         }
     }
     LaunchedEffect(tab) { if (tab == Tab.STATS && !statsLoading) refreshStats() }
+    // 내 단지 탭: 메인 단지 분석 + 경매 (탭을 열 때, 경매 알림을 눌러 들어올 때 받아옴)
+    var my by remember { mutableStateOf(My.cached(ctx)) }
+    var myError by remember { mutableStateOf<String?>(null) }
+    var myLoading by remember { mutableStateOf(false) }
+    var myMode by rememberSaveable { mutableIntStateOf(0) }
+    var myComplex by remember { mutableStateOf<MyComplex?>(null) }
+    var myAuction by remember { mutableStateOf<MyAuction?>(null) }
+    var myShare by remember { mutableStateOf<Pair<Report, Boolean>?>(null) } // 올릴 글, 경매 글인지
+    fun refreshMy(then: (MyData) -> Unit = {}) {
+        scope.launch {
+            myLoading = true
+            try { val d = My.fetch(ctx); my = d; myError = null; AuctionWorker.check(ctx, d); then(d) } catch (e: Exception) { myError = e.message ?: "불러오기 실패" }
+            myLoading = false
+        }
+    }
+    LaunchedEffect(tab) { if (tab == Tab.MY && !myLoading) refreshMy() }
+    val auctionFromNotification = MainActivity.pendingAuction.value
+    LaunchedEffect(auctionFromNotification) {
+        if (auctionFromNotification != null) {
+            MainActivity.pendingAuction.value = null
+            tab = Tab.MY; myMode = 1; myShare = null; myComplex = null
+            myAuction = my?.auctions?.firstOrNull { it.id == auctionFromNotification }
+            refreshMy { d -> d.auctions.firstOrNull { it.id == auctionFromNotification }?.let { myAuction = it } }
+        }
+    }
     // 뒤로가기: 내보내기 → 미리보기 → 목록 → 뉴스 탭 → 종료 확인 (나중에 등록한 것이 먼저 동작)
     var askExit by remember { mutableStateOf(false) }
     BackHandler { if (tab != Tab.HOME) tab = Tab.HOME else askExit = true }
@@ -295,6 +332,7 @@ fun App() {
                     },
                     mode = statsMode, onMode = { statsMode = it },
                 )
+                Tab.MY -> MyScreen(my, myError, myLoading, { refreshMy() }, myMode, { myMode = it }, onComplex = { myComplex = it }, onAuction = { myAuction = it })
                 Tab.SETTINGS -> SettingsScreen(feed, onBack = { tab = Tab.HOME }, onSetup = { onboarding = true }, onNaverLogin = { naverLogin = true })
             }
         }
@@ -322,6 +360,11 @@ fun App() {
     statShare?.let { s -> key("s" + s.id) { StatShareScreen(s, stats?.sido.orEmpty(), onBack = { statShare = null }, onSent = { statShare = null }) } }
     // 지역 지표 (통계 > 지역별에서 지역을 누르면)
     regionShare?.let { r -> stats?.let { st -> key("r$r") { RegionShareScreen(st, r, onBack = { regionShare = null }, onSent = { regionShare = null }) } } }
+    // 내 단지: 단지 분석 → 경매 물건 → (실거래 상세 / 올리기). 실거래 상세는 아래 dealComplex가 위에 겹쳐 띄움
+    myComplex?.let { c -> key("mc" + c.id) {
+        MyComplexScreen(c, my?.auctions.orEmpty().filter { it.complexId == c.id }, onBack = { myComplex = null }, onDeals = { dealComplex = it }, onShare = { myShare = it to false }, onAuction = { myAuction = it })
+    } }
+    myAuction?.let { a -> key("ma" + a.id) { AuctionScreen(a, onBack = { myAuction = null }, onShare = { myShare = it to true }) } }
     // 실거래: 단지 목록 → 단지 상세 → 스레드 내보내기 (위에 겹쳐 띄워서 뒤로가기로 한 단계씩)
     dealRegion?.let { code -> key("dr$code") {
         ComplexListScreen(code, onBack = { dealRegion = null; pickFor = null }, note = when (pickFor) { "history" -> "과거 가격과 비교할 단지를 고르세요"; "funding" -> "자금 계산할 단지를 고르세요"; else -> null }) { t, aptNm, umdNm ->
@@ -342,6 +385,13 @@ fun App() {
     }
     dealShare?.let { a -> key("ds" + a.target.toUri()) {
         DealShareScreen(a.target.lawdCd, a.target.complexId, a.aptNm, a.umdNm, a.type, a.period, a.fresh, onBack = { dealShare = null }, onSent = { dealShare = null })
+    } }
+    myShare?.let { (r, auction) -> key("ms" + r.id) {
+        ReportShareScreen(
+            r, onBack = { myShare = null }, onSent = { myShare = null },
+            hint = if (auction) "법원경매정보에 공개된 내용으로 써 둔 글이에요. 일정·가격은 바뀔 수 있으니 올리기 전에 한 번 확인해 주세요." else "국토부 실거래가로 써 둔 단지 분석이에요. 올리기 전에 숫자를 한 번 확인해 주세요.",
+            tag = if (auction) "경매 정보" else "단지 분석", source = if (auction) "법원경매정보" else "국토교통부 실거래가",
+        )
     } }
     if (naverLogin) NaverLoginScreen(onBack = { naverLogin = false })
     }
@@ -368,7 +418,7 @@ fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
             ) {
                 Icon(if (sel) t.on else t.off, null, tint = if (sel) primary else muted, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.height(3.dp))
-                Text(t.label, fontSize = 12.sp, maxLines = 1, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.Medium, color = if (sel) primary else muted)
+                Text(t.label, fontSize = 11.sp, maxLines = 1, softWrap = false, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.Medium, color = if (sel) primary else muted)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.width(34.dp).height(3.dp).background(if (sel) primary else Color.Transparent, CircleShape))
             }
