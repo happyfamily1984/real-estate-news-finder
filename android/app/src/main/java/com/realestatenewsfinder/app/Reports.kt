@@ -56,22 +56,28 @@ data class Report(
 }
 
 object Reports {
+    private fun strings(a: org.json.JSONArray?) = (0 until (a?.length() ?: 0)).map { a!!.optString(it) }.filter { it.isNotBlank() }
+
+    /** 보고서 하나 (보고서함, 내 단지의 단지 분석·경매 글이 같은 꼴을 씀). 제목이 없으면 null */
+    fun one(o: JSONObject, fallbackId: String, fallbackDate: String = ""): Report? {
+        val title = o.optString("title").trim()
+        if (title.isEmpty()) return null
+        val blog = o.optJSONObject("blog")
+        val cards = o.optJSONArray("cards")
+        return Report(
+            id = o.optString("id").ifBlank { fallbackId }, title = title, date = o.optString("date").ifBlank { fallbackDate }, summary = o.optString("summary"),
+            thread = o.optString("thread"), talk = o.optString("talk"),
+            blogTitle = blog?.optString("title").orEmpty().ifBlank { title }, blogBody = blog?.optString("body").orEmpty(), tags = strings(blog?.optJSONArray("tags")),
+            cards = (0 until (cards?.length() ?: 0)).mapNotNull { k -> cards!!.optJSONObject(k)?.let { c -> Report.Card(c.optString("title").ifBlank { title }, strings(c.optJSONArray("points"))) } }.filter { it.points.isNotEmpty() },
+            sources = strings(o.optJSONArray("sources")),
+        )
+    }
+
     fun parse(json: String): List<Report> {
         val arr = JSONObject(json).optJSONArray("reports") ?: return emptyList()
-        fun strings(a: org.json.JSONArray?) = (0 until (a?.length() ?: 0)).map { a!!.optString(it) }.filter { it.isNotBlank() }
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
-            val title = o.optString("title").trim()
-            if (title.isEmpty()) return@mapNotNull null
-            val blog = o.optJSONObject("blog")
-            val cards = o.optJSONArray("cards")
-            Report(
-                id = o.optString("id").ifBlank { "r$i-${title.hashCode()}" }, title = title, date = o.optString("date"), summary = o.optString("summary"),
-                thread = o.optString("thread"), talk = o.optString("talk"),
-                blogTitle = blog?.optString("title").orEmpty().ifBlank { title }, blogBody = blog?.optString("body").orEmpty(), tags = strings(blog?.optJSONArray("tags")),
-                cards = (0 until (cards?.length() ?: 0)).mapNotNull { k -> cards!!.optJSONObject(k)?.let { c -> Report.Card(c.optString("title").ifBlank { title }, strings(c.optJSONArray("points"))) } }.filter { it.points.isNotEmpty() },
-                sources = strings(o.optJSONArray("sources")),
-            )
+            one(o, "r$i-${o.optString("title").trim().hashCode()}")
         }.sortedByDescending { it.date }
     }
 
@@ -104,8 +110,8 @@ object Reports {
     fun cached(ctx: Context): List<Report> = runCatching { parse(cacheFile(ctx).readText()) }.getOrDefault(emptyList())
 
     /** 카드뉴스 이미지: 표지 + 장마다 핵심 정리 */
-    fun render(ctx: Context, r: Report): List<android.graphics.Bitmap> {
-        val meta = CardMaker.Meta("조사 보고서", "보고서", r.time.takeIf { it > 0 } ?: System.currentTimeMillis(), Watermark.of(ctx))
+    fun render(ctx: Context, r: Report, tag: String = "조사 보고서", source: String = "보고서"): List<android.graphics.Bitmap> {
+        val meta = CardMaker.Meta(tag, source, r.time.takeIf { it > 0 } ?: System.currentTimeMillis(), Watermark.of(ctx))
         return listOf(CardMaker.cover(r.title, meta)) + r.cards.flatMap { CardMaker.pointCards(it.title, it.points, meta) }
     }
 }
@@ -159,14 +165,17 @@ fun ReportBox(onOpen: (Report) -> Unit, initial: List<Report>? = null) {
 
 /** 보고서 하나를 올릴 곳(스레드·오픈톡·블로그)에 맞춰 내보내기 */
 @Composable
-fun ReportShareScreen(r: Report, onBack: () -> Unit, onSent: () -> Unit) {
+fun ReportShareScreen(
+    r: Report, onBack: () -> Unit, onSent: () -> Unit,
+    hint: String = "조사해서 써 둔 보고서예요. 숫자·날짜는 올리기 전에 참고 자료와 한 번 대조해 주세요.", tag: String = "조사 보고서", source: String = "보고서",
+) {
     val ctx = LocalContext.current
     val platform = remember { Platform.load(ctx); Platform.current }
     var text by remember(r.id) { mutableStateOf(r.textFor(platform)) }
     ThreadShareScreen(
-        title = r.title, cacheId = "report-${r.id}", hint = "조사해서 써 둔 보고서예요. 숫자·날짜는 올리기 전에 참고 자료와 한 번 대조해 주세요.",
+        title = r.title, cacheId = "report-${r.id}", hint = hint,
         text = text, onText = { text = it },
-        renderKey = r.id to Account.current, render = { Reports.render(ctx, r) },
+        renderKey = r.id to Account.current, render = { Reports.render(ctx, r, tag, source) },
         onBack = onBack, onSent = { UploadLog.mark(ctx, "report-" + r.id); onSent() },
         blogTitleText = r.blogTitle, blogBodyText = r.blogFull(),
     )
