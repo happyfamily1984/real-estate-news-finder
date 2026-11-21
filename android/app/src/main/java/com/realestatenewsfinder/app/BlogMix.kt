@@ -47,7 +47,7 @@ object BlogMix {
 
     private fun isHeading(block: String) = MARKS.any { block.startsWith("$it ") } && !block.contains('\n')
     private fun blocks(body: String) = body.trim().split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
-    private fun isTail(b: String) = b.startsWith("#") || b.startsWith("자료:") || b.startsWith("원문 보기")
+    private fun isTail(b: String) = b.startsWith("#") || b.startsWith("자료:") || b.startsWith("원문 보기") || b.startsWith("참고 자료")
 
     /** 써 둔 글(보고서·내 단지·AI 글)의 소제목 기호를 그 틀의 기호로 바꿈 */
     fun restyle(body: String, style: Int): String {
@@ -82,7 +82,9 @@ object BlogMix {
         val bs = blocks(body)
         val end = tailStart(bs)
         val evalMarks = STYLES.map { it.evalMark }
-        return bs.indices.filter { i -> i < end && !isHeading(bs[i]) && bs[i].length >= 15 && bs[i].any(Char::isDigit) && evalMarks.none { bs[i].startsWith(it) } }.take(MAX_EVALS)
+        fun isEval(b: String?) = b != null && evalMarks.any { b.startsWith(it) }
+        // 이미 평가가 달린 단락(보고서처럼 써 둔 글)에는 또 붙이지 않음
+        return bs.indices.filter { i -> i < end && !isHeading(bs[i]) && bs[i].length >= 15 && bs[i].any(Char::isDigit) && !isEval(bs[i]) && !isEval(bs.getOrNull(i + 1)) }.take(MAX_EVALS)
     }
 
     /** AI에게 줄 입력: "[1] 단락" 꼴 */
