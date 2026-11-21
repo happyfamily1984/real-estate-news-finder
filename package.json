@@ -6,6 +6,7 @@
   "main": "src/crawl-once.js",
   "scripts": {
     "crawl": "node src/crawl-once.js",
+    "my": "node collector/collect.js main",
     "crawl:demo": "DEMO=1 node src/crawl-once.js",
     "test": "node --test test/*.test.js"
   },
