@@ -94,7 +94,7 @@ export function complexPost(cfg, a, today, askLines = []) {
   const kind = cfg.kind === 'offi' ? '오피스텔' : '아파트';
   const head = `${cfg.name} 실거래 정리 (${today.slice(0, 7).replace('-', '년 ')}월)`;
   const areaLines = a.areas.filter((x) => x.trade.count12 > 0).map((x) => `${x.area}㎡: ${eok(x.trade.median12)} (${x.trade.count12}건)${x.trade.changePct != null ? ` ${x.trade.changePct > 0 ? '▲' : x.trade.changePct < 0 ? '▼' : ''}${Math.abs(x.trade.changePct)}%` : ''}`);
-  const thread = [`${cfg.region} ${cfg.umdNm} ${cfg.name}, 최근 1년 실거래를 정리했습니다.`, '', ...lines.map((l) => `· ${l}`), '', '자료: 국토교통부 실거래가 공개시스템'].join('\n').slice(0, 500);
+  const thread = [`${cfg.region} ${cfg.umdNm} ${cfg.name}, 최근 1년 실거래 정리해봤어.`, '', ...lines.map((l) => `· ${l}`), '', '자료: 국토교통부 실거래가 공개시스템'].join('\n').slice(0, 500);
   const talk = [`[${cfg.name}] 최근 1년 실거래`, ...areaLines.slice(0, 4), `매매 ${a.counts.trade12}건 · 전세 ${a.counts.jeonse12}건`].join('\n');
   const recent = a.recentTrades.filter((d) => !d.canceled).slice(0, 6).map((d) => `- ${d.date} · 전용 ${d.area}㎡ · ${d.floor}층 · ${eok(d.price)}`);
   const body = [
@@ -126,9 +126,9 @@ export function auctionPost(cfg, it, ref, today) {
   const rights = it.rights ? `인수되는 권리(명세서): ${it.rights}` : null;
   const warn = '입찰 전 매각물건명세서·현황조사서·등기부를 꼭 확인하세요.';
   const thread = [
-    `[경매] ${name} 경매 물건이 나왔습니다.`, '',
+    `[경매] ${name} 경매 물건 나왔어.`, '',
     `· 사건 ${it.caseNo} (${it.court} ${it.dept})`, `· 소재지 ${it.address}`, `· ${price}`, `· 유찰 ${it.failCount}회 · 매각기일 ${dayOf(it.saleDate)} ${it.saleTime}`,
-    cmp ? `· ${cmp}` : null, rights ? `\n⚠ ${rights.slice(0, 150)}${rights.length > 150 ? '…' : ''}` : null, '', warn, '자료: 법원경매정보',
+    cmp ? `· ${cmp}` : null, rights ? `\n⚠ ${rights.slice(0, 150)}${rights.length > 150 ? '…' : ''}` : null, '', '입찰 전에 매각물건명세서·현황조사서·등기부 꼭 확인해.', '자료: 법원경매정보',
   ].filter((l) => l != null).join('\n').slice(0, 500);
   const talk = [`[경매] ${name}`, `최저가 ${won(it.minPrice)} (감정가 ${won(it.appraisal)}의 ${it.minRate}%)`, `매각기일 ${dayOf(it.saleDate)} ${it.saleTime} · ${it.court}`, `사건 ${it.caseNo}`].join('\n');
   const body = [
