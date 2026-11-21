@@ -196,6 +196,7 @@ fun App() {
     var pickFor by remember { mutableStateOf<String?>(null) } // 단지를 고르는 목적: "history"(과거 가격 비교), "funding"(자금 계산)
     var fundingOf by remember { mutableStateOf<Triple<DealTarget, String, String>?>(null) }
     var signalsOpen by remember { mutableStateOf(false) }
+    var reportOpen by remember { mutableStateOf<Report?>(null) }
     var historyOf by remember { mutableStateOf<Triple<DealTarget, String, String>?>(null) }
     val dealFromNotification = MainActivity.pendingDeal.value
     LaunchedEffect(dealFromNotification) {
@@ -283,7 +284,7 @@ fun App() {
                 Tab.STATS -> StatsScreen(
                     stats, statsError, statsLoading, ::refreshStats, onOpen = { statShare = it },
                     onRegion = { regionShare = it }, onDealRegion = { pickFor = null; dealRegion = it }, onDealOpen = { dealComplex = it },
-                    onLab = { signalsOpen = true },
+                    onLab = { signalsOpen = true }, onReport = { reportOpen = it },
                     onDealTool = { id ->
                         if (id == "history" || id == "funding") {
                             // 단지를 먼저 골라야 함: 마지막으로 본 지역의 단지 목록을 열고, 없으면 아래에서 지역을 고르라고 알림
@@ -331,6 +332,7 @@ fun App() {
         ComplexDetailScreen(t, onBack = { dealComplex = null }, onHistory = { aptNm, umdNm -> historyOf = Triple(t, aptNm, umdNm) }) { aptNm, umdNm, type, period, fresh -> dealShare = DealShareArgs(t, aptNm, umdNm, type, period, fresh) }
     } }
     fundingOf?.let { (t, aptNm, umdNm) -> key("df" + t.complexId) { FundingScreen(t, aptNm, umdNm, onBack = { fundingOf = null }, onSent = { fundingOf = null }) } }
+    reportOpen?.let { r -> key("rp" + r.id) { ReportShareScreen(r, onBack = { reportOpen = null }, onSent = { reportOpen = null }) } }
     if (signalsOpen) stats?.let { st -> SignalShareScreen(st, onBack = { signalsOpen = false }, onSent = { signalsOpen = false }) }
     historyOf?.let { (t, aptNm, umdNm) -> key("dh" + t.complexId) { HistoryScreen(t, aptNm, umdNm, onBack = { historyOf = null }, onSent = { historyOf = null }) } }
     when (dealTool) {

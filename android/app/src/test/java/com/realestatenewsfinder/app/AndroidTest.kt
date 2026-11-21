@@ -136,6 +136,16 @@ class AndroidTest {
     }
 
     @Test
+    fun reportBox() {
+        val list = Reports.parse("""{"reports":[{"id":"b","title":"수도권 전세 흐름 정리","date":"2026-11-21","summary":"전세가 오르는 곳과 내리는 곳을 정리했어요","thread":"스레드 글","blog":{"title":"수도권 전세 흐름","body":"본문"},
+          "cards":[{"title":"핵심 정리","points":["전세: 12주 연속 상승","매매: 보합","입주 물량: 줄어드는 중"]}]}]}""")
+        Reports.render(app, list[0]).forEachIndexed { i, b -> save("report-card-${i + 1}", b) }
+        assertEquals(2, Reports.render(app, list[0]).size)
+        compose.setContent { AppTheme(dark = false) { ReportBox({}, initial = list) } }
+        compose.onRoot().captureRoboImage("build/screens/report-box.png")
+    }
+
+    @Test
     fun labSignals() {
         val stats = Stats.parse(javaClass.classLoader!!.getResource("demo-stats.json")!!.readText())
         assertTrue(StatText.signals(stats, true, 2026).second.isNotEmpty())
