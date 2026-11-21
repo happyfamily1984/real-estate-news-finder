@@ -80,6 +80,15 @@ class MyTest {
     }
 
     @Test
+    fun `단지 표기 이름 - 국토부 이름 대신 내 단지에 적힌 이름을 씀`() {
+        val d = My.parse(json.replace("\"name\":\"한가람신라\",\"kind\"", "\"name\":\"한가람신라아파트\",\"kind\""))
+        ComplexAlias.remember(d)
+        assertEquals("한가람신라아파트", ComplexAlias.of("0123456789ab", "한가람(신라)"))
+        assertEquals("다른단지", ComplexAlias.of("ffffffffffff", "다른단지"))
+        ComplexAlias.map = emptyMap()
+    }
+
+    @Test
     fun `수집기가 실제로 만든 자료도 읽힘`() {
         val f = java.io.File(System.getenv("MY_JSON") ?: return)
         if (!f.exists()) return

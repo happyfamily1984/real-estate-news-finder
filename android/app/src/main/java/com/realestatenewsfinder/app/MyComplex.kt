@@ -88,6 +88,16 @@ data class MyData(val generatedAt: String, val today: String, val court: String,
     val time: Long get() = runCatching { java.time.Instant.parse(generatedAt).toEpochMilli() }.getOrDefault(0L)
 }
 
+/**
+ * 단지 표기 이름. 국토부 자료의 이름과 흔히 부르는 이름이 다른 단지(국토부 '공작아파트' = '공작부영아파트')는
+ * 내 단지 자료에 적힌 이름으로 바꿔 보여줌 → 단지 목록·상세·알림·올릴 글이 모두 같은 이름을 씀
+ */
+object ComplexAlias {
+    @Volatile var map: Map<String, String> = emptyMap()
+    fun of(complexId: String, molitName: String): String = map[complexId] ?: molitName
+    fun remember(data: MyData) { map = data.complexes.filter { it.complexId.isNotBlank() && it.name.isNotBlank() && it.name != it.aptNm }.associate { it.complexId to it.name } }
+}
+
 object My {
     /** 원 → "3억 8,300만원" */
     fun won(v: Long): String = DealFmt.manwon(v / 10000) + "원"
@@ -158,13 +168,14 @@ object My {
             val text = conn.inputStream.bufferedReader().use { it.readText() }
             val data = parse(text)
             cacheFile(ctx).writeText(text)
+            ComplexAlias.remember(data)
             data
         } finally {
             conn.disconnect()
         }
     }
 
-    fun cached(ctx: Context): MyData? = runCatching { parse(cacheFile(ctx).readText()) }.getOrNull()
+    fun cached(ctx: Context): MyData? = runCatching { parse(cacheFile(ctx).readText()) }.getOrNull()?.also { ComplexAlias.remember(it) }
 
     /**
      * 알림 보낼 경매: 처음 보는 물건(new)과 최저가·매각기일이 바뀐 물건(changed).

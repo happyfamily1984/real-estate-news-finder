@@ -42,7 +42,7 @@ class DealCore(ctx: Context, http: HttpGet = defaultHttp, clock: () -> Long = Sy
     val store = DealStore(File(app.filesDir, "deals.json"))
     val regions = DealRegions(app.assets.open("regions.json").bufferedReader().use { it.readText() })
     val molit = MolitClient({ prefs.molitKey }, { prefs.dealProxyUrl }, "", http, app.cacheDir, clock)
-    init { Thread { molit.cleanCache() }.start() } // 기한 지난 임시 저장 자료 정리
+    init { My.cached(app); Thread { molit.cleanCache() }.start() } // 단지 표기 이름 불러오기, 기한 지난 임시 저장 자료 정리
     val service = DealService(molit)
     val alerts = DealAlerts(store, molit, service, AndroidDealNotifier(app), clock)
 

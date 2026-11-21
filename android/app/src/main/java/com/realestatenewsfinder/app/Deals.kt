@@ -440,7 +440,7 @@ class DealService(private val molit: MolitClient, val complexMonths: Int = 6) {
         val map = LinkedHashMap<String, JSONObject>()
         for (d in all) {
             val c = map.getOrPut(d.complexId) {
-                JSONObject().put("id", d.complexId).put("lawdCd", lawdCd).put("aptNm", d.aptNm).put("umdNm", d.umdNm)
+                JSONObject().put("id", d.complexId).put("lawdCd", lawdCd).put("aptNm", ComplexAlias.of(d.complexId, d.aptNm)).put("umdNm", d.umdNm)
                     .put("jibun", d.jibun).put("buildYear", d.buildYear ?: JSONObject.NULL)
                     .put("counts", JSONObject().put("trade", 0).put("jeonse", 0).put("monthly", 0))
                     .put("lastDealDate", JSONObject.NULL).put("lastTradePrice", JSONObject.NULL).put("lastTradeDate", JSONObject.NULL)

@@ -134,7 +134,7 @@ fun DealHome(onRegion: (String) -> Unit, onOpen: (DealTarget) -> Unit, onTool: (
                         Icon(Icons.Filled.NotificationsActive, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(s.optString("aptNm"), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(ComplexAlias.of(s.getString("complexId"), s.optString("aptNm")), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 listOf(core.regions.get(s.getString("lawdCd"))?.optString("fullName").orEmpty(), s.optString("umdNm")).filter { it.isNotBlank() }.joinToString(" ") +
                                     " · " + group.mapNotNull { Molit.TYPES[it.getString("type")] }.joinToString("·"),
@@ -319,7 +319,7 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptN
     var deals by remember { mutableStateOf<List<Deal>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
-    var name by remember(target) { mutableStateOf(noted.firstOrNull()?.aptNm ?: core.store.subscriptions.objects().firstOrNull { it.getString("complexId") == target.complexId }?.optString("aptNm").orEmpty()) }
+    var name by remember(target) { mutableStateOf(ComplexAlias.map[target.complexId] ?: noted.firstOrNull()?.aptNm ?: core.store.subscriptions.objects().firstOrNull { it.getString("complexId") == target.complexId }?.optString("aptNm").orEmpty()) }
     var umd by remember(target) { mutableStateOf(noted.firstOrNull()?.umdNm.orEmpty()) }
     var buildYear by remember(target) { mutableStateOf<Int?>(null) }
     var subscribed by remember(target) { mutableStateOf(core.subscribedTypes(target.lawdCd, target.complexId)) }
@@ -334,7 +334,7 @@ fun ComplexDetailScreen(target: DealTarget, onBack: () -> Unit, onHistory: (aptN
             val all = withContext(Dispatchers.IO) { core.service.getDeals(target.lawdCd, target.complexId, type, period.fetchMonths) }
             val inPeriod = all.filter { it.date >= period.since(today) }
             deals = inPeriod
-            (inPeriod.firstOrNull() ?: all.firstOrNull())?.let { d -> if (name.isBlank()) name = d.aptNm; if (umd.isBlank()) umd = d.umdNm; if (buildYear == null) buildYear = d.buildYear }
+            (inPeriod.firstOrNull() ?: all.firstOrNull())?.let { d -> if (name.isBlank()) name = ComplexAlias.of(target.complexId, d.aptNm); if (umd.isBlank()) umd = d.umdNm; if (buildYear == null) buildYear = d.buildYear }
         } catch (e: Exception) {
             error = e.message ?: "실거래 자료를 받지 못했어요"
         }
