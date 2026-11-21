@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.graphics.Bitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
@@ -148,6 +149,20 @@ class AndroidTest {
         assertEquals(2, Reports.render(app, list[0]).size)
         compose.setContent { AppTheme(dark = false) { ReportBox({}, initial = list) } }
         compose.onRoot().captureRoboImage("build/screens/report-box.png")
+    }
+
+    /** 단지 고르기: 도구에서 단지를 고르러 오면 '내 단지' 6곳이 먼저 보이고, 아파트는 바로 골라짐 */
+    @Test
+    fun myPick() {
+        java.io.File(app.filesDir, "my.json").writeText(javaClass.getResource("/my.json")!!.readText())
+        var picked: Triple<DealTarget, String, String>? = null
+        compose.setContent { AppTheme(dark = false) { ComplexListScreen("41173", {}, note = "자금 계산할 단지를 고르세요") { t, n, u -> picked = Triple(t, n, u) } } }
+        compose.onNodeWithText("힐스테이트 평촌역 더퍼스트").assertExists()
+        compose.onNodeWithText("한가람한양").assertExists()
+        compose.onRoot().captureRoboImage("build/screens/my-pick.png")
+        compose.onNodeWithText("공작부영", substring = true).performClick()
+        assertTrue(picked!!.second.startsWith("공작부영")); assertEquals("41173", picked!!.first.lawdCd); assertTrue(picked!!.first.complexId.isNotBlank())
+        java.io.File(app.filesDir, "my.json").delete()
     }
 
     /** 내 단지 탭: 수집기가 실제로 만든 자료(2026-11-21)로 화면을 그림 */
