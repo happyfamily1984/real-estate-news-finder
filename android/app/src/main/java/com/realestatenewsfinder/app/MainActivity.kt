@@ -326,7 +326,8 @@ fun App() {
                         if (id == "history" || id == "funding") {
                             // 단지를 먼저 골라야 함: 마지막으로 본 지역의 단지 목록을 열고, 없으면 아래에서 지역을 고르라고 알림
                             pickFor = id
-                            val last = Prefs(ctx).dealRecent.firstOrNull()
+                            // 마지막으로 본 지역이 없으면 내 단지가 있는 지역으로 엶 (목록 위 '내 단지'에서 바로 고름)
+                            val last = Prefs(ctx).dealRecent.firstOrNull() ?: My.cached(ctx)?.complexes?.firstOrNull()?.lawdCd?.takeIf { it.isNotBlank() }
                             if (last != null) dealRegion = last else Toast.makeText(ctx, "아래 '단지 찾기'에서 시·군·구를 고르면 단지를 선택할 수 있어요.", Toast.LENGTH_LONG).show()
                         } else dealTool = id
                     },

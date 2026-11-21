@@ -1,5 +1,6 @@
 package com.realestatenewsfinder.app
 
+import androidx.compose.ui.draw.alpha
 import android.Manifest
 import android.os.Build
 import android.widget.Toast
@@ -242,6 +243,9 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     // 정렬: 가나다순(기본) 또는 최근 매매 실거래가 높은 순 (고른 것은 다음에도 기억). 매매 거래가 없는 단지는 맨 뒤
     var byPrice by remember { mutableStateOf(Prefs(ctx).dealSortByPrice) }
+    // 내 단지: 메인 단지만 바로 고르기 (받아 둔 내 단지 자료). 도구에서 단지를 고르러 왔으면 이 목록부터 보여줌
+    val mine = remember { My.cached(ctx)?.complexes.orEmpty() }
+    var showMine by remember { mutableStateOf(note != null && mine.isNotEmpty()) }
     val shown = remember(list, query, byPrice) {
         val q = query.trim().replace(" ", "")
         val found = list.orEmpty().filter { q.isEmpty() || it.getString("aptNm").replace(" ", "").contains(q, true) || it.optString("umdNm").contains(q) || guName[it.optString("lawdCd")].orEmpty().replace(" ", "").contains(q) }
@@ -260,11 +264,39 @@ fun ComplexListScreen(lawdCd: String, onBack: () -> Unit, note: String? = null, 
         SearchPill(query, { query = it }, Modifier.padding(horizontal = 14.dp).fillMaxWidth())
         Spacer(Modifier.height(8.dp))
         Row(Modifier.padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ChoicePill("가나다순", !byPrice) { byPrice = false; Prefs(ctx).dealSortByPrice = false }
-            ChoicePill("실거래가 높은순", byPrice) { byPrice = true; Prefs(ctx).dealSortByPrice = true }
+            if (mine.isNotEmpty()) ChoicePill("내 단지", showMine) { showMine = true }
+            ChoicePill("가나다순", !showMine && !byPrice) { showMine = false; byPrice = false; Prefs(ctx).dealSortByPrice = false }
+            ChoicePill("실거래가 높은순", !showMine && byPrice) { showMine = false; byPrice = true; Prefs(ctx).dealSortByPrice = true }
         }
         Spacer(Modifier.height(8.dp))
-        if (error != null) {
+        if (showMine) {
+            val q = query.trim().replace(" ", "")
+            LazyColumn(contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(mine.filter { q.isEmpty() || it.name.replace(" ", "").contains(q, true) }, key = { "my" + it.id }) { c ->
+                    val t = c.target
+                    val main = c.areas.maxByOrNull { it.tradeCount }
+                    SoftCard(onClick = {
+                        if (t != null) onOpen(t.copy(type = if (c.trade12 > 0) "trade" else if (c.jeonse12 > 0) "jeonse" else "monthly"), c.name, c.umdNm)
+                        else Toast.makeText(ctx, "오피스텔은 실거래 도구와 연결돼 있지 않아요. 아래 '내 단지' 탭에서 볼 수 있어요.", Toast.LENGTH_LONG).show()
+                    }) {
+                        Row(Modifier.alpha(if (t != null) 1f else 0.5f), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(c.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    listOfNotNull(c.kindLabel, c.umdNm.takeIf { it.isNotBlank() }, c.buildYear?.let { "${it}년" },
+                                        if (t != null) "최근 1년 매매 ${c.trade12} · 전세 ${c.jeonse12} · 월세 ${c.monthly12}" else "내 단지 탭에서만 볼 수 있어요").joinToString(" · "),
+                                    fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (main != null && main.tradeMedian > 0) Column(horizontalAlignment = Alignment.End) {
+                                Text(DealFmt.manwon(main.tradeMedian), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                                Text("${main.area}㎡ 1년 중간값", fontSize = 11.sp, color = muted)
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (error != null) {
             Column(Modifier.padding(20.dp)) {
                 Text("⚠ $error", color = MaterialTheme.colorScheme.error, fontSize = 14.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(10.dp))
