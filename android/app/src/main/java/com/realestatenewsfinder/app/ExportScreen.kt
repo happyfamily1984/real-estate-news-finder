@@ -96,9 +96,16 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
     val scanned = (scan as? ScanState.Done)?.result
     val link = remember(scanned?.finalUrl) { articleLink(scanned?.finalUrl, post.url) }
     val linkOn = kind != "community" && includeLink
-    val outText = if (blog) listOfNotNull(thread.trimEnd(), if (linkOn) "원문 보기: $link" else null, blogTags.trim().ifBlank { null }).joinToString("\n\n")
+    // 블로그 글 틀: 날짜·글·계정에 따라 달라짐 (두 계정은 항상 다른 틀). '다시 요약'을 누르면 다음 틀로 씀
+    Account.load(ctx)
+    val account = Account.current
+    val blogDay = remember { java.time.LocalDate.now(KST) }
+    val blogStyle = BlogMix.styleIndex(post.id, account, blogDay, summaryRun)
+    var opinion by remember { mutableStateOf("") }
+    val outText = if (blog) listOfNotNull(BlogMix.withOpinion(thread.trimEnd(), opinion, blogStyle), if (linkOn) "원문 보기: $link" else null, blogTags.trim().ifBlank { null }).joinToString("\n\n")
         else if (linkOn) thread.trimEnd() + "\n\n" + link else thread
-    val sendNow = { files: List<File> -> sent = true; UploadLog.mark(ctx, post.id); PlatformKit.send(ctx, platform, files, if (blog) blogTitle else "", outText) }
+    val sendNow = { files: List<File> -> sent = true; UploadLog.mark(ctx, post.id); if (blog) BlogLog.mark(ctx, post.id, account); PlatformKit.send(ctx, platform, files, if (blog) blogTitle else "", outText) }
+    var dupAsk by remember { mutableStateOf<BlogLog.Sent?>(null) }
 
     if (showAutoHelp) {
         val send = { showAutoHelp = false; result?.files?.let { sendNow(it) }; Unit }
@@ -135,9 +142,9 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
         if (body.length < 80 && post.summary.isNullOrBlank() && post.details.isEmpty()) { summaryState = "원문 내용을 읽지 못했어요. '다시 읽기'를 누르거나 직접 고쳐주세요."; return@LaunchedEffect }
         summaryState = "working"
         if (blog) {
-            val b = Summarizer.summarizeBlog(ctx, post, kind, sourceName, body)
+            val b = Summarizer.summarizeBlog(ctx, post, kind, sourceName, body, blogStyle)
             if (b != null) {
-                blogTitle = b.title; thread = b.body; if (b.tags.isNotEmpty()) blogTags = b.tags.joinToString(" ") { "#$it" }
+                blogTitle = b.title; thread = BlogMix.restyle(b.body, blogStyle); if (b.tags.isNotEmpty()) blogTags = b.tags.joinToString(" ") { "#$it" }
                 if (post.details.isEmpty() && b.points.isNotEmpty()) pointsText = b.points.joinToString("\n")
                 summaryState = "done"
             } else summaryState = "요약 실패: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
@@ -304,6 +311,8 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                         if (blog) {
                             Spacer(Modifier.height(8.dp))
                             OutlinedTextField(blogTags, { blogTags = it }, Modifier.fillMaxWidth(), label = { Text("태그") }, textStyle = LocalTextStyle.current.copy(fontSize = 14.sp))
+                            Spacer(Modifier.height(8.dp))
+                            BlogExtras(opinion, { opinion = it }, blogStyle, account, "", onNextStyle = { if (scanEnded && summaryState != "working") summaryRun++ }, onEvalAgain = null, nextLabel = "다른 틀로 다시 쓰기")
                         }
                         if (kind != "community") {
                             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -329,7 +338,7 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                             else -> Text(summaryState, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.error)
                         }
                         Spacer(Modifier.height(8.dp))
-                        if (blog) Text("블로그 글 구성: 핵심 낱말이 앞에 오는 제목, 결론부터 쓰는 첫 문단, 질문형 소제목 3개, 한눈에 정리, 마무리, 태그. 올리면 네이버 블로그 글쓰기 화면에 사진이 들어가고 본문은 붙여넣기 하면 돼요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
+                        if (blog) Text("블로그 글 구성: 핵심 낱말이 앞에 오는 제목, 결론부터 쓰는 첫 문단, 소제목, 숫자마다 평가, 요점 정리, 마무리, 태그. 소제목 꼴과 정리 위치는 날짜·계정마다 달라져요. 올리면 네이버 블로그 글쓰기 화면에 사진이 들어가고 본문은 붙여넣기 하면 돼요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
                         else if (platform == Platform.OPENTALK) Text("올리면 카카오톡에서 오픈톡 방을 고르는 화면이 열려요. 카드뉴스를 보낸 뒤 글을 붙여넣기 하세요.", fontSize = 11.sp, lineHeight = 16.sp, color = muted)
                         else {
                             Text("🧪 실험실 · 글 형식", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -369,9 +378,12 @@ fun ExportDetail(post: Post, source: Source?, onBack: () -> Unit, onSent: () -> 
                 if (files != null) {
                     ThreadsKit.copy(ctx, "본문", outText) // 자동 입력이 안 되면 붙여넣기만 하면 되도록
                     // 자동 입력이 켜져 있으면: (설정에 따라) 계정 확인·전환 → 보내기 → 본문 붙여넣기
-                    if (platform != Platform.THREADS || ThreadsAuto.isEnabled(ctx)) sendNow(files) else showAutoHelp = true
+                    val other = if (blog) BlogLog.otherAccount(ctx, post.id, account) else null
+                    if (other != null) dupAsk = other
+                    else if (platform != Platform.THREADS || ThreadsAuto.isEnabled(ctx)) sendNow(files) else showAutoHelp = true
                 }
             }
+            dupAsk?.let { d -> BlogDupDialog(d, onGo = { dupAsk = null; files?.let { sendNow(it) } }, onCancel = { dupAsk = null }) }
             if (askAgain) AlertDialog(
                 onDismissRequest = { askAgain = false },
                 title = { Text("이미 올린 글이에요") },

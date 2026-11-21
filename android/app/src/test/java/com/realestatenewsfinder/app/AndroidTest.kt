@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.graphics.Bitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -119,6 +120,9 @@ class AndroidTest {
             compose.setContent { AppTheme(dark = false) { StatShareScreen(stats.series[0], stats.sido, {}, {}) } }
             compose.waitUntil(15000) { compose.onAllNodes(androidx.compose.ui.test.hasText("블로그에 올리기")).fetchSemanticsNodes().isNotEmpty() }
             compose.onRoot().captureRoboImage("build/screens/platform-blog.png")
+            // 블로그 글 아래쪽: 중개사 한마디 칸, 글 틀, 평가 안내
+            compose.onNode(androidx.compose.ui.test.hasText("다른 틀로")).performScrollTo()
+            compose.onRoot().captureRoboImage("build/screens/platform-blog-extras.png")
         } finally { Platform.select(app, Platform.THREADS) }
     }
 

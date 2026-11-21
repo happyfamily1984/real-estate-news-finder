@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -88,9 +89,37 @@ fun ThreadShareScreen(
     val platform = remember { Platform.load(ctx); Platform.current }
     val blog = platform == Platform.BLOG
     val blogKey = blogName?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null } ?: title
-    var blogTitle by remember(blogKey) { mutableStateOf(blogTitleText ?: BlogText.title(blogKey, LocalDate.now(KST))) }
-    var blogBody by remember(if (blogBodyText != null) blogBodyText else text, blogKey) { mutableStateOf(blogBodyText ?: BlogText.body(blogKey, text)) }
-    val outText = if (blog) blogBody else text
+    // 블로그 글 틀: 날짜·글·계정에 따라 달라짐 (두 계정은 항상 다른 틀). '다른 틀로'를 누르면 다음 틀
+    Account.load(ctx)
+    val account = Account.current
+    val today = remember { LocalDate.now(KST) }
+    var shift by remember { mutableIntStateOf(0) }
+    val blogId = "$cacheId|$blogKey"
+    val style = BlogMix.styleIndex(blogId, account, today, shift)
+    var blogTitle by remember(blogKey, style) { mutableStateOf(blogTitleText ?: BlogText.title(blogKey, today, style)) }
+    val blogBase = remember(if (blogBodyText != null) blogBodyText else text, blogKey, style) { BlogMix.restyle(blogBodyText ?: BlogText.body(blogKey, text, style), style) }
+    var blogBody by remember(blogBase) { mutableStateOf(blogBase) }
+    // 중개사 한마디: 직접 쓴 2~3줄이 본문 단락으로 들어감
+    var opinion by remember { mutableStateOf("") }
+    // 평가: 숫자가 든 단락마다 AI가 한 줄 풀이를 씀 (무료 키). 글을 손으로 고친 뒤에는 덮어쓰지 않음
+    var evalNote by remember { mutableStateOf("") }
+    var evalRun by remember { mutableIntStateOf(0) }
+    LaunchedEffect(blog, blogBase, evalRun) {
+        if (!blog) return@LaunchedEffect
+        if (BlogMix.evalTargets(blogBase).isEmpty()) { evalNote = ""; return@LaunchedEffect }
+        if (!Summarizer.hasKey(ctx)) { evalNote = "설정에 무료 AI 키(Gemini 등)를 넣으면 숫자 단락마다 평가가 들어가요."; return@LaunchedEffect }
+        evalNote = "working"
+        delay(1200) // 고르기를 바꾸는 동안에는 기다림
+        val ev = Summarizer.evaluate(ctx, blogBase)
+        evalNote = when {
+            ev == null -> "평가를 받지 못했어요: ${Summarizer.lastError() ?: "알 수 없는 오류"}"
+            ev.isEmpty() -> "넣을 만한 평가가 없었어요. '평가 다시 받기'를 눌러 보세요."
+            blogBody != blogBase -> "글을 고친 뒤라 평가를 넣지 않았어요. '평가 다시 받기'를 누르면 처음 글에 평가를 넣어요."
+            else -> { blogBody = BlogMix.withEvals(blogBase, ev, style); "평가 ${ev.size}개를 넣었어요. 올리기 전에 읽고 고쳐 주세요." }
+        }
+    }
+    val outText = if (blog) BlogMix.withOpinion(blogBody, opinion, style) else text
+    var dupAsk by remember { mutableStateOf<BlogLog.Sent?>(null) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP && sent) onSent() }
@@ -109,7 +138,10 @@ fun ThreadShareScreen(
         pieces = p; files = f
     }
 
-    fun share() { files?.let { sent = true; PlatformKit.send(ctx, platform, it, if (blog) blogTitle else "", outText) } }
+    fun shareNow() { files?.let { sent = true; if (blog) BlogLog.mark(ctx, blogId, account); PlatformKit.send(ctx, platform, it, if (blog) blogTitle else "", outText) } }
+    // 같은 자료를 다른 계정 블로그에 올린 적이 있으면 먼저 알려 줌
+    fun share() { val other = if (blog) BlogLog.otherAccount(ctx, blogId, account) else null; if (other != null) dupAsk = other else shareNow() }
+    dupAsk?.let { d -> BlogDupDialog(d, onGo = { dupAsk = null; shareNow() }, onCancel = { dupAsk = null }) }
     if (showAutoHelp) AlertDialog(
         onDismissRequest = { showAutoHelp = false },
         title = { Text("자동 입력 켜기") },
@@ -166,6 +198,9 @@ fun ThreadShareScreen(
                         OutlinedTextField(blogTitle, { blogTitle = it }, Modifier.fillMaxWidth(), label = { Text("제목") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp))
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(blogBody, { blogBody = it }, Modifier.fillMaxWidth(), label = { Text("본문") }, textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+                        Spacer(Modifier.height(8.dp))
+                        BlogExtras(opinion, { opinion = it }, style, account, evalNote,
+                            onNextStyle = { shift++ }, onEvalAgain = { blogBody = blogBase; evalRun++ })
                     } else OutlinedTextField(text, onText, Modifier.fillMaxWidth(), textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
                     Spacer(Modifier.height(8.dp))
                     Text(hint + when (platform) {
@@ -297,3 +332,48 @@ fun DealShareScreen(
         PillRow { DealPeriod.entries.forEach { p -> ChoicePill(p.label, period == p) { period = p } } }
     }
 }
+
+
+/**
+ * 블로그 글을 남의 글·어제 글과 다르게 만드는 칸: 중개사 한마디(직접 쓰기) + 지금 틀 + 평가 상태.
+ * onEvalAgain이 null이면 평가 줄을 보여 주지 않음(뉴스 글은 AI가 본문을 쓸 때 평가까지 씀).
+ */
+@Composable
+fun BlogExtras(
+    opinion: String, onOpinion: (String) -> Unit, style: Int, account: Int, evalNote: String,
+    onNextStyle: () -> Unit, onEvalAgain: (() -> Unit)?, nextLabel: String = "다른 틀로",
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val st = BlogMix.style(style)
+    OutlinedTextField(opinion, onOpinion, Modifier.fillMaxWidth(), label = { Text("중개사 한마디 (직접 쓰기, 2~3줄)") },
+        placeholder = { Text("예: 요즘 이 평형은 전세 문의가 매매보다 많아요.", fontSize = 14.sp) }, minLines = 2,
+        textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 21.sp))
+    Text(
+        if (opinion.isBlank()) "비워 두면 숫자만 바뀐 글이 돼요. 직접 본 것·들은 것을 2~3줄 쓰면 '${st.mark} ${st.opinion}' 단락으로 ${if (st.opinionFirst) "첫 문단 뒤" else "참고 앞"}에 들어가요."
+        else "올릴 때 '${st.mark} ${st.opinion}' 단락으로 ${if (st.opinionFirst) "첫 문단 뒤" else "참고 앞"}에 들어가요.",
+        fontSize = 12.sp, lineHeight = 17.sp, color = if (opinion.isBlank()) MaterialTheme.colorScheme.error else muted, modifier = Modifier.padding(top = 4.dp),
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("글 틀 ${Math.floorMod(style, BlogMix.STYLES.size) + 1}/${BlogMix.STYLES.size} · ${Watermark.ACCOUNTS.getOrElse(account) { "" }} 계정용 (계정마다 다른 틀)", fontSize = 12.sp, lineHeight = 17.sp, color = muted, modifier = Modifier.weight(1f))
+        TextButton(onClick = onNextStyle) { Text(nextLabel, fontSize = 13.sp) }
+    }
+    if (onEvalAgain != null && evalNote.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (evalNote == "working") { CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
+        Text(if (evalNote == "working") "숫자 단락마다 평가를 쓰는 중…" else evalNote, fontSize = 12.sp, lineHeight = 17.sp, color = muted, modifier = Modifier.weight(1f))
+        if (evalNote != "working") TextButton(onClick = onEvalAgain) { Text("평가 다시 받기", fontSize = 13.sp) }
+    }
+}
+
+/** 같은 자료를 다른 계정 블로그에 올린 적이 있을 때 */
+@Composable
+fun BlogDupDialog(d: BlogLog.Sent, onGo: () -> Unit, onCancel: () -> Unit) = AlertDialog(
+    onDismissRequest = onCancel,
+    title = { Text("다른 계정 블로그에 올린 자료예요") },
+    text = {
+        Text("${UploadLog.label(d.at)}에 ${Watermark.ACCOUNTS.getOrElse(d.account) { "다른" }} 계정으로 올렸어요.\n\n같은 글이 두 블로그에 있으면 한쪽이 비슷한 글로 묶여 검색에서 빠질 수 있어요. " +
+            "글 틀은 계정에 맞게 바꿔 뒀지만 숫자는 같으니, 중개사 한마디를 다르게 쓰고 올리는 것이 좋아요.", fontSize = 14.sp, lineHeight = 20.sp)
+    },
+    confirmButton = { TextButton(onClick = onGo) { Text("그래도 올리기", fontWeight = FontWeight.Bold) } },
+    dismissButton = { TextButton(onClick = onCancel) { Text("취소") } },
+)

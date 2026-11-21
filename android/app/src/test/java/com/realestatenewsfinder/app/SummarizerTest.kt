@@ -166,4 +166,44 @@ class SummarizerTest {
         assertTrue(body.trim().lines().last().startsWith("#과천시 #최고 #실거래") && body.contains("#부동산"))
         assertEquals(Platform.BLOG, Platform.of("blog")); assertEquals(Platform.THREADS, Platform.of(null))
     }
+
+    // ----- 블로그 글 틀 · 중개사 한마디 · 평가 · 계정 -----
+    @Test
+    fun blogMix() {
+        val day = java.time.LocalDate.of(2026, 11, 21)
+        // 두 계정은 어느 날 어느 글이든 다른 틀, 날이 바뀌면 틀도 바뀜
+        for (d in 0L..6L) for (k in listOf("stat-a", "top|과천", "x")) assertTrue(BlogMix.styleIndex(k, 0, day.plusDays(d)) != BlogMix.styleIndex(k, 1, day.plusDays(d)))
+        assertTrue(BlogMix.styleIndex("k", 0, day) != BlogMix.styleIndex("k", 0, day.plusDays(1)))
+        assertTrue(BlogMix.styleIndex("k", 0, day) != BlogMix.styleIndex("k", 0, day, shift = 1))
+        // 틀마다 제목·소제목이 다름
+        val text = "과천에서 제일 비싸게 팔린 곳이에요.\n\n1. 가 25억\n2. 나 20억\n\n※ 1년 이전 거래는 빠짐\n\n어디가 제일 끌리세요?"
+        val bodies = (0..3).map { BlogText.body("과천시 최고 실거래 단지", text, it) }
+        assertEquals(4, bodies.distinct().size); assertEquals(4, (0..3).map { BlogText.title("과천시 최고 실거래 단지", day, it) }.distinct().size)
+        assertTrue(bodies[1].contains("▶ 핵심 숫자 정리\n\n1. 가 25억") && bodies[1].indexOf("자료:") < bodies[1].indexOf("▶ 알아둘 점"))
+        // 써 둔 글은 소제목 기호만 바꿈
+        assertEquals("첫 문단\n\n◆ 소제목\n\n내용", BlogMix.restyle("첫 문단\n\n■ 소제목\n\n내용", 2))
+        // 중개사 한마디: 0번 틀은 첫 문단 뒤, 1번 틀은 참고 앞. 비어 있으면 그대로
+        assertEquals(bodies[0], BlogMix.withOpinion(bodies[0], "  ", 0))
+        assertTrue(BlogMix.withOpinion(bodies[0], "전세 문의가 많아요.", 0).startsWith("과천에서 제일 비싸게 팔린 곳이에요.\n\n■ 중개사 한마디\n\n전세 문의가 많아요.\n\n■ 숫자로 보는 핵심"))
+        assertTrue(BlogMix.withOpinion(bodies[1], "전세 문의가 많아요.", 1).contains("어디가 제일 끌리세요?\n\n▶ 현장에서 본 생각\n\n전세 문의가 많아요.\n\n자료:"))
+        assertEquals("본문\n\n■ 중개사 한마디\n\n의견", BlogMix.withOpinion("본문", "의견", 0))
+        // 평가: 숫자가 든 본문 단락에만, 단락에 없는 숫자가 든 평가는 버림
+        val b = bodies[0]
+        val input = BlogMix.evalInput(b)
+        assertTrue(input.startsWith("[1] 1. 가 25억\n2. 나 20억") && !input.contains("[2]") && !input.contains("1년 이전"))
+        val ev = BlogMix.parseEvals("[1] 1위와 2위 차이가 꽤 큰 편입니다.\n[2] 없는 단락", b)
+        assertEquals(mapOf(1 to "1위와 2위 차이가 꽤 큰 편입니다."), ev)
+        assertTrue(BlogMix.parseEvals("[1] 30억까지 오른 셈이라 차이가 큽니다.", b).isEmpty())
+        val out = BlogMix.withEvals(b, ev, 0)
+        assertTrue(out.contains("2. 나 20억\n\n→ 1위와 2위 차이가 꽤 큰 편입니다.\n\n■ 마무리"))
+        assertTrue(BlogMix.evalTargets(out).size == 1) // 이미 붙은 평가에는 또 붙이지 않음
+        // AI 블로그 지시문도 틀마다 다르고, 평가를 쓰라고 함
+        assertEquals(4, (0..3).map { Summarizer.blogSystem("news", emptyList(), "", it) }.distinct().size)
+        assertTrue(Summarizer.blogSystem("news", emptyList()).contains("평가"))
+        // 다른 계정으로 올린 기록
+        val now = 1_800_000_000_000L
+        val log = BlogLog.parse(BlogLog.toJson(listOf(BlogLog.Sent("a", 0, now - 86_400_000L), BlogLog.Sent("old", 0, now - 40L * 86_400_000L))))
+        assertEquals(0, BlogLog.otherAccount(log, "a", 1, now)!!.account)
+        assertNull(BlogLog.otherAccount(log, "a", 0, now)); assertNull(BlogLog.otherAccount(log, "old", 1, now)); assertNull(BlogLog.otherAccount(log, "b", 1, now))
+    }
 }
