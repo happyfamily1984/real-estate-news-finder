@@ -35,13 +35,37 @@ const post = (label, path, body) => show(label, `${BASE}${path}`, {
   method: 'POST', body: JSON.stringify(body),
   headers: { 'Content-Type': 'application/json;charset=UTF-8', Accept: 'application/json', Referer: `${BASE}/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml`, Origin: BASE, 'SC-Userid': 'NONUSER', submissionid: 'mf_wfm_mainFrame_sbm_selectGdsDtlSrch' },
 });
-const txt = await post('물건 검색(안양 동안구, 90일)', '/pgj/pgjsearch/searchControllerMain.on', search({}));
-try {
-  const j = JSON.parse(txt);
-  console.log('최상위 키:', Object.keys(j), '/ data 키:', Object.keys(j.data || {}));
-  console.log('pageInfo:', JSON.stringify(j.data?.dma_pageInfo));
+
+const all = [];
+let info = null, first = null;
+for (let page = 1; page <= 15; page++) {
+  const b = search({ cortOfcCd: 'B000254', rprsAdongSdCd: '', rprsAdongSggCd: '' }, 100);
+  b.dma_pageInfo.pageNo = page;
+  const txt = await post(`안양지원 ${page}쪽`, '/pgj/pgjsearch/searchControllerMain.on', b);
+  let j; try { j = JSON.parse(txt); } catch { console.log('JSON 아님:', txt.slice(0, 800)); break; }
   const list = j.data?.dlt_srchResult || [];
-  console.log('건수:', list.length);
-  if (list[0]) console.log('첫 물건 전체:', JSON.stringify(list[0]));
-  for (const r of list) console.log(' -', Object.entries(r).filter(([k, v]) => v && /SaNo|printSt|buldNm|Amt|Price|Giil|yuchal|usg|Usg|jiwonNm|bldNm|Nm$/.test(k)).map(([k, v]) => `${k}=${String(v).slice(0, 60)}`).join(' | '));
-} catch (e) { console.log('JSON 아님:', txt.slice(0, 1500).replace(/\s+/g, ' ')); }
+  if (page === 1) { info = j.data?.dma_pageInfo; first = list[0]; console.log('data 키:', Object.keys(j.data || {}), 'message:', j.message, 'pageInfo:', JSON.stringify(info)); }
+  all.push(...list);
+  if (list.length < 100) break;
+  await new Promise((r) => setTimeout(r, 1200));
+}
+console.log('모은 건수:', all.length, '법원:', [...new Set(all.map((r) => r.jiwonNm))].join(','));
+console.log('용도별:', JSON.stringify(Object.fromEntries(Object.entries(Object.groupBy(all, (r) => r.dspslUsgNm)).map(([k, v]) => [k, v.length]))));
+if (first) console.log('첫 물건 전체:', JSON.stringify(first));
+const hit = all.filter((r) => /한가람|공작|아크로타워|힐스테이트|더퍼스트/.test(`${r.buldNm} ${r.printSt}`));
+console.log('6개 단지 낱말에 걸린 물건:', hit.length);
+for (const r of hit) console.log(' *', JSON.stringify(Object.fromEntries(Object.entries(r).filter(([, v]) => v !== '' && v != null))));
+const gy = all.filter((r) => /관양동|평촌동|호계동|비산동/.test(r.printSt) && /아파트|오피스텔/.test(r.dspslUsgNm)).slice(0, 6);
+for (const r of gy) console.log(' ·', r.srnSaNo, r.dspslUsgNm, r.buldNm, '|', r.printSt, '|', r.gamevalAmt, r.minmaePrice, r.yuchalCnt, r.maeGiil);
+const t = hit[0] || gy[0] || first;
+if (t) {
+  for (const [label, path, body] of [
+    ['상세A', '/pgj/pgj15B/selectAuctnCsSrchRslt.on', { dma_srchGdsDtlSrch: { csNo: t.saNo, cortOfcCd: t.boCd, dspslGdsSeq: t.maemulSer, pgmId: 'PGJ15BA00', srchInfo: {} } }],
+    ['상세B', '/pgj/pgj15B/selectAuctnCsSrchRslt.on', { dma_srchGdsDtlSrch: { csNo: t.saNo, cortOfcCd: t.boCd, dspslGdsSeq: String(t.maemulSer), pgmId: 'PGJ15BA00' } }],
+  ]) {
+    const d = await post(label, path, body);
+    try { const j = JSON.parse(d); console.log(label, 'message:', j.message, 'data 키:', Object.keys(j.data || {})); for (const [k, v] of Object.entries(j.data?.dma_result || j.data || {})) console.log('   ', k, '=>', JSON.stringify(v).slice(0, 700)); } catch { console.log(label, d.slice(0, 600)); }
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+}
+process.exit(1); // 진단만 하고 멈춤 (수집 로그가 섞이지 않게)
