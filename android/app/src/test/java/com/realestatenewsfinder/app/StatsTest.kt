@@ -115,4 +115,26 @@ class StatsTest {
         assertTrue(text.endsWith("너는 지금 사야 한다고 봐, 기다려야 한다고 봐?"))
         assertTrue(StatText.signals(Stats.parse("""{"version":1,"sido":[],"series":[]}"""), true, 2026).second.isEmpty())
     }
+
+    // ----- 보고서함 -----
+    private val reportJson = """{"version":1,"reports":[
+      {"id":"a","title":"옛 보고서","date":"2026-11-01","thread":"옛 글"},
+      {"id":"b","title":"수도권 전세 흐름 정리","date":"2026-11-21","summary":"한 줄","thread":"스레드 글","talk":"오픈톡 글",
+       "blog":{"title":"수도권 전세 흐름","body":"본문입니다.","tags":["전세","수도권 아파트"]},
+       "cards":[{"title":"핵심","points":["전세: 상승","매매: 보합"]},{"title":"빈 카드","points":[]}],"sources":["한국부동산원 — https://example.com"]},
+      {"title":""}]}"""
+
+    @Test
+    fun reports() {
+        val list = Reports.parse(reportJson)
+        assertEquals(listOf("b", "a"), list.map { it.id }) // 최근 것이 먼저, 제목 없는 것은 뺌
+        val r = list[0]
+        assertEquals("스레드 글", r.textFor(Platform.THREADS)); assertEquals("오픈톡 글", r.textFor(Platform.OPENTALK)); assertEquals("옛 글", list[1].textFor(Platform.OPENTALK))
+        assertEquals(1, r.cards.size)
+        assertEquals("본문입니다.\n\n참고 자료\n- 한국부동산원 — https://example.com\n\n#전세 #수도권아파트", r.blogFull())
+        assertEquals("옛 보고서", list[1].blogTitle); assertEquals("옛 글", list[1].blogFull())
+        assertTrue(Reports.parse("""{"version":1,"reports":[]}""").isEmpty())
+        assertEquals("https://raw.githubusercontent.com/o/r/HEAD/reports/reports.json", Reports.urlOf("https://raw.githubusercontent.com/o/r/data/posts.json"))
+        assertEquals("https://x.test/a/reports.json", Reports.urlOf("https://x.test/a/posts.json"))
+    }
 }

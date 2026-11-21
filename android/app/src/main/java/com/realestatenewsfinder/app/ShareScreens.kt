@@ -74,6 +74,8 @@ fun ThreadShareScreen(
     onBack: () -> Unit, onSent: () -> Unit,
     /** 블로그 제목·태그에 쓸 이름: 검색에 걸리게 지역·단지 이름이 앞에 오는 것 (예: "안양시 동안구 최고 실거래 단지"). 없으면 화면 제목 */
     blogName: String? = null,
+    /** 블로그 제목·본문을 미리 써 둔 경우(보고서): 화면 제목으로 만들지 않고 이것을 씀 */
+    blogTitleText: String? = null, blogBodyText: String? = null,
     controls: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
@@ -86,8 +88,8 @@ fun ThreadShareScreen(
     val platform = remember { Platform.load(ctx); Platform.current }
     val blog = platform == Platform.BLOG
     val blogKey = blogName?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null } ?: title
-    var blogTitle by remember(blogKey) { mutableStateOf(BlogText.title(blogKey, LocalDate.now(KST))) }
-    var blogBody by remember(text, blogKey) { mutableStateOf(BlogText.body(blogKey, text)) }
+    var blogTitle by remember(blogKey) { mutableStateOf(blogTitleText ?: BlogText.title(blogKey, LocalDate.now(KST))) }
+    var blogBody by remember(if (blogBodyText != null) blogBodyText else text, blogKey) { mutableStateOf(blogBodyText ?: BlogText.body(blogKey, text)) }
     val outText = if (blog) blogBody else text
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {

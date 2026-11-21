@@ -59,26 +59,27 @@ private fun valueColor(s: StatSeries, v: Double?): Color = when {
 fun StatsScreen(
     stats: Stats?, error: String?, loading: Boolean, onRefresh: () -> Unit, onOpen: (StatSeries) -> Unit,
     onRegion: (String) -> Unit = {}, onDealRegion: (String) -> Unit = {}, onDealOpen: (DealTarget) -> Unit = {},
-    onDealTool: (String) -> Unit = {}, onLab: (String) -> Unit = {},
+    onDealTool: (String) -> Unit = {}, onLab: (String) -> Unit = {}, onReport: (Report) -> Unit = {},
     mode: Int = 0, onMode: (Int) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
             Text("통계", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
             Text(
-                when (mode) { 1 -> "지역을 고르면 그 지역 지표로 이미지와 글이 만들어져요"; 2 -> "단지 실거래를 보고 알림을 받거나 ${Platform.current.label}용으로 만들어요"; else -> "지표를 누르면 ${Platform.current.label}용 그래프 이미지와 글이 만들어져요" },
+                when (mode) { 3 -> "채팅에서 조사시킨 보고서를 ${Platform.current.label}용으로 올려요"; 1 -> "지역을 고르면 그 지역 지표로 이미지와 글이 만들어져요"; 2 -> "단지 실거래를 보고 알림을 받거나 ${Platform.current.label}용으로 만들어요"; else -> "지표를 누르면 ${Platform.current.label}용 그래프 이미지와 글이 만들어져요" },
                 fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
             PlatformBar()
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("전국 지표", "지역별", "실거래").forEachIndexed { i, label -> ChoicePill(label, mode == i) { onMode(i) } }
+            PillRow {
+                listOf("전국 지표", "지역별", "실거래", "보고서함").forEachIndexed { i, label -> ChoicePill(label, mode == i) { onMode(i) } }
             }
         }
         when (mode) {
             1 -> RegionPicker(stats, error, onRegion)
             2 -> DealHome(onDealRegion, onDealOpen, onDealTool)
+            3 -> ReportBox(onReport)
             else -> PullToRefreshBox(isRefreshing = loading, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
                 LazyColumn(contentPadding = PaddingValues(bottom = 12.dp), modifier = Modifier.fillMaxSize()) {
                     if (error != null) item { Text("⚠ $error", Modifier.padding(horizontal = 20.dp, vertical = 6.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }
