@@ -214,7 +214,7 @@ class SummarizerTest {
         val text = "힐스테이트 평촌역 더퍼스트 월세, 3년 치 실거래 182건 뜯어봤어.\n\n· 전용 79㎡대: 188만 → 190만 → 217만 (최근 1년 +14%)\n· 지금 네이버 월세 매물은 5건뿐, 매매는 57건\n\n자료: 국토부 실거래가(11/21 받음)"
         val p = CoverPrompt.build("힐스테이트 평촌역 더퍼스트 월세 분석", text, 7)
         // 내용: 제목·핵심 숫자·지역·주제 장면이 들어감
-        assertTrue(p.contains("큰 제목: \"힐스테이트 평촌역 더퍼스트 월세\"") && p.contains("평촌역 일대") && p.contains("4:5"))
+        assertTrue(p.contains("이미지의 주인공): \"힐스테이트 평촌역 더퍼스트 월세\"") && p.contains("평촌역 일대") && p.contains("4:5"))
         assertTrue(p.contains("\"전용 79㎡대 217만 +14%\"") && p.contains("\"지금 네이버 월세 매물은 5건뿐\"") && !p.contains("11/21"))
         assertTrue(Regex("열쇠").containsMatchIn(p)) // 월세 글은 열쇠·창가 장면
         assertTrue(CoverPrompt.build("법원 경매 물건", "최저가 3.83억", 1).contains("경매"))
@@ -227,6 +227,10 @@ class SummarizerTest {
         // 제목은 18자 안팎으로 낱말 단위 자르기, 괄호·이모지 뺌
         assertEquals("아파트 매매가격 주간 변동률", CoverPrompt.headline("📈 아파트 매매가격 · 주간 변동률 (2026년 11월)"))
         assertTrue(CoverPrompt.headline("안양시 동안구 관양동 힐스테이트 평촌역 더퍼스트 실거래가 정리").length <= 18)
+        // 그때와 지금: 지역 이름은 제목에서 빠지고 단지 이름이 큰 제목, 숫자는 변화 줄과 가장 최근 값
+        val h = CoverPrompt.build("공작부영아파트 · 그때와 지금", "안양시 동안구 관양동 아파트 2006년 vs 2026년 가격 비교\n\n공작부영아파트 60㎡\n2006년: 2억 8,020만원\n2016년: 3억 3,752만원\n2026년: 8억 576만원\n\n20년 사이에 5.3억이 벌어졌어요.", 2, context = "안양시 동안구 관양동 공작부영아파트 60㎡ 실거래가 그때와 지금")
+        assertTrue(h.contains("\"공작부영아파트 그때와 지금\"") && h.contains("\"20년 사이에 5.3억이 벌어졌어요\"") && h.contains("\"2026년 8억 576만\"") && h.contains("평촌역 일대"))
+        assertEquals("공작부영아파트 실거래가 그때와", CoverPrompt.headline("안양시 동안구 관양동 공작부영아파트 실거래가 그때와 지금"))
         assertTrue(CoverPrompt.figures("자료: 2026년\n#태그 3건\n그냥 문장").isEmpty())
     }
 }

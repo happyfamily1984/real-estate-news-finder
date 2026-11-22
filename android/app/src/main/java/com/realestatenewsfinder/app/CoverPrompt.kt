@@ -78,9 +78,14 @@ object CoverPrompt {
         else -> "한국 수도권 도시 풍경 (특정 건물을 똑같이 그리지 말 것)"
     }
 
-    /** 표지 큰 제목: 18자 안팎, 낱말 단위로 자름 */
+    private val REGION_WORD = Regex("^(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주|[가-힣]+(특별시|광역시|도|시|군|구|동|읍|면))$")
+
+    /** 표지 큰 제목: 단지 이름·주제가 주인공. 앞에 붙은 지역 이름(시·구·동)은 빼고 18자 안팎으로 낱말 단위로 자름 */
     fun headline(name: String): String {
-        val t = name.replace(EMOJI, "").replace(Regex("\\(.*?\\)"), "").replace("·", " ").replace("|", " ").replace(Regex("\\s+"), " ").trim()
+        var t = name.replace(EMOJI, "").replace(Regex("\\(.*?\\)"), "").replace("·", " ").replace("|", " ").replace(Regex("\\s+"), " ").trim()
+        val words = t.split(" ")
+        val lead = words.takeWhile { REGION_WORD.matches(it) }.size
+        if (lead in 1 until words.size) t = words.drop(lead).joinToString(" ")
         if (t.length <= 18) return t
         val out = StringBuilder()
         for (w in t.split(" ")) { if (out.length + w.length + 1 > 18 && out.isNotEmpty()) break; if (out.isNotEmpty()) out.append(' '); out.append(w) }
@@ -110,19 +115,23 @@ object CoverPrompt {
             val before = l.substring(0, m.range.first).split(Regex("[\\s,:(]+")).filter { it.isNotBlank() }.takeLast(3).joinToString(" ")
             return "$before ${m.value.trim()}".trim().take(24)
         }
-        val ranked = lines.sortedByDescending { l -> (if (l.listed) 4 else 0) + (if ("%" in l.text) 2 else 0) + (if ("억" in l.text || "만" in l.text) 1 else 0) }
-        return ranked.map { short(it.text) }.distinct().take(2)
+        // 변화를 말하는 줄(→, 올랐다, 차이…)과 %가 든 줄이 먼저. 점수가 같으면 뒤쪽(최근) 줄이 먼저
+        val change = Regex("→|올|오른|내렸|내린|떨어|벌어|차이|보다|상승|하락|증가|감소|뛰")
+        fun score(l: Line) = (if (change.containsMatchIn(l.text)) 3 else 0) + (if ("%" in l.text) 2 else 0) + (if ("억" in l.text || "만" in l.text) 1 else 0) + (if (l.listed) 1 else 0)
+        val ranked = lines.withIndex().sortedWith(compareByDescending<IndexedValue<Line>> { score(it.value) }.thenByDescending { it.index }).map { it.value }
+        return ranked.map { short(it.text).trimEnd('.', '!', '?', ' ') }.distinct().take(2)
     }
 
     /** 표지 프롬프트. seed가 바뀌면 그림 꼴·색·구도·장면이 바뀜 */
-    fun build(name: String, text: String, seed: Int): String {
-        val all = "$name\n$text"
+    /** title: 표지 큰 제목이 될 글 제목(단지 이름·주제). context: 지역 등 배경을 고를 때만 쓰는 글 이름 */
+    fun build(title: String, text: String, seed: Int, context: String = ""): String {
+        val all = "$title\n$context\n$text"
         val s = Math.floorMod(seed, 1_000_003)
         val style = STYLES[s % STYLES.size]
         val palette = PALETTES[(s / STYLES.size) % PALETTES.size]
         val layout = LAYOUTS[(s / 7) % LAYOUTS.size]
         val scene = scenes(all)[(s / 3) % 2]
-        val head = headline(name)
+        val head = headline(title)
         val nums = figures(text)
         return buildString {
             appendLine("부동산 정보 계정에 올릴 표지 이미지 1장을 만들어 줘.")
@@ -134,9 +143,9 @@ object CoverPrompt {
             appendLine("[구도] $layout")
             appendLine()
             appendLine("[이미지 안 글자] 아래 줄만, 띄어쓰기와 숫자까지 정확히 그대로 넣어 줘.")
-            appendLine("- 큰 제목: \"$head\"")
+            appendLine("- 큰 제목 (가장 크게, 이미지의 주인공): \"$head\"")
             nums.forEach { appendLine("- 작은 글씨: \"$it\"") }
-            appendLine("그 밖의 글자, 영어, 지어낸 숫자, 로고, 워터마크는 넣지 마.")
+            appendLine("그 밖의 글자, 영어, 지어낸 숫자, 로고, 워터마크는 넣지 마. 지역 이름(시·구·동)도 글자로 넣지 마.")
             appendLine()
             appendLine("[지킬 것]")
             appendLine("- 오른쪽 아래 모서리(가로 40%, 세로 10%)는 비워 둬. 계정 표시가 들어가.")

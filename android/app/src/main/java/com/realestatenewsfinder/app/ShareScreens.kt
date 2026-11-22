@@ -133,8 +133,9 @@ fun ThreadShareScreen(
     // 첫 이미지: 외부 AI로 만들 프롬프트(날짜·글·계정·'다른 프롬프트'에 따라 꼴이 바뀜) + 만든 이미지 첨부
     var coverShift by remember { mutableIntStateOf(0) }
     var cover by remember { mutableStateOf<Bitmap?>(null) }
-    val coverPrompt = remember(blogKey, text, coverShift, Account.current) {
-        CoverPrompt.build(blogKey, if (blogBodyText != null) blogBodyText + "\n" + text else text, CoverPrompt.seed(cacheId + blogKey, Account.current, LocalDate.now(KST), coverShift))
+    val coverPrompt = remember(title, blogKey, text, coverShift, Account.current) {
+        // 큰 제목은 화면 제목(단지 이름·주제), 지역은 배경을 고를 때만 씀
+        CoverPrompt.build(title, if (blogBodyText != null) blogBodyText + "\n" + text else text, CoverPrompt.seed(cacheId + blogKey, Account.current, LocalDate.now(KST), coverShift), context = blogKey)
     }
     LaunchedEffect(renderKey, render != null, cover) {
         files = null
