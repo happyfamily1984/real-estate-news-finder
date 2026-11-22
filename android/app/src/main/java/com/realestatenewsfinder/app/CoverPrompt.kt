@@ -80,19 +80,33 @@ object CoverPrompt {
 
     private val REGION_WORD = Regex("^(서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주|[가-힣]+(특별시|광역시|도|시|군|구|동|읍|면))$")
 
-    /** 표지 큰 제목: 단지 이름·주제가 주인공. 앞에 붙은 지역 이름(시·구·동)은 빼고 18자 안팎으로 낱말 단위로 자름 */
+    /** 표지 큰 제목: 단지 이름·주제가 주인공. 앞에 붙은 지역 이름(시·구·동)은 빼고, 26자를 넘으면 낱말 단위로 자름(끝에 'vs'·'와' 같은 잇는 말은 남기지 않음) */
     fun headline(name: String): String {
         var t = name.replace(EMOJI, "").replace(Regex("\\(.*?\\)"), "").replace("·", " ").replace("|", " ").replace(Regex("\\s+"), " ").trim()
         val words = t.split(" ")
         val lead = words.takeWhile { REGION_WORD.matches(it) }.size
         if (lead in 1 until words.size) t = words.drop(lead).joinToString(" ")
-        if (t.length <= 18) return t
-        val out = StringBuilder()
-        for (w in t.split(" ")) { if (out.length + w.length + 1 > 18 && out.isNotEmpty()) break; if (out.isNotEmpty()) out.append(' '); out.append(w) }
-        return out.toString().ifBlank { t.take(18) }
+        if (t.length <= MAX_HEAD) return t
+        val out = mutableListOf<String>()
+        for (w in t.split(" ")) { if (out.sumOf { it.length + 1 } + w.length > MAX_HEAD && out.isNotEmpty()) break; out += w }
+        while (out.size > 1 && out.last().lowercase() in setOf("vs", "와", "과", "및", "대비", "그리고")) out.removeAt(out.size - 1)
+        return out.joinToString(" ").ifBlank { t.take(MAX_HEAD) }
     }
 
-    private val NUM = Regex("[+\\-−]?\\d[\\d,.]*\\s*(억(\\s*\\d[\\d,]*만)?|만원?|%|건|곳|배)")
+    const val MAX_HEAD = 26
+
+    /** 숫자 + 단위. '216~270만'처럼 범위도 하나로 */
+    private val NUM = Regex("[+\\-−]?\\d[\\d,.]*(~\\d[\\d,.]*)?\\s*(억(\\s*\\d[\\d,]*만)?|만원?|%|건|곳|배)")
+
+    const val MAX_FIG = 34
+
+    /** 글에 적힌 자료 기준일: '2026-11-22', '2026.11.22', '2026년 11월 22일', '(11/22)' 꼴. 없으면 null */
+    fun asOf(text: String, today: LocalDate): LocalDate? {
+        Regex("(20\\d{2})[-.](\\d{1,2})[-.](\\d{1,2})").findAll(text).mapNotNull { m -> runCatching { LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt()) }.getOrNull() }.filter { !it.isAfter(today) }.maxOrNull()?.let { return it }
+        Regex("(20\\d{2})년 (\\d{1,2})월 (\\d{1,2})일").findAll(text).mapNotNull { m -> runCatching { LocalDate.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt()) }.getOrNull() }.filter { !it.isAfter(today) }.maxOrNull()?.let { return it }
+        Regex("(?<![\\d/])(\\d{1,2})/(\\d{1,2})(?![\\d/])").findAll(text).mapNotNull { m -> runCatching { LocalDate.of(today.year, m.groupValues[1].toInt(), m.groupValues[2].toInt()).let { d -> if (d.isAfter(today)) d.minusYears(1) else d } }.getOrNull() }.maxOrNull()?.let { return it }
+        return null
+    }
 
     /** 글에서 표지에 넣을 핵심 숫자 줄 (최대 2개, 줄마다 22자 안팎). 목록 줄(·, -)과 %·금액이 든 줄을 먼저 씀 */
     fun figures(text: String): List<String> {
@@ -102,12 +116,15 @@ object CoverPrompt {
             Line(t.trimStart('·', '-', '•', '✔', '■', '▶', '◆', '▣', '→', ' ').trim(), t.isNotEmpty() && t[0] in "·-•✔")
         }.filter { it.text.isNotEmpty() && NUM.containsMatchIn(it.text) && !it.text.startsWith("자료") && !it.text.startsWith("#") && !it.text.startsWith("http") && !it.text.startsWith("※") }
         fun short(l: String): String {
-            // "라벨: 값 → 값 → 마지막 값 (+14%)" 꼴은 라벨 + 마지막 값 + 괄호 속 %
+            // "라벨: 처음 값 → … → 마지막 값 (+14%)" 꼴은 라벨 + '처음 → 마지막' + 괄호 속 %. 비교(실거래 → 호가)가 둘 다 남게
             val label = l.substringBefore(':', "").trim().takeIf { ':' in l && it.length <= 12 }
             val rest = if (label != null) l.substringAfter(':') else l
-            val pct = Regex("\\(([^)]*%[^)]*)\\)").find(rest)?.groupValues?.get(1)?.let { Regex("[+\\-−]?\\d[\\d.]*%").find(it)?.value }
-            val last = rest.substringAfterLast('→').replace(Regex("\\(.*?\\)"), "").trim()
-            if (label != null) return listOfNotNull(label, NUM.find(last)?.value?.trim() ?: last.take(10), pct).joinToString(" ").take(24)
+            val pct = Regex("\\(([^)]*%[^)]*)\\)").find(rest)?.groupValues?.get(1)?.let { Regex("[+\\-−]?\\d[\\d.]*(~\\d[\\d.]*)?%").find(it)?.value }
+            val plain = rest.replace(Regex("\\(.*?\\)"), "")
+            val steps = plain.split('→').map { seg -> NUM.find(seg)?.value?.trim() }
+            val value = if (steps.size >= 2 && steps.first() != null && steps.last() != null) "${steps.first()} → ${steps.last()}" else NUM.find(plain)?.value?.trim() ?: plain.trim().take(10)
+            if (label != null) return listOfNotNull(label, value, pct?.let { "($it)" }).joinToString(" ").take(MAX_FIG)
+            if (steps.size >= 2 && steps.first() != null && steps.last() != null) return "$value${pct?.let { " ($it)" }.orEmpty()}"
             if (l.length <= 22) return l
             val clause = l.split(Regex("[,.]")).firstOrNull { NUM.containsMatchIn(it) }?.trim().orEmpty()
             if (clause.length in 1..22) return clause
@@ -124,7 +141,8 @@ object CoverPrompt {
 
     /** 표지 프롬프트. seed가 바뀌면 그림 꼴·색·구도·장면이 바뀜 */
     /** title: 표지 큰 제목이 될 글 제목(단지 이름·주제). context: 지역 등 배경을 고를 때만 쓰는 글 이름 */
-    fun build(title: String, text: String, seed: Int, context: String = ""): String {
+    /** asOf: 자료 기준일. 시세 정보는 기준일이 가장 중요해서 작게라도 꼭 넣음 */
+    fun build(title: String, text: String, seed: Int, context: String = "", asOf: LocalDate? = null): String {
         val all = "$title\n$context\n$text"
         val s = Math.floorMod(seed, 1_000_003)
         val style = STYLES[s % STYLES.size]
@@ -145,11 +163,14 @@ object CoverPrompt {
             appendLine("[이미지 안 글자] 아래 줄만, 띄어쓰기와 숫자까지 정확히 그대로 넣어 줘.")
             appendLine("- 큰 제목 (가장 크게, 이미지의 주인공): \"$head\"")
             nums.forEach { appendLine("- 작은 글씨: \"$it\"") }
+            if (asOf != null) appendLine("- 기준일 (작게, 한쪽 구석에 꼭): \"${asOf.year}.${"%02d".format(asOf.monthValue)}.${"%02d".format(asOf.dayOfMonth)} 기준\"")
             appendLine("그 밖의 글자, 영어, 지어낸 숫자, 로고, 워터마크는 넣지 마. 지역 이름(시·구·동)도 글자로 넣지 마.")
             appendLine()
             appendLine("[지킬 것]")
             appendLine("- 오른쪽 아래 모서리(가로 40%, 세로 10%)는 비워 둬. 계정 표시가 들어가.")
             appendLine("- 휴대폰 화면에서 작게 봐도 제목이 바로 읽히게 크게.")
+            if (asOf != null) appendLine("- 기준일은 작아도 빠뜨리지 마. 시세 정보는 언제 기준인지가 가장 중요해.")
+            if (nums.any { "→" in it }) appendLine("- '→' 앞뒤 숫자는 둘 다 넣어 비교가 보이게 해 줘.")
             appendLine("- 믿음이 가는 정보 표지 느낌. 공포·과장 표현, 실존 회사 로고는 쓰지 마.")
         }.trim()
     }

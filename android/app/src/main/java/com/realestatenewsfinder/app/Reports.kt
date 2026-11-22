@@ -178,5 +178,6 @@ fun ReportShareScreen(
         renderKey = r.id to Account.current, render = { Reports.render(ctx, r, tag, source) },
         onBack = onBack, onSent = { UploadLog.mark(ctx, "report-" + r.id); onSent() },
         blogTitleText = r.blogTitle, blogBodyText = r.blogFull(), coverFirst = true,
+        dataDate = runCatching { LocalDate.parse(r.date) }.getOrNull(),
     )
 }
