@@ -115,6 +115,11 @@ class AndroidTest {
         assertEquals(android.content.Intent.ACTION_SEND_MULTIPLE, many.action)
         assertEquals("제목", many.getStringExtra(android.content.Intent.EXTRA_SUBJECT)); assertEquals("본문", many.getStringExtra(android.content.Intent.EXTRA_TEXT))
         assertEquals(android.content.Intent.ACTION_SEND, PlatformKit.intent(uris.take(1), "", "본문").action)
+        // 첨부 이미지: 4:5로 자르고 계정 표시를 얹음
+        val wide = android.graphics.Bitmap.createBitmap(1600, 900, android.graphics.Bitmap.Config.ARGB_8888)
+        val fitted = CoverPrompt.fit(wide)
+        assertEquals(1080, fitted.width); assertEquals(1350, fitted.height)
+        assertEquals(1350, CoverPrompt.withMark(fitted, Watermark.Mark("부동산 알려주는 스레드", "@test")).height)
         try {
             Platform.select(app, Platform.BLOG)
             assertTrue(!Prefs(app).casualNow)
@@ -124,6 +129,9 @@ class AndroidTest {
             // 블로그 글 아래쪽: 중개사 한마디 칸, 글 틀, 평가 안내
             compose.onNode(androidx.compose.ui.test.hasText("다른 틀로")).performScrollTo()
             compose.onRoot().captureRoboImage("build/screens/platform-blog-extras.png")
+            // 첫 이미지 칸: 프롬프트 + 첨부 버튼
+            compose.onNode(androidx.compose.ui.test.hasText("첫 이미지 직접 만들기")).performScrollTo()
+            compose.onRoot().captureRoboImage("build/screens/cover-box.png")
         } finally { Platform.select(app, Platform.THREADS) }
     }
 

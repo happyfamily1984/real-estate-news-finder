@@ -177,6 +177,6 @@ fun ReportShareScreen(
         text = text, onText = { text = it },
         renderKey = r.id to Account.current, render = { Reports.render(ctx, r, tag, source) },
         onBack = onBack, onSent = { UploadLog.mark(ctx, "report-" + r.id); onSent() },
-        blogTitleText = r.blogTitle, blogBodyText = r.blogFull(),
+        blogTitleText = r.blogTitle, blogBodyText = r.blogFull(), coverFirst = true,
     )
 }

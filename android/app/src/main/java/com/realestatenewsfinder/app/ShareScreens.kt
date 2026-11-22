@@ -77,6 +77,8 @@ fun ThreadShareScreen(
     blogName: String? = null,
     /** 블로그 제목·본문을 미리 써 둔 경우(보고서): 화면 제목으로 만들지 않고 이것을 씀 */
     blogTitleText: String? = null, blogBodyText: String? = null,
+    /** 앱이 만든 첫 장이 제목만 있는 표지인지(보고서). 그러면 첨부한 표지가 그 자리를 대신함 */
+    coverFirst: Boolean = false,
     controls: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
@@ -128,11 +130,18 @@ fun ThreadShareScreen(
     }
     BackHandler(onBack = onBack)
 
-    LaunchedEffect(renderKey, render != null) {
+    // 첫 이미지: 외부 AI로 만들 프롬프트(날짜·글·계정·'다른 프롬프트'에 따라 꼴이 바뀜) + 만든 이미지 첨부
+    var coverShift by remember { mutableIntStateOf(0) }
+    var cover by remember { mutableStateOf<Bitmap?>(null) }
+    val coverPrompt = remember(blogKey, text, coverShift, Account.current) {
+        CoverPrompt.build(blogKey, if (blogBodyText != null) blogBodyText + "\n" + text else text, CoverPrompt.seed(cacheId + blogKey, Account.current, LocalDate.now(KST), coverShift))
+    }
+    LaunchedEffect(renderKey, render != null, cover) {
         files = null
         if (render == null) { pieces = emptyList(); return@LaunchedEffect }
         val (p, f) = withContext(Dispatchers.Default) {
-            val imgs = runCatching { render() }.getOrDefault(emptyList())
+            val made = runCatching { render() }.getOrDefault(emptyList())
+            val imgs = cover?.let { c -> listOf(CoverPrompt.withMark(c, Watermark.of(ctx))) + if (coverFirst) made.drop(1) else made } ?: made
             imgs to ThreadsKit.writeCache(ctx, cacheId, imgs)
         }
         pieces = p; files = f
@@ -184,6 +193,10 @@ fun ThreadShareScreen(
                     }
                     val note = status ?: if (files == null) "이미지 만드는 중…" else if (pieces.isEmpty()) "이미지로 만들 자료가 없어요. 글만 복사해서 쓸 수 있어요." else null
                     if (note != null) Text(note, Modifier.padding(16.dp), color = muted, fontSize = 14.sp)
+                    if (render != null) {
+                        Spacer(Modifier.height(14.dp))
+                        CoverBox(coverPrompt, cover, onAttach = { cover = it }, onClear = { cover = null }, onNext = { coverShift++ }, replaces = coverFirst)
+                    }
                 }
             }
             Card(colors = cardColors, shape = RoundedCornerShape(18.dp)) {

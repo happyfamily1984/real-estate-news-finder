@@ -207,4 +207,26 @@ class SummarizerTest {
         assertEquals(0, BlogLog.otherAccount(log, "a", 1, now)!!.account)
         assertNull(BlogLog.otherAccount(log, "a", 0, now)); assertNull(BlogLog.otherAccount(log, "old", 1, now)); assertNull(BlogLog.otherAccount(log, "b", 1, now))
     }
+
+    // ----- 첫 이미지 프롬프트 -----
+    @Test
+    fun coverPrompt() {
+        val text = "힐스테이트 평촌역 더퍼스트 월세, 3년 치 실거래 182건 뜯어봤어.\n\n· 전용 79㎡대: 188만 → 190만 → 217만 (최근 1년 +14%)\n· 지금 네이버 월세 매물은 5건뿐, 매매는 57건\n\n자료: 국토부 실거래가(11/21 받음)"
+        val p = CoverPrompt.build("힐스테이트 평촌역 더퍼스트 월세 분석", text, 7)
+        // 내용: 제목·핵심 숫자·지역·주제 장면이 들어감
+        assertTrue(p.contains("큰 제목: \"힐스테이트 평촌역 더퍼스트 월세\"") && p.contains("평촌역 일대") && p.contains("4:5"))
+        assertTrue(p.contains("\"전용 79㎡대 217만 +14%\"") && p.contains("\"지금 네이버 월세 매물은 5건뿐\"") && !p.contains("11/21"))
+        assertTrue(Regex("열쇠").containsMatchIn(p)) // 월세 글은 열쇠·창가 장면
+        assertTrue(CoverPrompt.build("법원 경매 물건", "최저가 3.83억", 1).contains("경매"))
+        // 꼴: seed가 바뀌면 다른 프롬프트, 같으면 같은 프롬프트
+        val many = (0 until 40).map { CoverPrompt.build("아파트 매매가격 주간 변동률", "전국 +0.07%", it) }.toSet()
+        assertTrue(many.size >= 20)
+        assertEquals(CoverPrompt.build("a", "1건", 3), CoverPrompt.build("a", "1건", 3))
+        val day = java.time.LocalDate.of(2026, 11, 22)
+        assertTrue(CoverPrompt.seed("k", 0, day, 0) != CoverPrompt.seed("k", 1, day, 0) && CoverPrompt.seed("k", 0, day, 0) != CoverPrompt.seed("k", 0, day, 1))
+        // 제목은 18자 안팎으로 낱말 단위 자르기, 괄호·이모지 뺌
+        assertEquals("아파트 매매가격 주간 변동률", CoverPrompt.headline("📈 아파트 매매가격 · 주간 변동률 (2026년 11월)"))
+        assertTrue(CoverPrompt.headline("안양시 동안구 관양동 힐스테이트 평촌역 더퍼스트 실거래가 정리").length <= 18)
+        assertTrue(CoverPrompt.figures("자료: 2026년\n#태그 3건\n그냥 문장").isEmpty())
+    }
 }
