@@ -79,6 +79,8 @@ fun ThreadShareScreen(
     blogTitleText: String? = null, blogBodyText: String? = null,
     /** 앱이 만든 첫 장이 제목만 있는 표지인지(보고서). 그러면 첨부한 표지가 그 자리를 대신함 */
     coverFirst: Boolean = false,
+    /** 자료 기준일 (보고서 날짜 등). 없으면 글에 적힌 날짜, 그것도 없으면 오늘 */
+    dataDate: LocalDate? = null,
     controls: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
@@ -135,7 +137,9 @@ fun ThreadShareScreen(
     var cover by remember { mutableStateOf<Bitmap?>(null) }
     val coverPrompt = remember(title, blogKey, text, coverShift, Account.current) {
         // 큰 제목은 화면 제목(단지 이름·주제), 지역은 배경을 고를 때만 씀
-        CoverPrompt.build(title, if (blogBodyText != null) blogBodyText + "\n" + text else text, CoverPrompt.seed(cacheId + blogKey, Account.current, LocalDate.now(KST), coverShift), context = blogKey)
+        val all = if (blogBodyText != null) blogBodyText + "\n" + text else text
+        val today = LocalDate.now(KST)
+        CoverPrompt.build(title, all, CoverPrompt.seed(cacheId + blogKey, Account.current, today, coverShift), context = blogKey, asOf = dataDate ?: CoverPrompt.asOf(all, today) ?: today)
     }
     LaunchedEffect(renderKey, render != null, cover) {
         files = null
