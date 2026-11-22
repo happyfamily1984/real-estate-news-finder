@@ -110,7 +110,7 @@ fun ThreadShareScreen(
     var evalRun by remember { mutableIntStateOf(0) }
     LaunchedEffect(blog, blogBase, evalRun) {
         if (!blog) return@LaunchedEffect
-        if (BlogMix.evalTargets(blogBase).isEmpty()) { evalNote = ""; return@LaunchedEffect }
+        if (BlogMix.hasEvals(blogBase) || BlogMix.evalTargets(blogBase).isEmpty()) { evalNote = ""; return@LaunchedEffect }
         if (!Summarizer.hasKey(ctx)) { evalNote = "설정에 무료 AI 키(Gemini 등)를 넣으면 숫자 단락마다 평가가 들어가요."; return@LaunchedEffect }
         evalNote = "working"
         delay(1200) // 고르기를 바꾸는 동안에는 기다림

@@ -77,6 +77,9 @@ object BlogMix {
     // ---------- 평가 ----------
     const val MAX_EVALS = 5
 
+    /** 이미 평가(→ 줄 등)가 들어 있는 글인지. 보고서처럼 사람이 평가를 써 둔 글에는 AI 평가를 더하지 않음 */
+    fun hasEvals(body: String): Boolean = blocks(body).any { b -> STYLES.any { b.startsWith(it.evalMark) } }
+
     /** 평가를 붙일 단락의 위치: 숫자가 든 본문 단락 (소제목·참고·출처·태그·이미 붙은 평가 제외) */
     fun evalTargets(body: String): List<Int> {
         val bs = blocks(body)
