@@ -197,6 +197,7 @@ class SummarizerTest {
         val out = BlogMix.withEvals(b, ev, 0)
         assertTrue(out.contains("2. 나 20억\n\n→ 1위와 2위 차이가 꽤 큰 편입니다.\n\n■ 마무리"))
         assertTrue(BlogMix.evalTargets(out).isEmpty()) // 평가가 달린 단락에는 또 붙이지 않음
+        assertTrue(BlogMix.hasEvals(out) && !BlogMix.hasEvals(b)) // 평가를 써 둔 글(보고서)에는 AI 평가를 아예 안 붙임
         assertTrue(BlogMix.evalTargets("첫 문단입니다 2026년 기준으로 썼어요.\n\n참고 자료\n- 국토교통부 (2026-11-21 받음)").size == 1) // 참고 자료에는 붙이지 않음
         // AI 블로그 지시문도 틀마다 다르고, 평가를 쓰라고 함
         assertEquals(4, (0..3).map { Summarizer.blogSystem("news", emptyList(), "", it) }.distinct().size)
