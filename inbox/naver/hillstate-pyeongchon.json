@@ -1,9 +1,9 @@
 {
-  "capturedAt": "2026-11-22",
+  "capturedAt": "2026-11-23",
   "source": "네이버 부동산",
   "listings": [
     {"type": "매매", "area": 79, "price": "7억 5,000", "floor": "32/34", "dong": "104동", "direction": "남향", "memo": "10년이내 대형평수 화장실두개 방세개", "confirmedAt": "2026-11-20", "articleNo": ""},
-    {"type": "매매", "area": 68, "price": "6억 2,000", "floor": "16/34", "dong": "103동", "direction": "북서향", "memo": "10년이내 화장실한개 방세개 중층", "confirmedAt": "2026-11-20", "articleNo": ""},
+    {"type": "매매", "area": 68, "price": "6억 2,000", "floor": "16/34", "dong": "103동", "direction": "북서향", "memo": "10년이내 화장실한개 방세개 중층", "confirmedAt": "2026-11-23", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "6억 9,000", "floor": "11/34", "dong": "103동", "direction": "남서향", "memo": "10년이내 대형평수 방세개 화장실두개", "confirmedAt": "2026-11-20", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "6억 9,000", "floor": "7/34", "dong": "103동", "direction": "남서향", "memo": "10년이내 화장실두개 대형평수", "confirmedAt": "2026-11-20", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "7억 2,000", "floor": "12/29", "dong": "101동", "direction": "남향", "memo": "10년이내 대형평수 방세개 화장실두개", "confirmedAt": "2026-11-20", "articleNo": ""},
@@ -13,8 +13,8 @@
     {"type": "전세", "area": 68, "price": "5억", "floor": "고/34", "dong": "103동", "direction": "남향", "memo": "귀한전세, 고층의 뷰와 채광이 좋은 집, 실내컨디션 굿", "confirmedAt": "2026-11-20", "articleNo": ""},
     {"type": "매매", "area": 78, "price": "7억 8,000", "floor": "중/29", "dong": "101동", "direction": "남향", "memo": "입주협의, 방3개, 화장실2개, 방향채광실내컨디션 굿", "confirmedAt": "2026-11-20", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "7억 5,000", "floor": "고/34", "dong": "103동", "direction": "남서향", "memo": "입주협의, 고층의 시원한 뷰와 채광이 좋은 집", "confirmedAt": "2026-11-20", "articleNo": ""},
-    {"type": "매매", "area": 78, "price": "7억", "floor": "고/29", "dong": "102동", "direction": "남향", "memo": "10년이내 대형평수 방세개 화장실두개", "confirmedAt": "2026-11-20", "articleNo": ""},
-    {"type": "매매", "area": 79, "price": "7억 2,000", "floor": "중/34", "dong": "103동", "direction": "남동향", "memo": "10년이내 화장실두개 대형평수 방세개", "confirmedAt": "2026-11-20", "articleNo": ""},
+    {"type": "매매", "area": 78, "price": "7억", "floor": "고/29", "dong": "102동", "direction": "남향", "memo": "10년이내 대형평수 방세개 화장실두개", "confirmedAt": "2026-11-20", "articleNo": "2663004470"},
+    {"type": "매매", "area": 79, "price": "7억 2,000", "floor": "중/34", "dong": "103동", "direction": "남동향", "memo": "10년이내 화장실두개 대형평수 방세개", "confirmedAt": "2026-11-23", "articleNo": "2663438800"},
     {"type": "매매", "area": 68, "price": "6억", "floor": "19/34", "dong": "104동", "direction": "서향", "memo": "10년이내 화장실한개 방두개", "confirmedAt": "2026-11-13", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "7억~7억 2,000", "floor": "중/34", "dong": "103동", "direction": "남향", "memo": "10년이내 대형평수 방세개", "confirmedAt": "2026-11-19", "articleNo": ""},
     {"type": "월세", "area": 68, "price": "3,000/220", "floor": "저/29", "dong": "101동", "direction": "서향", "memo": "전입, 안정적 트인뷰, 방2 화1, 넓은거실주방, 평촌역세권", "confirmedAt": "2026-11-19", "articleNo": ""},
@@ -32,7 +32,7 @@
     {"type": "매매", "area": 79, "price": "7억 3,000", "floor": "고/34", "dong": "104동", "direction": "남서향", "memo": "입주물. 선호하는거실 팬트리 넓은구조. 관리잘되어있는 추천매물", "confirmedAt": "2026-11-16", "articleNo": ""},
     {"type": "매매", "area": 68, "price": "5억 5,000", "floor": "13/29", "dong": "102동", "direction": "북동향", "memo": "전세낀 투자물, 27년7월만기, 수납 좋고 인기있는 타입, 전자계약가능", "confirmedAt": "2026-11-09", "articleNo": ""},
     {"type": "매매", "area": 68, "price": "6억 5,000", "floor": "고/29", "dong": "101동", "direction": "남서향", "memo": "10년이내 화장실한개 방두개", "confirmedAt": "2026-11-13", "articleNo": ""},
-    {"type": "매매", "area": 78, "price": "7억 3,000", "floor": "중/29", "dong": "101동", "direction": "북동향", "memo": "10년이내 화장실두개 대형평수 방세개", "confirmedAt": "2026-11-13", "articleNo": ""},
+    {"type": "매매", "area": 78, "price": "7억 3,000", "floor": "중/29", "dong": "101동", "direction": "북동향", "memo": "10년이내 화장실두개 대형평수 방세개", "confirmedAt": "2026-11-13", "articleNo": "2661730100"},
     {"type": "매매", "area": 78, "price": "7억", "floor": "저/29", "dong": "101동", "direction": "남서향", "memo": "입주협의, 실내컨디션 좋음", "confirmedAt": "2026-11-13", "articleNo": ""},
     {"type": "매매", "area": 78, "price": "7억 3,000", "floor": "중/29", "dong": "101동", "direction": "남향", "memo": "전망좋음. 최고입지. 선호하는 A타입. 실내관리잘되어있음", "confirmedAt": "2026-11-13", "articleNo": "2661665082"},
     {"type": "매매", "area": 68, "price": "6억", "floor": "저/29", "dong": "102동", "direction": "남서향", "memo": "10년이내 방두개 화장실한개 세대당1대", "confirmedAt": "2026-11-13", "articleNo": ""},
@@ -48,7 +48,7 @@
     {"type": "매매", "area": 78, "price": "7억", "floor": "고/29", "dong": "102동", "direction": "남향", "memo": "임차인세안고매매, 채광 뷰 멋진집, 실내컨디션 굿", "confirmedAt": "2026-11-05", "articleNo": "2659906411"},
     {"type": "매매", "area": 79, "price": "7억 8,000", "floor": "고/34", "dong": "104동", "direction": "남동향", "memo": "관악산이 한 눈에 그림 같은 뷰, 넓은 방 3 화2, 입주물", "confirmedAt": "2026-11-05", "articleNo": ""},
     {"type": "매매", "area": 68, "price": "6억 3,000", "floor": "고/29", "dong": "102동", "direction": "남향", "memo": "전망 좋은 2룸, 신혼부부 강추, 27.4. 하순 협의 입주물,", "confirmedAt": "2026-11-04", "articleNo": ""},
-    {"type": "월세", "area": 68, "price": "5,000/180", "floor": "고/29", "dong": "101동", "direction": "남서향", "memo": "전망 좋은 2룸, 하시 입주,전입X", "confirmedAt": "2026-11-04", "articleNo": ""},
+    {"type": "월세", "area": 68, "price": "5,000/180", "floor": "고/29", "dong": "101동", "direction": "남서향", "memo": "전망 좋은 2룸, 하시 입주,전입X", "confirmedAt": "2026-11-23", "articleNo": ""},
     {"type": "매매", "area": 78, "price": "7억 1,000", "floor": "중/29", "dong": "102동", "direction": "남향", "memo": "트인뷰,관리잘된집,평촌역5분,관공서,마트,한림대병원 역세권입니다", "confirmedAt": "2026-11-04", "articleNo": ""},
     {"type": "매매", "area": 78, "price": "6억 8,000", "floor": "고/29", "dong": "101동", "direction": "북동향", "memo": "평촌역세권. 입주물. 확트인 고층뷰", "confirmedAt": "2026-11-03", "articleNo": ""},
     {"type": "매매", "area": 68, "price": "6억 2,000", "floor": "중/34", "dong": "103동", "direction": "북동향", "memo": "방3화1,편리한 생활권,평촌역도보5분,세안고", "confirmedAt": "2026-11-04", "articleNo": ""},
@@ -62,7 +62,6 @@
     {"type": "매매", "area": 78, "price": "7억 3,000", "floor": "고/29", "dong": "101동", "direction": "남향", "memo": "고층뷰 평촌신도시한눈에 볼수있는집 . 상태아주좋음. 보시면 맘에드는집", "confirmedAt": "2026-10-29", "articleNo": ""},
     {"type": "매매", "area": 79, "price": "7억 2,000", "floor": "고/29", "dong": "101동", "direction": "남향", "memo": "층간소음걱정없는집.세안고", "confirmedAt": "2026-10-29", "articleNo": ""},
     {"type": "월세", "area": 79, "price": "500/260", "floor": "고/34", "dong": "104동", "direction": "남동향", "memo": "빠른입주가능. 개월수협의. 전입불가", "confirmedAt": "2026-10-26", "articleNo": ""},
-    {"type": "매매", "area": 79, "price": "7억 7,000", "floor": "고/34", "dong": "103동", "direction": "남향", "memo": "전망좋은 남향. 항상밝은집. 아주관리잘된집", "confirmedAt": "2026-10-24", "articleNo": ""},
-    {"type": "매매", "area": 68, "price": "6억 2,000", "floor": "중/29", "dong": "101동", "direction": "남서향", "memo": "평촌역세권. 트인뷰. 개방감있는2룸구조. 전세안고", "confirmedAt": "2026-10-23", "articleNo": "2657319820"}
+    {"type": "매매", "area": 79, "price": "7억 7,000", "floor": "고/34", "dong": "103동", "direction": "남향", "memo": "전망좋은 남향. 항상밝은집. 아주관리잘된집", "confirmedAt": "2026-10-24", "articleNo": ""}
   ]
 }
