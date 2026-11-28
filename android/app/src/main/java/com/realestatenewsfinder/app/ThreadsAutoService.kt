@@ -138,7 +138,7 @@ class ThreadsAutoService : AccessibilityService() {
         BlogAuto.pending?.let { runCatching { runBlog(it) }; return }
         val job = ThreadsAuto.pending ?: return
         val elapsed = System.currentTimeMillis() - job.startedAt
-        if (elapsed > 30_000) { ThreadsAuto.pending = null; return }
+        if (elapsed > 30_000) { ThreadsAuto.pending = null; ThreadsAuto.note("끝: 30초 안에 스레드 글쓰기 칸을 찾지 못함"); return }
         val root = rootInActiveWindow ?: return
         if (root.packageName != ThreadsKit.THREADS_PACKAGE) return
 
@@ -149,6 +149,7 @@ class ThreadsAutoService : AccessibilityService() {
             val current = if (input.isShowingHintText) "" else input.text?.toString().orEmpty()
             if (current.contains(job.text.take(15))) return // 스레드가 이미 본문을 받아 넣은 경우
             input.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            ThreadsAuto.note("글쓰기 칸 찾음 (${elapsed / 100 / 10.0}초, 사진 ${all(root).count { it.className?.toString()?.contains("Image") == true }}개 요소)")
             // 붙여넣기로 입력 (본문은 올리기 직전에 클립보드에 복사해 둠).
             // 글자를 강제로 바꿔 넣는 방식(SET_TEXT)은 스레드 입력창 내부 상태와 어긋나 이후 줄바꿈·수정이 꼬일 수 있음
             val ok = input.performAction(AccessibilityNodeInfo.ACTION_PASTE) || run {
@@ -157,6 +158,7 @@ class ThreadsAutoService : AccessibilityService() {
                 }
                 input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             }
+            ThreadsAuto.note("본문 넣기 → ${if (ok) "됨" else "실패"}")
             if (ok) finish()
             return
         }
@@ -169,6 +171,7 @@ class ThreadsAutoService : AccessibilityService() {
             var target = btn
             while (target != null && !target.isClickable) target = target.parent
             if (target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) job.composeClicked = true
+            ThreadsAuto.note("글쓰기 화면이 안 열려서 새 스레드 버튼 → ${if (job.composeClicked) "누름" else "없음"} (사진은 안 붙음)")
         }
     }
 
@@ -339,7 +342,8 @@ class ThreadsAutoService : AccessibilityService() {
         val files = job.files; val text = job.text
         if (files != null && text != null) {
             ThreadsAuto.start(text)
-            runCatching { ThreadsKit.shareToThreads(this, files, text) }
+            val r = runCatching { ThreadsKit.shareToThreads(this, files, text) }
+            ThreadsAuto.note("사진 ${files.size}장·글 보내기 → ${r.exceptionOrNull()?.let { "실패: ${it.javaClass.simpleName} ${it.message?.take(60)}" } ?: "보냄"}")
         }
     }
 
