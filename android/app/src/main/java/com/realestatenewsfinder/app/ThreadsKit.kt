@@ -198,7 +198,7 @@ object ThreadsKit {
         if (ThreadsAuto.isEnabled(ctx) && prefs.autoSwitchAccount && account.isNotBlank() && isThreadsInstalled(ctx) &&
             ThreadsAuto.startSwitch(ctx, account, files, text)
         ) return
-        if (ThreadsAuto.isEnabled(ctx)) ThreadsAuto.start(text)
+        if (ThreadsAuto.isEnabled(ctx)) { ThreadsAuto.log = ""; ThreadsAuto.note("계정 확인 없이 바로 보냄 (사진 ${files.size}장)"); ThreadsAuto.start(text) }
         shareToThreads(ctx, files, text)
     }
 }

@@ -330,7 +330,10 @@ fun SettingsScreen(feed: Feed?, onBack: (() -> Unit)? = null, onSetup: (() -> Un
                     // 전환 기록: 안 될 때 어디서 막혔는지 확인용 (이 화면을 캡처해서 보내면 됨)
                     var showLog by remember { mutableStateOf(false) }
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { showLog = !showLog }) { Text(if (showLog) "전환 기록 닫기" else "전환 기록 보기") }
+                    Row {
+                        TextButton(onClick = { showLog = !showLog }) { Text(if (showLog) "전환 기록 닫기" else "전환 기록 보기") }
+                        TextButton(onClick = { ThreadsKit.copy(ctx, "전환 기록", ThreadsAuto.log.ifBlank { "기록 없음" }) }) { Text("기록 복사") }
+                    }
                     Text("앱 버전 ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (showLog) Text(ThreadsAuto.log.ifBlank { "아직 기록이 없어요." }, fontSize = 11.sp, lineHeight = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
