@@ -179,6 +179,16 @@ class ThreadsAutoService : AccessibilityService() {
         return n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) })
     }
 
+    /** 제목을 클립보드에 잠깐 넣고 붙여넣기. 끝나면 본문을 다시 복사해 둠 (본문 붙여넣기 안내가 맞도록) */
+    private fun pasteTitle(n: AccessibilityNodeInfo, job: BlogAuto.Job): Boolean {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("제목", job.title))
+        n.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val ok = n.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("본문", job.body))
+        return ok
+    }
+
     private fun hintOf(n: AccessibilityNodeInfo) = (if (android.os.Build.VERSION.SDK_INT >= 26) n.hintText?.toString() else null).orEmpty()
 
     /**
@@ -216,7 +226,8 @@ class ThreadsAutoService : AccessibilityService() {
             if (job.title.isBlank()) { job.titleDone = true; return }
             val t = edits.firstOrNull { isTitle(it) }
             if (t != null) {
-                val ok = setText(t, job.title)
+                // 글자 넣기가 안 먹는 편집기면 제목을 잠깐 복사해 붙여넣고, 다시 본문을 복사해 둠
+                val ok = setText(t, job.title) || pasteTitle(t, job)
                 ThreadsAuto.note("제목 넣기 → ${if (ok) "됨" else "실패"}")
                 if (ok || ++job.titleTries >= 3) job.titleDone = true
             } else if (!job.titleClicked) {
@@ -224,7 +235,14 @@ class ThreadsAutoService : AccessibilityService() {
                 val lbl = nodes.firstOrNull { label(it).trim() == "제목" }
                 job.titleClicked = true
                 ThreadsAuto.note("제목 자리 누르기 → ${if (lbl != null && press(lbl)) "누름" else "없음"}")
-            } else if (++job.titleTries >= 4) { job.titleDone = true; ThreadsAuto.note("제목 칸을 찾지 못함") }
+            } else {
+                // 눌렀는데도 입력칸으로 안 잡히면 커서가 놓인 자리(제목 칸)에 붙여넣기
+                val f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                val ok = f != null && (setText(f, job.title) || pasteTitle(f, job))
+                ThreadsAuto.note("커서 자리에 제목 넣기(${f?.className?.toString()?.substringAfterLast('.') ?: "커서 없음"}) → ${if (ok) "됨" else "실패"}")
+                if (ok) job.titleDone = true
+                else if (++job.titleTries >= 4) { job.titleDone = true; ThreadsAuto.note("제목 칸을 찾지 못함"); Toast.makeText(this, "제목은 직접 넣어 주세요. 앱의 '제목 복사'를 쓰면 돼요.", Toast.LENGTH_LONG).show() }
+            }
             return
         }
         val body = edits.firstOrNull { !isTitle(it) }

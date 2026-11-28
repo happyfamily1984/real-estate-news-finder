@@ -244,6 +244,9 @@ class SummarizerTest {
         assertEquals(java.time.LocalDate.of(2026, 11, 21), CoverPrompt.asOf("2026년 11월 21일 기준", today))
         assertNull(CoverPrompt.asOf("날짜 없음 3건", today))
         assertEquals("평촌아크로타워 오피스텔 전월세 실거래가", CoverPrompt.headline("평촌아크로타워 오피스텔 전월세 실거래가 vs 네이버 호가"))
+        // 숫자 속 소수점에서 자르지 않음 ("6.3억"이 "3억"이 되면 안 됨)
+        val hy = CoverPrompt.figures("지금 호가 (중간값)\n· 41㎡ 6.3억 (실거래보다 11% 높음), 85㎡는 거래 적음")
+        assertTrue(hy.first().startsWith("41㎡ 6.3억"))
         assertTrue(CoverPrompt.figures("자료: 2026년\n#태그 3건\n그냥 문장").isEmpty())
     }
 }

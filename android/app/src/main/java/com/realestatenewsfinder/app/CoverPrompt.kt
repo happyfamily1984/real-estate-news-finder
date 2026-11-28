@@ -126,7 +126,8 @@ object CoverPrompt {
             if (label != null) return listOfNotNull(label, value, pct?.let { "($it)" }).joinToString(" ").take(MAX_FIG)
             if (steps.size >= 2 && steps.first() != null && steps.last() != null) return "$value${pct?.let { " ($it)" }.orEmpty()}"
             if (l.length <= 22) return l
-            val clause = l.split(Regex("[,.]")).firstOrNull { NUM.containsMatchIn(it) }?.trim().orEmpty()
+            // 쉼표·마침표로 자르되 숫자 속 점·쉼표(6.3억, 3,000만)는 자르지 않음
+            val clause = l.split(Regex("(?<!\\d)[,.]|[,.](?!\\d)")).firstOrNull { NUM.containsMatchIn(it) }?.trim().orEmpty()
             if (clause.length in 1..22) return clause
             val m = NUM.find(l) ?: return l.take(22)
             val before = l.substring(0, m.range.first).split(Regex("[\\s,:(]+")).filter { it.isNotBlank() }.takeLast(3).joinToString(" ")
